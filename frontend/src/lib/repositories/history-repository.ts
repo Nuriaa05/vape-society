@@ -67,4 +67,16 @@ export const historyRepository = {
       })),
     };
   },
+
+  async findAllMatching(filters: Omit<HistoryFilters, "take" | "skip">) {
+    let page = await this.findAll({ ...filters, take: 100, skip: 0 });
+    const items = [...page.items];
+
+    while (page.hasMore) {
+      page = await this.findAll({ ...filters, take: 100, skip: items.length });
+      items.push(...page.items);
+    }
+
+    return { ...page, items };
+  },
 };

@@ -1,4 +1,5 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { Card, CardFooter } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
 import {
   Boxes,
   DatabaseBackup,
@@ -13,9 +14,10 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { HistoryMonthNavigation } from "@/components/history-month-navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,9 +29,8 @@ import {
 } from "@/components/ui/select";
 import { formatARS, formatDateTimeAR } from "@/lib/formatters";
 import { historyRepository, type HistoryEventType } from "@/lib/repositories";
-import { cn } from "@/lib/utils";
 
-const HISTORY_PAGE_SIZE = 20;
+const HISTORY_PREVIEW_LIMIT = 5;
 
 const eventTypes: Array<{
   id: HistoryEventType;
@@ -53,6 +54,8 @@ export function HistorialPage() {
   const [day, setDay] = useState("");
   const [type, setType] = useState<HistoryEventType | "all">("all");
   const [search, setSearch] = useState("");
+  const [showAllEvents, setShowAllEvents] = useState(false);
+  const eventsScrollRef = useRef<HTMLDivElement>(null);
   const deferredSearch = useDeferredValue(search.trim());
   const monthsQuery = useQuery({
     queryKey: ["history", "months"],
@@ -68,29 +71,37 @@ export function HistorialPage() {
     }
   }, [months, selectedMonth]);
 
-  const eventsQuery = useInfiniteQuery({
-    queryKey: ["history", "events", selectedMonth, day, type, deferredSearch],
+  useEffect(() => {
+    setShowAllEvents(false);
+    eventsScrollRef.current?.scrollTo({ top: 0 });
+  }, [selectedMonth, day, type, deferredSearch]);
+
+  const filters = {
+    month: selectedMonth,
+    day: day || undefined,
+    type: type === "all" ? undefined : type,
+    query: deferredSearch || undefined,
+  };
+  const previewEventsQuery = useQuery({
+    queryKey: ["history", "events", filters, "preview"],
     enabled: selectedMonth.length > 0,
-    initialPageParam: 0,
-    queryFn: ({ pageParam }) =>
+    queryFn: () =>
       historyRepository.findAll({
-        month: selectedMonth,
-        day: day || undefined,
-        type: type === "all" ? undefined : type,
-        query: deferredSearch || undefined,
-        take: HISTORY_PAGE_SIZE,
-        skip: pageParam,
+        ...filters,
+        take: HISTORY_PREVIEW_LIMIT,
+        skip: 0,
       }),
-    getNextPageParam: (lastPage, pages) =>
-      lastPage.hasMore
-        ? pages.reduce((sum, page) => sum + page.items.length, 0)
-        : undefined,
   });
-  const events = useMemo(
-    () => eventsQuery.data?.pages.flatMap((page) => page.items) ?? [],
-    [eventsQuery.data],
-  );
-  const total = eventsQuery.data?.pages[0]?.total ?? 0;
+  const allEventsQuery = useQuery({
+    queryKey: ["history", "events", filters, "all"],
+    enabled: selectedMonth.length > 0 && showAllEvents,
+    queryFn: () => historyRepository.findAllMatching(filters),
+  });
+  const eventsQuery = showAllEvents ? allEventsQuery : previewEventsQuery;
+  const events =
+    eventsQuery.data?.items ?? previewEventsQuery.data?.items ?? [];
+  const total = eventsQuery.data?.total ?? previewEventsQuery.data?.total ?? 0;
+  const isExpanded = showAllEvents && allEventsQuery.data !== undefined;
   const selectedMonthLabel =
     months.find((month) => month.month === selectedMonth)?.label ?? "";
   const hasFilters = day !== "" || type !== "all" || search.trim() !== "";
@@ -106,12 +117,23 @@ export function HistorialPage() {
     setSearch("");
   };
 
+  const toggleEvents = () => {
+    if (isExpanded) {
+      setShowAllEvents(false);
+      eventsScrollRef.current?.scrollTo({ top: 0 });
+    } else if (showAllEvents) {
+      void allEventsQuery.refetch();
+    } else {
+      setShowAllEvents(true);
+    }
+  };
+
   if (monthsQuery.isLoading) {
     return (
       <AppShell title="Historial" subtitle="Actividad registrada en el sistema">
-        <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
+        <Card className="app-card-body text-sm text-muted-foreground">
           Cargando historial...
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -119,61 +141,29 @@ export function HistorialPage() {
   if (monthsQuery.error) {
     return (
       <AppShell title="Historial" subtitle="Actividad registrada en el sistema">
-        <div className="rounded-lg border border-border bg-card p-6 text-sm text-destructive">
+        <Card className="app-card-body text-sm text-destructive">
           No se pudo cargar el historial.
-        </div>
+        </Card>
       </AppShell>
     );
   }
 
   return (
     <AppShell title="Historial" subtitle="Actividad registrada en el sistema">
-      <div className="grid min-h-[620px] overflow-hidden rounded-lg border border-border bg-card lg:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="border-b border-border lg:border-b-0 lg:border-r">
-          <div className="border-b border-border px-4 py-4">
-            <div className="text-sm font-semibold">Meses con actividad</div>
-            <div className="mt-0.5 text-xs text-muted-foreground">
-              {months.length} {months.length === 1 ? "mes" : "meses"}
-            </div>
-          </div>
-          <div className="max-h-64 overflow-y-auto p-2 lg:max-h-[calc(100vh-13rem)]">
-            {months.map((month) => {
-              const active = month.month === selectedMonth;
-              return (
-                <button
-                  key={month.month}
-                  type="button"
-                  onClick={() => selectMonth(month.month)}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-                    active
-                      ? "bg-muted font-medium text-foreground"
-                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                  )}
-                >
-                  <span className="capitalize">{month.label}</span>
-                  <span className="tabular-nums text-xs">
-                    {month.eventCount}
-                  </span>
-                </button>
-              );
-            })}
-            {months.length === 0 && (
-              <div className="px-3 py-6 text-sm text-muted-foreground">
-                Todavía no hay actividad registrada.
-              </div>
-            )}
-          </div>
-        </aside>
+      <Card className="grid min-h-[620px] overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)]">
+        <HistoryMonthNavigation
+          months={months}
+          selectedMonth={selectedMonth}
+          onSelectMonth={selectMonth}
+        />
 
         <section className="min-w-0">
-          <div className="border-b border-border px-5 py-4">
+          <div className="border-b border-border app-card-header">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold capitalize">
+                <h2 className="font-semibold capitalize app-card-title">
                   {selectedMonthLabel || "Actividad"}
-                </div>
+                </h2>
                 <div className="mt-0.5 text-xs text-muted-foreground">
                   {total} {total === 1 ? "movimiento" : "movimientos"}
                 </div>
@@ -225,7 +215,10 @@ export function HistorialPage() {
             </div>
           </div>
 
-          <div className="divide-y divide-border/70">
+          <div
+            ref={eventsScrollRef}
+            className="max-h-[640px] divide-y divide-border/70 overflow-y-auto overscroll-contain"
+          >
             {events.map((event) => {
               const eventType = eventTypeById.get(event.type);
               const Icon = eventType?.icon ?? History;
@@ -274,38 +267,42 @@ export function HistorialPage() {
                 </article>
               );
             })}
-          </div>
-
-          {eventsQuery.isLoading && (
-            <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-              Cargando movimientos...
-            </div>
-          )}
-          {eventsQuery.error && (
-            <div className="px-5 py-8 text-center text-sm text-destructive">
-              No se pudieron cargar los movimientos de este mes.
-            </div>
-          )}
-          {!eventsQuery.isLoading &&
-            !eventsQuery.error &&
-            events.length === 0 && (
-              <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-                No hay movimientos que coincidan con los filtros.
+            {eventsQuery.isLoading && events.length === 0 && (
+              <div className="px-5 py-8 text-center text-sm text-muted-foreground">
+                Cargando movimientos...
               </div>
             )}
-          {eventsQuery.hasNextPage && (
-            <div className="border-t border-border px-5 py-4 text-center">
+            {eventsQuery.error && (
+              <div className="px-5 py-8 text-center text-sm text-destructive">
+                No se pudieron cargar los movimientos de este mes.
+              </div>
+            )}
+            {!eventsQuery.isLoading &&
+              !eventsQuery.error &&
+              events.length === 0 && (
+                <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+                  No hay movimientos que coincidan con los filtros.
+                </div>
+              )}
+          </div>
+          {total > HISTORY_PREVIEW_LIMIT && (
+            <CardFooter className="justify-center">
               <Button
+                type="button"
                 variant="outline"
-                onClick={() => void eventsQuery.fetchNextPage()}
-                disabled={eventsQuery.isFetchingNextPage}
+                onClick={toggleEvents}
+                disabled={eventsQuery.isFetching}
               >
-                {eventsQuery.isFetchingNextPage ? "Cargando..." : "Ver más"}
+                {eventsQuery.isFetching
+                  ? "Cargando..."
+                  : isExpanded
+                    ? "Ver menos"
+                    : "Ver más"}
               </Button>
-            </div>
+            </CardFooter>
           )}
         </section>
-      </div>
+      </Card>
     </AppShell>
   );
 }

@@ -76,4 +76,91 @@ describe("history repository", () => {
     expect(url).toContain("take=20");
     expect(url).toContain("skip=0");
   });
+
+  it("loads every matching movement beyond the API page limit", async () => {
+    const items = Array.from({ length: 205 }, (_, index) => ({
+      id: `sale:${index}:created`,
+      occurredAt: "2026-10-04T15:00:00.000Z",
+      type: "sales",
+      title: `Venta ${index}`,
+      description: "1x Perfume",
+      entityId: String(index),
+      amountCents: 1350000,
+      quantity: 1,
+      status: "Confirmada",
+    }));
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock.mockImplementation((input) => {
+      const url = new URL(String(input), "http://localhost");
+      const take = Number(url.searchParams.get("take"));
+      const skip = Number(url.searchParams.get("skip"));
+      return mockJsonResponse({
+        items: items.slice(skip, skip + take),
+        total: items.length,
+        hasMore: skip + take < items.length,
+      });
+    });
+
+    const result = await historyRepository.findAllMatching({
+      month: "2026-10",
+      day: "2026-10-04",
+      type: "sales",
+      query: "Perfume",
+    });
+
+    expect(result.items.map((event) => event.id)).toEqual(
+      items.map((event) => event.id),
+    );
+    expect(result.items.every((event) => event.amount === 13500)).toBe(true);
+    expect(result.total).toBe(205);
+    expect(result.hasMore).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (const [index, [input]] of fetchMock.mock.calls.entries()) {
+      const params = new URL(String(input), "http://localhost").searchParams;
+      expect(params.get("month")).toBe("2026-10");
+      expect(params.get("day")).toBe("2026-10-04");
+      expect(params.get("type")).toBe("sales");
+      expect(params.get("query")).toBe("Perfume");
+      expect(Number(params.get("take"))).toBeLessThanOrEqual(100);
+      expect(params.get("skip")).toBe(String(index * 100));
+    }
+  });
+
+  it("returns an empty history without requesting more pages", async () => {
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock.mockImplementation(() =>
+      mockJsonResponse({ items: [], total: 0, hasMore: false }),
+    );
+
+    await expect(
+      historyRepository.findAllMatching({ month: "2026-10", query: "missing" }),
+    ).resolves.toEqual({ items: [], total: 0, hasMore: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not return an incomplete history when a later page fails", async () => {
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock
+      .mockImplementationOnce(() =>
+        mockJsonResponse({
+          items: [
+            {
+              id: "product:1:created",
+              occurredAt: "2026-10-04T15:00:00.000Z",
+              type: "products",
+              title: "Producto creado",
+              description: "Perfume",
+              entityId: "1",
+            },
+          ],
+          total: 2,
+          hasMore: true,
+        }),
+      )
+      .mockRejectedValueOnce(new Error("Connection lost"));
+
+    await expect(
+      historyRepository.findAllMatching({ month: "2026-10" }),
+    ).rejects.toThrow("Connection lost");
+  });
 });
