@@ -271,6 +271,9 @@ export const salesRepository = {
     const payment = filters.payment ?? "all";
     const date = filters.date ?? "";
     const query = filters.query?.trim().toLowerCase() ?? "";
+    const phoneQuery = /^[+\d\s().-]+$/.test(query)
+      ? query.replace(/\D/g, "")
+      : "";
 
     return source.filter((sale) => {
       if (delivery === "Anulada" && sale.status !== "Anulada") return false;
@@ -294,7 +297,12 @@ export const salesRepository = {
       const inItems = sale.items.some((item) =>
         item.name.toLowerCase().includes(query),
       );
-      return inNumber || inItems;
+      const inCustomerName =
+        sale.customerName?.toLowerCase().includes(query) ?? false;
+      const inCustomerPhone =
+        phoneQuery.length > 0 &&
+        (sale.customerPhone?.replace(/\D/g, "").includes(phoneQuery) ?? false);
+      return inNumber || inItems || inCustomerName || inCustomerPhone;
     });
   },
 

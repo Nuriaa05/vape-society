@@ -1,3 +1,4 @@
+import { Card, CardHeader, CardToolbar } from "@/components/ui/card";
 import { useSearch } from "@tanstack/react-router";
 import {
   useInfiniteQuery,
@@ -275,21 +276,21 @@ export function VentasPage() {
   return (
     <AppShell title="Ventas" subtitle="Historial operativo de ventas">
       {(salesQuery.isLoading || settingsQuery.isLoading) && (
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">
+        <Card className="app-card-body text-sm text-muted-foreground">
           Cargando ventas...
-        </div>
+        </Card>
       )}
       {(salesQuery.error || settingsQuery.error) && (
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-destructive">
+        <Card className="app-card-body text-sm text-destructive">
           No se pudieron cargar las ventas.
-        </div>
+        </Card>
       )}
       {!salesQuery.isLoading &&
         !settingsQuery.isLoading &&
         !salesQuery.error &&
         !settingsQuery.error && (
           <>
-            <div className="flex flex-wrap items-center gap-1.5 mb-4">
+            <div className="flex flex-wrap items-center gap-1.5">
               {(
                 [
                   { id: "all", label: "Todas" },
@@ -316,14 +317,16 @@ export function VentasPage() {
               ))}
             </div>
 
-            <div className="bg-card border border-border rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 border-b border-border">
+            <Card>
+              <CardHeader title="Historial de ventas" />
+              <CardToolbar className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-0">
                 <div className="relative md:col-span-2">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="Buscar por comprobante o producto"
+                    aria-label="Buscar ventas por comprobante, producto, cliente o celular"
+                    placeholder="Comprobante, producto, cliente o celular"
                     className="pl-9"
                   />
                 </div>
@@ -348,21 +351,26 @@ export function VentasPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </CardToolbar>
 
-              <div className="overflow-x-auto">
+              <div className="max-h-[640px] overflow-auto overscroll-contain">
                 <table className="w-full text-sm">
-                  <thead className="text-left text-sm text-foreground border-b border-border bg-card">
+                  <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
                     <tr>
-                      <th className="px-5 py-2.5 font-medium">Comprobante</th>
-                      <th className="px-5 py-2.5 font-medium">Fecha</th>
-                      <th className="px-5 py-2.5 font-medium">Productos</th>
-                      <th className="px-5 py-2.5 font-medium">Pago</th>
-                      <th className="px-5 py-2.5 font-medium text-right">
+                      <th className="app-table-heading font-medium">
+                        Comprobante
+                      </th>
+                      <th className="app-table-heading font-medium">Fecha</th>
+                      <th className="app-table-heading font-medium">
+                        Productos
+                      </th>
+                      <th className="app-table-heading font-medium">Cliente</th>
+                      <th className="app-table-heading font-medium">Pago</th>
+                      <th className="app-table-heading font-medium text-right">
                         Total
                       </th>
-                      <th className="px-5 py-2.5 font-medium">Entrega</th>
-                      <th className="px-5 py-2.5 font-medium text-right w-12">
+                      <th className="app-table-heading font-medium">Entrega</th>
+                      <th className="app-table-heading font-medium text-right w-12">
                         Acciones
                       </th>
                     </tr>
@@ -371,7 +379,7 @@ export function VentasPage() {
                     {filtered.length === 0 && (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           className="px-5 py-10 text-center text-muted-foreground"
                         >
                           Sin ventas para los filtros aplicados.
@@ -405,6 +413,12 @@ export function VentasPage() {
                             {s.items
                               .map((i) => `${i.qty}× ${i.name}`)
                               .join(", ")}
+                          </td>
+                          <td
+                            className="px-5 py-3 max-w-[200px] truncate text-muted-foreground"
+                            title={s.customerName}
+                          >
+                            {s.customerName || "Sin registrar"}
                           </td>
                           <td className="px-5 py-3">
                             <StatusBadge tone="muted">{s.payment}</StatusBadge>
@@ -569,7 +583,7 @@ export function VentasPage() {
                   </Button>
                 </div>
               )}
-            </div>
+            </Card>
 
             {/* Ver comprobante */}
             <Dialog
