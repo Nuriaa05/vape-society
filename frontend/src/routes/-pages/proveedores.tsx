@@ -1,3 +1,4 @@
+import { Card, CardHeader } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell, StatusBadge } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -87,9 +88,9 @@ export function ProveedoresPage() {
   if (suppliersQuery.isLoading) {
     return (
       <AppShell title="Proveedores" subtitle="Contactos y registros de compra">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">
+        <Card className="app-card-body text-sm text-muted-foreground">
           Cargando proveedores...
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -97,9 +98,9 @@ export function ProveedoresPage() {
   if (suppliersQuery.error) {
     return (
       <AppShell title="Proveedores" subtitle="Contactos y registros de compra">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-destructive">
+        <Card className="app-card-body text-sm text-destructive">
           No se pudieron cargar los proveedores.
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -114,16 +115,17 @@ export function ProveedoresPage() {
         </Button>
       }
     >
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <Card className="overflow-hidden">
+        <CardHeader title="Proveedores" />
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
             <thead className="text-left text-sm text-foreground border-b border-border bg-card">
               <tr>
-                <th className="px-5 py-3 font-medium">Proveedor</th>
-                <th className="px-5 py-3 font-medium">Contacto</th>
-                <th className="px-5 py-3 font-medium">Última compra</th>
-                <th className="px-5 py-3 font-medium">Estado</th>
-                <th className="px-5 py-3 font-medium w-10"></th>
+                <th className="app-table-heading font-medium">Proveedor</th>
+                <th className="app-table-heading font-medium">Contacto</th>
+                <th className="app-table-heading font-medium">Última compra</th>
+                <th className="app-table-heading font-medium">Estado</th>
+                <th className="app-table-heading font-medium w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -254,7 +256,7 @@ export function ProveedoresPage() {
             )}
           </div>
         )}
-      </div>
+      </Card>
 
       <SupplierDialog
         editing={editing}

@@ -1,3 +1,9 @@
+import {
+  Card,
+  CardHeader,
+  CardToolbar,
+  CardFooter,
+} from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell, StatusBadge } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -207,9 +213,9 @@ export function ProductosPage() {
   if (isLoading) {
     return (
       <AppShell title="Productos" subtitle="Catálogo, precios y márgenes">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">
+        <Card className="app-card-body text-sm text-muted-foreground">
           Cargando productos...
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -217,9 +223,9 @@ export function ProductosPage() {
   if (hasError) {
     return (
       <AppShell title="Productos" subtitle="Catálogo, precios y márgenes">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-destructive">
+        <Card className="app-card-body text-sm text-destructive">
           No se pudieron cargar los productos.
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -274,8 +280,9 @@ export function ProductosPage() {
         </div>
       }
     >
-      <div className="bg-card border border-border rounded-lg">
-        <div className="flex flex-col md:flex-row gap-3 p-4 border-b border-border">
+      <Card>
+        <CardHeader title="Catálogo de productos" />
+        <CardToolbar className="flex flex-col items-stretch md:flex-row md:items-center gap-3 pt-0">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -314,25 +321,31 @@ export function ProductosPage() {
             <Switch checked={showArchived} onCheckedChange={setShowArchived} />
             Mostrar archivados
           </label>
-        </div>
+        </CardToolbar>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[640px] overflow-auto overscroll-contain">
           <table className="w-full text-sm">
-            <thead className="text-left text-sm text-foreground border-b border-border bg-card">
+            <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
               <tr>
-                <th className="px-5 py-3 font-medium">Código de barras</th>
-                <th className="px-5 py-3 font-medium">Producto</th>
-                <th className="px-5 py-3 font-medium">Categoría</th>
-                <th className="px-5 py-3 font-medium text-right">Stock</th>
-                <th className="px-5 py-3 font-medium text-right">
+                <th className="app-table-heading font-medium">
+                  Código de barras
+                </th>
+                <th className="app-table-heading font-medium">Producto</th>
+                <th className="app-table-heading font-medium">Categoría</th>
+                <th className="app-table-heading font-medium text-right">
+                  Stock
+                </th>
+                <th className="app-table-heading font-medium text-right">
                   Precio costo
                 </th>
-                <th className="px-5 py-3 font-medium text-right">Margen</th>
-                <th className="px-5 py-3 font-medium text-right">
+                <th className="app-table-heading font-medium text-right">
+                  Margen
+                </th>
+                <th className="app-table-heading font-medium text-right">
                   Precio venta
                 </th>
-                <th className="px-5 py-3 font-medium">Estado</th>
-                <th className="px-5 py-3 font-medium w-10"></th>
+                <th className="app-table-heading font-medium">Estado</th>
+                <th className="app-table-heading font-medium w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -432,11 +445,11 @@ export function ProductosPage() {
             </tbody>
           </table>
         </div>
-        <div className="px-5 py-3 text-xs text-muted-foreground border-t border-border flex items-center justify-between gap-3">
-          <span>
+        <CardFooter className="grid grid-cols-1 items-center gap-3 text-xs text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+          <span className="text-center sm:text-left">
             Mostrando {visibleProducts.length} de {filtered.length} productos
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center gap-2">
             {canShowMore(visibleProductsCount, filtered.length) && (
               <Button
                 type="button"
@@ -470,8 +483,8 @@ export function ProductosPage() {
               </Button>
             )}
           </div>
-        </div>
-      </div>
+        </CardFooter>
+      </Card>
 
       <Dialog
         open={editing !== null}

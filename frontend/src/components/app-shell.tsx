@@ -290,7 +290,7 @@ export function AppShell({
           {subtitle && (
             <p className="mb-4 text-sm text-muted-foreground">{subtitle}</p>
           )}
-          {children}
+          <div className="app-page-layout">{children}</div>
         </main>
       </div>
     </div>

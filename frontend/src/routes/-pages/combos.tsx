@@ -1,3 +1,4 @@
+import { Card, CardHeader } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell, StatusBadge } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -187,9 +188,9 @@ export function CombosPage() {
   if (combosQuery.isLoading || productsQuery.isLoading) {
     return (
       <AppShell title="Combos" subtitle="Productos agrupados para venta">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">
+        <Card className="app-card-body text-sm text-muted-foreground">
           Cargando combos...
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -197,9 +198,9 @@ export function CombosPage() {
   if (combosQuery.error || productsQuery.error) {
     return (
       <AppShell title="Combos" subtitle="Productos agrupados para venta">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-destructive">
+        <Card className="app-card-body text-sm text-destructive">
           No se pudieron cargar los combos.
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -214,17 +215,26 @@ export function CombosPage() {
         </Button>
       }
     >
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <Card className="overflow-hidden">
+        <CardHeader title="Combos" />
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
             <thead className="text-left text-sm text-foreground border-b border-border bg-card">
               <tr>
-                <th className="px-5 py-3 font-medium">Combo</th>
-                <th className="px-5 py-3 font-medium">Componentes</th>
-                <th className="px-5 py-3 font-medium text-right">Valor</th>
-                <th className="px-5 py-3 font-medium text-right">Precio</th>
-                <th className="px-5 py-3 font-medium text-right">Descuento</th>
-                <th className="px-5 py-3 font-medium text-right">Acciones</th>
+                <th className="app-table-heading font-medium">Combo</th>
+                <th className="app-table-heading font-medium">Componentes</th>
+                <th className="app-table-heading font-medium text-right">
+                  Valor
+                </th>
+                <th className="app-table-heading font-medium text-right">
+                  Precio
+                </th>
+                <th className="app-table-heading font-medium text-right">
+                  Descuento
+                </th>
+                <th className="app-table-heading font-medium text-right">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -339,7 +349,7 @@ export function CombosPage() {
             )}
           </div>
         )}
-      </div>
+      </Card>
 
       <Dialog
         open={dialogOpen}
@@ -401,15 +411,15 @@ export function CombosPage() {
             </div>
           </div>
 
-          <div className="rounded-md border border-border p-3 space-y-3">
-            <div className="grid grid-cols-[1fr_96px_auto] gap-2">
+          <div className="min-w-0 rounded-md border border-border p-3 space-y-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-2 sm:grid-cols-[minmax(0,1fr)_96px_auto]">
               <Select
                 value={form.selectedProductId}
                 onValueChange={(value) =>
                   setForm({ ...form, selectedProductId: value })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="min-w-0">
                   <SelectValue placeholder="Producto activo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -431,6 +441,7 @@ export function CombosPage() {
               <Button
                 type="button"
                 variant="outline"
+                className="col-span-2 sm:col-span-1"
                 disabled={!form.selectedProductId}
                 onClick={addComponent}
               >

@@ -1,3 +1,4 @@
+import { Card, CardHeader, KpiCard } from "@/components/ui/card";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell, StatusBadge } from "@/components/app-shell";
@@ -38,9 +39,9 @@ export function Dashboard() {
         title="Dashboard"
         subtitle="Resumen general del día y estado del inventario"
       >
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">
+        <Card className="app-card-body text-sm text-muted-foreground">
           Cargando datos...
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -52,9 +53,9 @@ export function Dashboard() {
         title="Dashboard"
         subtitle="Resumen general del día y estado del inventario"
       >
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-destructive">
+        <Card className="app-card-body text-sm text-destructive">
           No se pudo cargar el dashboard.
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -130,7 +131,7 @@ export function Dashboard() {
             <DashboardUnitsChart />
           </div>
 
-          <Card className="dashboard-pending min-w-0 lg:col-start-2 lg:row-start-1">
+          <Card className="dashboard-card dashboard-pending overflow-hidden lg:col-start-2 lg:row-start-1">
             <CardHeader
               title="Entregas pendientes"
               action={
@@ -167,7 +168,7 @@ export function Dashboard() {
             )}
           </Card>
 
-          <Card className="dashboard-alerts min-w-0 lg:col-start-2 lg:row-start-2">
+          <Card className="dashboard-card dashboard-alerts overflow-hidden lg:col-start-2 lg:row-start-2">
             <CardHeader
               title="Alertas de stock"
               action={
@@ -203,7 +204,7 @@ export function Dashboard() {
               )}
             </ul>
           </Card>
-          <Card className="dashboard-sales min-w-0 lg:col-start-1 lg:row-start-2">
+          <Card className="dashboard-card dashboard-sales overflow-hidden lg:col-start-1 lg:row-start-2">
             <CardHeader
               title="Ventas recientes"
               action={
@@ -218,11 +219,13 @@ export function Dashboard() {
               <table className="w-full text-sm">
                 <thead className="text-left text-sm text-foreground border-b border-border">
                   <tr>
-                    <th className="px-5 py-2.5 font-medium">Comprobante</th>
-                    <th className="px-5 py-2.5 font-medium">Hora</th>
-                    <th className="px-5 py-2.5 font-medium">Pago</th>
-                    <th className="px-5 py-2.5 font-medium">Entrega</th>
-                    <th className="px-5 py-2.5 font-medium text-right">
+                    <th className="app-table-heading font-medium">
+                      Comprobante
+                    </th>
+                    <th className="app-table-heading font-medium">Hora</th>
+                    <th className="app-table-heading font-medium">Pago</th>
+                    <th className="app-table-heading font-medium">Entrega</th>
+                    <th className="app-table-heading font-medium text-right">
                       Total
                     </th>
                   </tr>
@@ -263,70 +266,5 @@ export function Dashboard() {
         </div>
       </div>
     </AppShell>
-  );
-}
-
-function KpiCard({
-  icon,
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: "warning";
-}) {
-  return (
-    <div className="dashboard-kpi bg-card border border-border rounded-lg px-[18px] py-4">
-      <div className="flex items-center justify-between gap-2 text-foreground">
-        <span className="text-sm font-medium">{label}</span>
-        <span
-          className={
-            tone === "warning"
-              ? "text-warning-foreground"
-              : "text-muted-foreground"
-          }
-        >
-          {icon}
-        </span>
-      </div>
-      <div className="dashboard-kpi-value mt-[18px] break-words text-2xl font-semibold text-foreground tracking-tight tabular-nums">
-        {value}
-      </div>
-      {hint && <div className="text-xs text-muted-foreground mt-1">{hint}</div>}
-    </div>
-  );
-}
-
-function Card({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`dashboard-card overflow-hidden bg-card border border-border rounded-lg ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
-function CardHeader({
-  title,
-  action,
-}: {
-  title: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="dashboard-card-header flex flex-wrap items-center justify-between gap-2 px-5 py-4">
-      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-      {action}
-    </div>
   );
 }

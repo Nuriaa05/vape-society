@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { Card, CardToolbar, KpiCard, CardFooter } from "@/components/ui/card";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import {
@@ -85,6 +86,7 @@ export function ReportesPage() {
   const salesDatasetQuery = useQuery({
     queryKey: ["reports", "sales-series", period],
     queryFn: () => reportsRepository.getSalesDataset(period),
+    placeholderData: keepPreviousData,
   });
   const bestSellingQuery = useQuery({
     queryKey: ["reports", "top-products", reportRange, rankingSort],
@@ -93,10 +95,12 @@ export function ReportesPage() {
         range: reportRange,
         sort: rankingSort,
       }),
+    placeholderData: keepPreviousData,
   });
   const productConsumptionQuery = useQuery({
     queryKey: ["reports", "product-consumption", reportRange],
     queryFn: () => reportsRepository.getProductConsumption(reportRange),
+    placeholderData: keepPreviousData,
   });
   const paymentBreakdownQuery = useQuery({
     queryKey: ["reports", "payment-methods"],
@@ -184,8 +188,11 @@ export function ReportesPage() {
 
   useEffect(() => {
     setVisibleBestSellingCount(REPORT_PREVIEW_INCREMENT);
-    setVisibleConsumptionCount(REPORT_PREVIEW_INCREMENT);
   }, [reportRange, rankingSort]);
+
+  useEffect(() => {
+    setVisibleConsumptionCount(REPORT_PREVIEW_INCREMENT);
+  }, [reportRange]);
 
   const handleSelectPeriod = (id: ReportsPeriod) => {
     setPeriod(id);
@@ -264,9 +271,9 @@ export function ReportesPage() {
   if (isLoading) {
     return (
       <AppShell title="Reportes" subtitle="Análisis comercial e indicadores">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">
+        <Card className="app-card-body text-sm text-muted-foreground">
           Cargando reportes...
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -274,9 +281,9 @@ export function ReportesPage() {
   if (hasError || !commercialSummary) {
     return (
       <AppShell title="Reportes" subtitle="Análisis comercial e indicadores">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-destructive">
+        <Card className="app-card-body text-sm text-destructive">
           No se pudieron cargar los reportes.
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -294,14 +301,23 @@ export function ReportesPage() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Exportar a CSV</DropdownMenuLabel>
-            <DropdownMenuItem onClick={exportPeriodCSV}>
+            <DropdownMenuItem
+              disabled={salesDatasetQuery.isFetching}
+              onClick={exportPeriodCSV}
+            >
               <FileSpreadsheet /> Período actual ({meta.title})
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={exportTopProductsCSV}>
+            <DropdownMenuItem
+              disabled={bestSellingQuery.isFetching}
+              onClick={exportTopProductsCSV}
+            >
               <FileSpreadsheet /> Productos vendidos (
               {getReportRangeLabel(reportRange)})
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={exportConsumptionCSV}>
+            <DropdownMenuItem
+              disabled={productConsumptionQuery.isFetching}
+              onClick={exportConsumptionCSV}
+            >
               <FileSpreadsheet /> Consumo por producto
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -321,54 +337,63 @@ export function ReportesPage() {
         </DropdownMenu>
       }
     >
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Kpi
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <KpiCard
           label="Ventas hoy"
           value={formatARS(commercialSummary.dailyTotal)}
         />
-        <Kpi
+        <KpiCard
           label="Ventas del mes"
           value={formatARS(commercialSummary.monthlyTotal)}
         />
-        <Kpi
+        <KpiCard
           label="Compras del mes"
           value={formatARS(commercialSummary.monthlyPurchases)}
         />
-        <Kpi
+        <KpiCard
           label="Ventas menos compras"
           value={formatARS(commercialSummary.salesPurchasesDifference)}
           accent
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-        <Mini
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <KpiCard
           label="Ventas entregadas"
           value={String(commercialSummary.deliveredSalesCount)}
         />
-        <Mini
+        <KpiCard
           label="Ventas pendientes"
           value={String(commercialSummary.pendingSalesCount)}
         />
-        <Mini
+        <KpiCard
           label="Total pendiente"
           value={formatARS(commercialSummary.pendingSalesTotal)}
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
-        <div className="lg:col-span-2 bg-sidebar border border-sidebar-border rounded-lg p-5">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5">
+        <Card
+          className="bg-sidebar border-sidebar-border app-card-body"
+          aria-busy={salesDatasetQuery.isFetching}
+        >
           <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
             <div>
-              <div className="text-sm font-semibold">{meta.title}</div>
+              <h2 className="font-semibold app-card-title">{meta.title}</h2>
               <div className="text-xs text-muted-foreground">
-                {meta.subtitle}
+                {salesDatasetQuery.isFetching ? (
+                  <span role="status">Actualizando datos...</span>
+                ) : (
+                  meta.subtitle
+                )}
               </div>
             </div>
             <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5">
               {periodOptions.map((o) => (
                 <button
                   key={o.id}
+                  type="button"
+                  aria-pressed={period === o.id}
                   onClick={() => handleSelectPeriod(o.id)}
                   className={cn(
                     "px-3 py-1.5 text-xs font-medium rounded transition-colors",
@@ -522,12 +547,12 @@ export function ReportesPage() {
               Hacé clic en una barra para ver el detalle.
             </div>
           )}
-        </div>
+        </Card>
 
-        <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-sm font-semibold mb-1">
+        <Card className="app-card-body">
+          <h2 className="font-semibold mb-1 app-card-title">
             Ventas por método de pago
-          </div>
+          </h2>
           <div className="text-xs text-muted-foreground mb-4">
             Todo el tiempo
           </div>
@@ -553,18 +578,23 @@ export function ReportesPage() {
               </li>
             ))}
           </ul>
-        </div>
+        </Card>
       </div>
 
-      <div className="bg-card border border-border rounded-lg mt-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-border">
+      <Card aria-busy={bestSellingQuery.isFetching}>
+        <CardToolbar className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold">
+            <h2 className="font-semibold app-card-title">
               Productos y combos vendidos
-            </div>
+            </h2>
             <div className="text-xs text-muted-foreground mt-0.5">
               {getReportRangeLabel(reportRange)} ·{" "}
-              {getTopProductsSortLabel(rankingSort)} · {soldItemQty} unidades
+              {getTopProductsSortLabel(rankingSort)} ·{" "}
+              {bestSellingQuery.isFetching ? (
+                <span role="status">Actualizando datos...</span>
+              ) : (
+                `${soldItemQty} unidades`
+              )}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -573,11 +603,12 @@ export function ReportesPage() {
                 <button
                   key={option.id}
                   type="button"
+                  aria-pressed={reportRange === option.id}
                   onClick={() => setReportRange(option.id)}
                   className={cn(
                     "rounded px-2.5 py-1.5 text-xs font-medium transition-colors",
                     reportRange === option.id
-                      ? "bg-card text-foreground shadow-sm"
+                      ? "bg-foreground text-background"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -586,21 +617,32 @@ export function ReportesPage() {
               ))}
             </div>
             <RankingSortControl value={rankingSort} onChange={setRankingSort} />
-            <Button variant="outline" size="sm" onClick={exportTopProductsCSV}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={bestSellingQuery.isFetching}
+              onClick={exportTopProductsCSV}
+            >
               <Download /> Exportar
             </Button>
           </div>
-        </div>
-        <div className="max-h-[640px] overflow-auto overscroll-contain print:max-h-none print:overflow-visible">
+        </CardToolbar>
+        <div className="max-h-[640px] overflow-auto overscroll-x-contain print:max-h-none print:overflow-visible">
           <table className="w-full min-w-[680px] text-sm">
             <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card print:static">
               <tr>
-                <th className="px-5 py-2.5 font-medium">Producto o combo</th>
-                <th className="px-5 py-2.5 font-medium text-right">Unidades</th>
-                <th className="px-5 py-2.5 font-medium text-right">
+                <th className="app-table-heading font-medium">
+                  Producto o combo
+                </th>
+                <th className="app-table-heading font-medium text-right">
+                  Unidades
+                </th>
+                <th className="app-table-heading font-medium text-right">
                   Total facturado
                 </th>
-                <th className="px-5 py-2.5 font-medium w-40">Participación</th>
+                <th className="app-table-heading font-medium w-40">
+                  Participación
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -683,37 +725,52 @@ export function ReportesPage() {
           }
           onLess={() => setVisibleBestSellingCount(REPORT_PREVIEW_INCREMENT)}
         />
-      </div>
+      </Card>
 
-      <div className="bg-card border border-border rounded-lg mt-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-border">
+      <Card aria-busy={productConsumptionQuery.isFetching}>
+        <CardToolbar className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold">Consumo por producto</div>
+            <h2 className="font-semibold app-card-title">
+              Consumo por producto
+            </h2>
             <div className="text-xs text-muted-foreground mt-0.5">
-              {getReportRangeLabel(reportRange)} · {consumedProductQty} unidades
-              comprometidas
+              {getReportRangeLabel(reportRange)} ·{" "}
+              {productConsumptionQuery.isFetching ? (
+                <span role="status">Actualizando datos...</span>
+              ) : (
+                `${consumedProductQty} unidades comprometidas`
+              )}
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={exportConsumptionCSV}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={productConsumptionQuery.isFetching}
+            onClick={exportConsumptionCSV}
+          >
             <Download /> Exportar
           </Button>
-        </div>
-        <div className="max-h-[640px] overflow-auto overscroll-contain print:max-h-none print:overflow-visible">
+        </CardToolbar>
+        <div className="max-h-[640px] overflow-auto overscroll-x-contain print:max-h-none print:overflow-visible">
           <table className="w-full min-w-[720px] text-sm">
             <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card print:static">
               <tr>
-                <th className="px-5 py-2.5 font-medium">Producto</th>
-                <th className="px-5 py-2.5 font-medium text-right">Directa</th>
-                <th className="px-5 py-2.5 font-medium text-right">
+                <th className="app-table-heading font-medium">Producto</th>
+                <th className="app-table-heading font-medium text-right">
+                  Directa
+                </th>
+                <th className="app-table-heading font-medium text-right">
                   En combos
                 </th>
-                <th className="px-5 py-2.5 font-medium text-right">
+                <th className="app-table-heading font-medium text-right">
                   Entregado
                 </th>
-                <th className="px-5 py-2.5 font-medium text-right">
+                <th className="app-table-heading font-medium text-right">
                   Reservado
                 </th>
-                <th className="px-5 py-2.5 font-medium text-right">Total</th>
+                <th className="app-table-heading font-medium text-right">
+                  Total
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -767,9 +824,9 @@ export function ReportesPage() {
           }
           onLess={() => setVisibleConsumptionCount(REPORT_PREVIEW_INCREMENT)}
         />
-      </div>
+      </Card>
 
-      <div className="text-xs text-muted-foreground mt-6">
+      <div className="text-xs text-muted-foreground">
         Catálogo activo: {commercialSummary.productCount} productos ·
         Comprobantes internos · No incluye facturación fiscal.
       </div>
@@ -803,7 +860,7 @@ function RankingSortControl({
           className={cn(
             "rounded px-2.5 py-1.5 text-xs font-medium transition-colors",
             value === option.value
-              ? "bg-card text-foreground shadow-sm"
+              ? "bg-foreground text-background"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -831,7 +888,7 @@ function ReportProgressiveControls({
   if (!showMore && !showLess) return null;
 
   return (
-    <div className="border-t border-border px-5 py-3 flex justify-center gap-2">
+    <CardFooter className="flex justify-center gap-2">
       {showMore && (
         <Button type="button" variant="outline" size="sm" onClick={onMore}>
           Ver más
@@ -842,38 +899,17 @@ function ReportProgressiveControls({
           Ver menos
         </Button>
       )}
-    </div>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="bg-card border border-border rounded-lg px-[18px] py-4">
-      <div className="text-sm font-medium text-foreground">{label}</div>
-      <div
-        className={`mt-[18px] break-words text-2xl font-semibold tracking-tight tabular-nums ${accent ? "text-accent" : ""}`}
-      >
-        {value}
-      </div>
-    </div>
+    </CardFooter>
   );
 }
 
 function Mini({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md bg-muted/40 border border-border px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-        {label}
+    <div className="min-w-0 rounded-md bg-muted/40 border border-border px-3 py-2">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="break-words text-sm font-semibold tabular-nums mt-0.5">
+        {value}
       </div>
-      <div className="text-sm font-semibold tabular-nums mt-0.5">{value}</div>
     </div>
   );
 }

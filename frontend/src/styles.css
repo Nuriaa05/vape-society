@@ -169,8 +169,47 @@
 }
 
 @layer components {
+  .app-page-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .app-card-header,
+  .app-card-toolbar,
+  .app-card-body,
+  .app-card-footer {
+    padding: 18px;
+  }
+  .app-card-header {
+    flex-shrink: 0;
+  }
+  .app-card-title {
+    font-size: 17.5px;
+    line-height: 23px;
+  }
+  .app-metric {
+    container-type: inline-size;
+    padding: 16px 18px;
+  }
+  .app-metric-label {
+    font-size: 14.5px;
+    line-height: 19px;
+  }
+  .app-metric-value {
+    margin-top: 18px;
+    font-size: clamp(20px, 13.5cqi, 31px);
+    line-height: 40px;
+  }
+  .app-metric-hint {
+    margin-top: 2px;
+    font-size: 13px;
+    line-height: 17px;
+  }
   .app-content table {
     font-variant-numeric: tabular-nums;
+  }
+  .app-table-heading {
+    padding: 10px 20px;
   }
   .receipt-preview {
     color-scheme: light;
@@ -182,38 +221,11 @@
   }
 }
 
-.dashboard-kpi {
-  container-type: inline-size;
-  border-radius: 12px;
-}
-
-.dashboard-kpi > div:first-child > span {
-  font-size: 14.5px;
-  line-height: 19px;
-}
-
-.dashboard-kpi-value {
-  margin-top: 18px;
-  font-size: clamp(20px, 13.5cqi, 31px);
-  line-height: 40px;
-}
-
-.dashboard-kpi > div:last-child {
-  margin-top: 2px;
-  font-size: 13px;
-  line-height: 17px;
-}
-
 .dashboard-card,
 .dashboard-units {
   border-radius: 12px;
 }
 
-.dashboard-card-header {
-  padding: 18px;
-}
-
-.dashboard-card-header h2,
 .dashboard-units-header h2 {
   font-size: 17.5px;
   line-height: 23px;
@@ -252,16 +264,6 @@
 
 .dashboard-grid {
   margin-top: 0;
-}
-
-.dashboard-card {
-  display: flex;
-  flex-direction: column;
-}
-
-.dashboard-card-header {
-  flex-shrink: 0;
-  gap: 8px;
 }
 
 .dashboard-pending .dashboard-list,

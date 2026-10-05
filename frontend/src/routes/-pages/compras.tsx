@@ -1,3 +1,10 @@
+import {
+  Card,
+  CardBody,
+  CardHeader,
+  CardToolbar,
+  CardFooter,
+} from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell, StatusBadge } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -252,9 +259,9 @@ export function ComprasPage() {
   ) {
     return (
       <AppShell title="Compras" subtitle="Registro de mercadería recibida">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">
+        <Card className="app-card-body text-sm text-muted-foreground">
           Cargando compras...
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -262,19 +269,19 @@ export function ComprasPage() {
   if (productsQuery.error || suppliersQuery.error || purchasesQuery.error) {
     return (
       <AppShell title="Compras" subtitle="Registro de mercadería recibida">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-destructive">
+        <Card className="app-card-body text-sm text-destructive">
           No se pudieron cargar las compras.
-        </div>
+        </Card>
       </AppShell>
     );
   }
 
   return (
     <AppShell title="Compras" subtitle="Registro de mercadería recibida">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-card border border-border rounded-lg">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Nueva compra</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5">
+        <Card>
+          <CardToolbar className="flex items-center justify-between">
+            <h2 className="font-semibold app-card-title">Nueva compra</h2>
             <Button
               size="sm"
               variant="ghost"
@@ -283,9 +290,9 @@ export function ComprasPage() {
             >
               <Trash2 /> Descartar borrador
             </Button>
-          </div>
+          </CardToolbar>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
+          <CardBody className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Proveedor</Label>
               <Select value={supplier} onValueChange={setSupplier}>
@@ -311,9 +318,9 @@ export function ComprasPage() {
                 onChange={(e) => setDate(e.target.value)}
               />
             </div>
-          </div>
+          </CardBody>
 
-          <div className="px-5 pb-2 flex items-center justify-between">
+          <CardBody className="pb-2 pt-0 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold">Productos</h3>
             <Button
               size="sm"
@@ -332,7 +339,7 @@ export function ComprasPage() {
             >
               <Plus /> Agregar producto
             </Button>
-          </div>
+          </CardBody>
 
           <ItemsEditor
             items={items}
@@ -340,7 +347,7 @@ export function ComprasPage() {
             onChange={setItems}
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-4 p-5 border-t border-border bg-muted/30">
+          <CardFooter className="flex flex-wrap items-center justify-between gap-4 bg-muted/30">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <ArrowDown className="h-3.5 w-3.5 text-success" />
               Al registrar la compra, el stock se incrementa. Si la guardás como
@@ -367,13 +374,13 @@ export function ComprasPage() {
                 Registrar compra
               </Button>
             </div>
-          </div>
-        </div>
+          </CardFooter>
+        </Card>
 
-        <div className="bg-card border border-border rounded-lg p-5">
-          <div className="flex items-center gap-2 text-sm font-semibold mb-2">
+        <Card className="app-card-body">
+          <h2 className="flex items-center gap-2 font-semibold mb-2 app-card-title">
             <TrendingUp className="h-4 w-4 text-accent" /> Resumen del mes
-          </div>
+          </h2>
           <div className="text-2xl font-semibold tabular-nums">
             {formatARS(monthTotal)}
           </div>
@@ -394,23 +401,26 @@ export function ComprasPage() {
               el historial con su motivo.
             </p>
           </div>
-        </div>
+        </Card>
       </div>
 
-      <div className="bg-card border border-border rounded-lg mt-6">
-        <div className="px-5 py-4 border-b border-border text-sm font-semibold">
-          Historial de compras
-        </div>
+      <Card>
+        <CardHeader
+          title="Historial de compras"
+          className="border-b border-border"
+        />
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
             <thead className="text-left text-sm text-foreground border-b border-border bg-card">
               <tr>
-                <th className="px-5 py-2.5 font-medium">Fecha</th>
-                <th className="px-5 py-2.5 font-medium">Proveedor</th>
-                <th className="px-5 py-2.5 font-medium">Productos</th>
-                <th className="px-5 py-2.5 font-medium">Estado</th>
-                <th className="px-5 py-2.5 font-medium text-right">Total</th>
-                <th className="px-5 py-2.5 font-medium w-10"></th>
+                <th className="app-table-heading font-medium">Fecha</th>
+                <th className="app-table-heading font-medium">Proveedor</th>
+                <th className="app-table-heading font-medium">Productos</th>
+                <th className="app-table-heading font-medium">Estado</th>
+                <th className="app-table-heading font-medium text-right">
+                  Total
+                </th>
+                <th className="app-table-heading font-medium w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -547,7 +557,7 @@ export function ComprasPage() {
             )}
           </div>
         )}
-      </div>
+      </Card>
 
       <AlertDialog open={clearOpen} onOpenChange={setClearOpen}>
         <AlertDialogContent>
@@ -630,14 +640,14 @@ function ItemsEditor({
       <table className="w-full min-w-[640px] text-sm">
         <thead className="text-left text-sm text-foreground border-y border-border bg-card">
           <tr>
-            <th className="px-5 py-2.5 font-medium">Producto</th>
-            <th className="px-5 py-2.5 font-medium text-right w-24">
+            <th className="app-table-heading font-medium">Producto</th>
+            <th className="app-table-heading font-medium text-right w-24">
               Cantidad
             </th>
-            <th className="px-5 py-2.5 font-medium text-right w-36">
+            <th className="app-table-heading font-medium text-right w-36">
               Costo unit.
             </th>
-            <th className="px-5 py-2.5 font-medium text-right w-36">
+            <th className="app-table-heading font-medium text-right w-36">
               Subtotal
             </th>
             <th className="w-10"></th>

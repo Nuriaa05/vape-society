@@ -1,3 +1,4 @@
+import { Card, CardHeader, CardToolbar } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell, StatusBadge } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -166,9 +167,9 @@ export function StockPage() {
   if (productsQuery.isLoading || movementsQuery.isLoading) {
     return (
       <AppShell title="Stock" subtitle="Inventario actual y movimientos">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">
+        <Card className="app-card-body text-sm text-muted-foreground">
           Cargando stock...
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -176,9 +177,9 @@ export function StockPage() {
   if (productsQuery.error || movementsQuery.error) {
     return (
       <AppShell title="Stock" subtitle="Inventario actual y movimientos">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-destructive">
+        <Card className="app-card-body text-sm text-destructive">
           No se pudo cargar el stock.
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -236,15 +237,16 @@ export function StockPage() {
 
   return (
     <AppShell title="Stock" subtitle="Inventario actual y movimientos">
-      <div className="mb-4 rounded-md border border-accent/30 bg-accent/5 px-4 py-2.5 text-xs text-foreground">
+      <div className="rounded-md border border-accent/30 bg-accent/5 px-4 py-2.5 text-xs text-foreground">
         Las ventas con <strong>Entrega: Pendiente</strong> reservan stock
         automáticamente. El stock disponible para nuevas ventas excluye lo
         reservado. Los ajustes manuales se registran como movimientos auditables
         y nunca pueden dejar stock disponible negativo.
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-card border border-border rounded-lg">
-          <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-border">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5">
+        <Card>
+          <CardHeader title="Inventario" />
+          <CardToolbar className="flex flex-wrap items-center justify-between gap-3 pt-0">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -257,22 +259,26 @@ export function StockPage() {
             <Button variant="outline" onClick={() => openAdjust(null)}>
               <Settings2 /> Ajustar stock
             </Button>
-          </div>
+          </CardToolbar>
           <div className="max-h-[640px] overflow-auto overscroll-contain">
             <table className="w-full min-w-[640px] text-sm">
               <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
                 <tr>
-                  <th className="px-5 py-2.5 font-medium">Producto</th>
-                  <th className="px-5 py-2.5 font-medium text-right">Físico</th>
-                  <th className="px-5 py-2.5 font-medium text-right">
+                  <th className="app-table-heading font-medium">Producto</th>
+                  <th className="app-table-heading font-medium text-right">
+                    Físico
+                  </th>
+                  <th className="app-table-heading font-medium text-right">
                     Reservado
                   </th>
-                  <th className="px-5 py-2.5 font-medium text-right">
+                  <th className="app-table-heading font-medium text-right">
                     Disponible
                   </th>
-                  <th className="px-5 py-2.5 font-medium text-right">Mínimo</th>
-                  <th className="px-5 py-2.5 font-medium">Estado</th>
-                  <th className="px-5 py-2.5 font-medium text-right">
+                  <th className="app-table-heading font-medium text-right">
+                    Mínimo
+                  </th>
+                  <th className="app-table-heading font-medium">Estado</th>
+                  <th className="app-table-heading font-medium text-right">
                     Acciones
                   </th>
                 </tr>
@@ -384,12 +390,13 @@ export function StockPage() {
               )}
             </div>
           )}
-        </div>
+        </Card>
 
-        <div className="bg-card border border-border rounded-lg">
-          <div className="px-5 py-4 border-b border-border text-sm font-semibold">
-            Movimientos recientes
-          </div>
+        <Card>
+          <CardHeader
+            title="Movimientos recientes"
+            className="border-b border-border"
+          />
           <ul className="divide-y divide-border max-h-[640px] overflow-y-auto overscroll-contain">
             {visibleMovements.map((m) => {
               const canRevert =
@@ -496,7 +503,7 @@ export function StockPage() {
               )}
             </div>
           )}
-        </div>
+        </Card>
       </div>
 
       <AdjustStockDialog

@@ -1,3 +1,4 @@
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import {
@@ -632,9 +633,9 @@ export function ConfigPage() {
   if (settingsQuery.isLoading) {
     return (
       <AppShell title="Configuración" subtitle="Datos del local y catálogos">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">
+        <Card className="app-card-body text-sm text-muted-foreground">
           Cargando configuración...
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -642,17 +643,17 @@ export function ConfigPage() {
   if (settingsQuery.error) {
     return (
       <AppShell title="Configuración" subtitle="Datos del local y catálogos">
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-destructive">
+        <Card className="app-card-body text-sm text-destructive">
           No se pudo cargar la configuración.
-        </div>
+        </Card>
       </AppShell>
     );
   }
 
   return (
     <AppShell title="Configuración" subtitle="Datos del local y catálogos">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <SettingsCard
           title="Datos del local"
           actions={
             <Button
@@ -694,9 +695,9 @@ export function ConfigPage() {
               />
             </Field>
           </div>
-        </Card>
+        </SettingsCard>
 
-        <Card
+        <SettingsCard
           title="Comprobante interno"
           actions={
             <Button
@@ -766,9 +767,9 @@ export function ConfigPage() {
               internos y <strong>no válidos como factura fiscal AFIP</strong>.
             </span>
           </div>
-        </Card>
+        </SettingsCard>
 
-        <Card
+        <SettingsCard
           title="Precios"
           actions={
             <Button
@@ -803,9 +804,9 @@ export function ConfigPage() {
             Se aplica al crear un producto nuevo. Igual podés modificarlo
             manualmente en cada producto.
           </p>
-        </Card>
+        </SettingsCard>
 
-        <Card title="Categorías globales">
+        <SettingsCard title="Categorías globales">
           <p className="text-xs text-muted-foreground -mt-1">
             Las categorías se usan para clasificar los productos del catálogo.
           </p>
@@ -865,9 +866,9 @@ export function ConfigPage() {
           <p className="text-xs text-muted-foreground">
             Solo se pueden borrar categorías sin productos asociados.
           </p>
-        </Card>
+        </SettingsCard>
 
-        <Card
+        <SettingsCard
           title={`Métodos de pago (${pays.length})`}
           collapsed={!paymentMethodsOpen}
           contentId="payment-methods-content"
@@ -1012,9 +1013,9 @@ export function ConfigPage() {
               <Plus /> Agregar
             </Button>
           </div>
-        </Card>
+        </SettingsCard>
 
-        <Card
+        <SettingsCard
           title={`Cupones (${coupons.length})`}
           actions={
             <Button size="sm" onClick={openNewCoupon}>
@@ -1114,9 +1115,9 @@ export function ConfigPage() {
             Los cupones usados se conservan para mantener el historial y pueden
             desactivarse.
           </p>
-        </Card>
+        </SettingsCard>
 
-        <Card title="Backups y datos">
+        <SettingsCard title="Backups y datos">
           <p className="text-xs text-muted-foreground -mt-1 mb-2">
             Generá una copia de seguridad de productos, ventas y compras.
           </p>
@@ -1153,9 +1154,9 @@ export function ConfigPage() {
           >
             <Database /> Crear backup
           </Button>
-        </Card>
+        </SettingsCard>
 
-        <Card title="Impresora">
+        <SettingsCard title="Impresora">
           <div className="flex items-start gap-3 p-3 rounded-md border border-border bg-muted/30">
             <div className="h-9 w-9 rounded-md bg-accent/10 text-accent flex items-center justify-center">
               <Printer className="h-4 w-4" />
@@ -1227,9 +1228,9 @@ export function ConfigPage() {
           <Field label="Ancho de papel">
             <Input defaultValue="58 mm" disabled />
           </Field>
-        </Card>
+        </SettingsCard>
 
-        <Card title="Modo del sistema" className="lg:col-span-2">
+        <SettingsCard title="Modo del sistema" className="lg:col-span-2">
           <div className="flex items-start gap-3 p-3 rounded-md border border-border bg-muted/30">
             <div className="h-9 w-9 rounded-md bg-primary/5 text-primary flex items-center justify-center">
               <Monitor className="h-4 w-4" />
@@ -1240,7 +1241,7 @@ export function ConfigPage() {
               </div>
             </div>
           </div>
-        </Card>
+        </SettingsCard>
       </div>
 
       <Dialog
@@ -1408,7 +1409,7 @@ export function ConfigPage() {
   );
 }
 
-function Card({
+function SettingsCard({
   title,
   children,
   className = "",
@@ -1424,17 +1425,18 @@ function Card({
   contentId?: string;
 }) {
   return (
-    <div className={`bg-card border border-border rounded-lg ${className}`}>
-      <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold">{title}</span>
-        {actions}
-      </div>
+    <Card className={className}>
+      <CardHeader
+        title={title}
+        action={actions}
+        className="border-b border-border"
+      />
       {!collapsed && (
-        <div id={contentId} className="p-5 flex flex-col gap-3">
+        <CardBody id={contentId} className="flex flex-col gap-3">
           {children}
-        </div>
+        </CardBody>
       )}
-    </div>
+    </Card>
   );
 }
 function Field({

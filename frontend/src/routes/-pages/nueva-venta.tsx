@@ -1,3 +1,4 @@
+import { Card, CardToolbar } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -409,9 +410,9 @@ export function NuevaVenta() {
         title="Nueva venta"
         subtitle="Escaneá un código o buscá el producto"
       >
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">
+        <Card className="app-card-body text-sm text-muted-foreground">
           Cargando productos...
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -427,9 +428,9 @@ export function NuevaVenta() {
         title="Nueva venta"
         subtitle="Escaneá un código o buscá el producto"
       >
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-destructive">
+        <Card className="app-card-body text-sm text-destructive">
           No se pudo cargar la venta.
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -440,9 +441,9 @@ export function NuevaVenta() {
         title="Nueva venta"
         subtitle="Escaneá un código o buscá el producto"
       >
-        <div className="bg-card border border-border rounded-lg p-6 text-sm text-destructive">
+        <Card className="app-card-body text-sm text-destructive">
           No se pudo cargar la configuración de venta.
-        </div>
+        </Card>
       </AppShell>
     );
   }
@@ -682,70 +683,69 @@ export function NuevaVenta() {
       title="Nueva venta"
       subtitle="Escaneá un código o buscá el producto"
     >
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="xl:col-span-2 space-y-4">
-          <form
-            onSubmit={handleScan}
-            className="bg-card border border-border rounded-lg p-4"
-          >
-            <div className="relative">
-              <ScanLine className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-accent" />
-              <Input
-                ref={inputRef}
-                value={scan}
-                onChange={(e) => setScan(e.target.value)}
-                onKeyDown={(e) => {
-                  if (isScannerSubmitKey(e.key)) {
-                    e.preventDefault();
-                    void submitScan();
-                  }
-                }}
-                placeholder="Escanear código de barras o buscar producto/combo"
-                className="h-14 pl-12 text-base"
-                autoFocus
-              />
-            </div>
-            <div className="mt-3 relative">
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar producto o combo por nombre..."
-              />
-              {filtered.length > 0 && (
-                <div className="absolute z-10 top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-card border border-border rounded-md shadow-sm">
-                  {filtered.map((p) => (
-                    <button
-                      key={getCartItemKey(p)}
-                      type="button"
-                      onClick={() => {
-                        addProduct(p);
-                        setSearch("");
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center justify-between"
-                    >
-                      <span className="flex items-center gap-2">
-                        <span>{p.name}</span>
-                        {p.itemType === "Combo" && (
-                          <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
-                            Combo
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-muted-foreground tabular-nums">
-                        {formatARS(p.price)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </form>
-
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <div className="px-5 py-3 border-b border-border flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold">
-                Carrito ({lines.length})
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5 items-start">
+        <div className="flex min-w-0 flex-col gap-5">
+          <Card>
+            <form onSubmit={handleScan} className="app-card-body">
+              <div className="relative">
+                <ScanLine className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-accent" />
+                <Input
+                  ref={inputRef}
+                  value={scan}
+                  onChange={(e) => setScan(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (isScannerSubmitKey(e.key)) {
+                      e.preventDefault();
+                      void submitScan();
+                    }
+                  }}
+                  placeholder="Escanear código de barras o buscar producto/combo"
+                  className="h-14 pl-12 text-base"
+                  autoFocus
+                />
               </div>
+              <div className="mt-3 relative">
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar producto o combo por nombre..."
+                />
+                {filtered.length > 0 && (
+                  <div className="absolute z-10 top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-card border border-border rounded-md shadow-sm">
+                    {filtered.map((p) => (
+                      <button
+                        key={getCartItemKey(p)}
+                        type="button"
+                        onClick={() => {
+                          addProduct(p);
+                          setSearch("");
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center justify-between"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span>{p.name}</span>
+                          {p.itemType === "Combo" && (
+                            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                              Combo
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-muted-foreground tabular-nums">
+                          {formatARS(p.price)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </form>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <CardToolbar className="flex items-center justify-between gap-3">
+              <h2 className="font-semibold app-card-title">
+                Carrito ({lines.length})
+              </h2>
               {!locked && lines.length > 0 && (
                 <Button
                   size="sm"
@@ -762,19 +762,19 @@ export function NuevaVenta() {
               {cancelled && (
                 <span className="text-xs text-destructive">✕ Anulada</span>
               )}
-            </div>
+            </CardToolbar>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[560px] text-sm">
                 <thead className="text-left text-sm text-foreground border-b border-border bg-card">
                   <tr>
-                    <th className="px-5 py-2.5 font-medium">Producto</th>
-                    <th className="px-5 py-2.5 font-medium text-center w-32">
+                    <th className="app-table-heading font-medium">Producto</th>
+                    <th className="app-table-heading font-medium text-center w-32">
                       Cantidad
                     </th>
-                    <th className="px-5 py-2.5 font-medium text-right w-32">
+                    <th className="app-table-heading font-medium text-right w-32">
                       Precio
                     </th>
-                    <th className="px-5 py-2.5 font-medium text-right w-32">
+                    <th className="app-table-heading font-medium text-right w-32">
                       Subtotal
                     </th>
                     <th className="w-10"></th>
@@ -917,12 +917,14 @@ export function NuevaVenta() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Card>
         </div>
 
-        <div className="space-y-4">
-          <div className="bg-card border border-border rounded-lg p-5">
-            <div className="text-sm font-semibold mb-3">Resumen de venta</div>
+        <div className="flex min-w-0 flex-col gap-5">
+          <Card className="app-card-body">
+            <h2 className="font-semibold mb-3 app-card-title">
+              Resumen de venta
+            </h2>
             <div className="space-y-2 text-sm">
               <Row
                 label="Subtotal"
@@ -1288,12 +1290,12 @@ export function NuevaVenta() {
                 </Button>
               )}
             </div>
-          </div>
+          </Card>
 
-          <div className="bg-card border border-border rounded-lg p-5">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-3">
+          <Card className="app-card-body">
+            <h2 className="mb-3 app-card-title font-semibold">
               Vista previa del comprobante
-            </div>
+            </h2>
             <div
               className={cn(
                 "receipt-preview bg-white border border-dashed border-border rounded-md p-4 font-mono text-[11px] text-foreground leading-5",
@@ -1436,7 +1438,7 @@ export function NuevaVenta() {
                 </div>
               </div>
             )}
-          </div>
+          </Card>
         </div>
       </div>
 
