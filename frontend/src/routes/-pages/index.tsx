@@ -18,7 +18,6 @@ import {
   Truck,
   TrendingUp,
   Wallet,
-  AlertTriangle,
   Boxes,
 } from "lucide-react";
 
@@ -94,7 +93,7 @@ export function Dashboard() {
       }
     >
       <div className="dashboard-layout">
-        <div className="dashboard-kpis grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="dashboard-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <KpiCard
             icon={<Wallet className="h-4 w-4" />}
             label="Ventas de hoy"
@@ -126,88 +125,85 @@ export function Dashboard() {
           />
         </div>
 
-        <div className="dashboard-grid grid grid-cols-1 items-start lg:grid-cols-3 gap-4 mt-6">
-          <div className="dashboard-chart min-w-0 lg:col-span-2">
+        <div className="dashboard-grid grid grid-cols-1 items-start lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5 mt-6">
+          <div className="dashboard-chart min-w-0">
             <DashboardUnitsChart />
           </div>
 
-          <div className="dashboard-aside min-w-0 grid gap-4 lg:col-start-3 lg:row-span-2">
-            <Card>
-              <CardHeader
-                title="Entregas pendientes"
-                action={
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to="/ventas" search={{ entrega: "Pendiente" }}>
-                      Ver pendientes
-                    </Link>
-                  </Button>
-                }
-              />
-              {summary.pendingDeliveries.length === 0 ? (
-                <div className="dashboard-empty px-5 py-8 text-center text-sm text-muted-foreground">
-                  No hay entregas pendientes.
-                </div>
-              ) : (
-                <ul className="dashboard-list divide-y divide-border">
-                  {pendingDeliveriesPreview.map((s) => (
-                    <li
-                      key={s.id}
-                      className="flex items-center justify-between px-5 py-3 gap-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium font-mono truncate">
-                          {s.number}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatDateTimeAR(s.date)} · {formatARS(s.total)}
-                        </div>
-                      </div>
-                      <StatusBadge tone="warning">Pendiente</StatusBadge>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-
-            <Card>
-              <CardHeader
-                title="Alertas de stock"
-                action={
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to="/stock">Ver stock</Link>
-                  </Button>
-                }
-              />
+          <Card className="dashboard-pending min-w-0 lg:col-start-2 lg:row-start-1">
+            <CardHeader
+              title="Entregas pendientes"
+              action={
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/ventas" search={{ entrega: "Pendiente" }}>
+                    Ver pendientes
+                  </Link>
+                </Button>
+              }
+            />
+            {summary.pendingDeliveries.length === 0 ? (
+              <div className="dashboard-empty px-5 py-8 text-center text-sm text-muted-foreground">
+                No hay entregas pendientes.
+              </div>
+            ) : (
               <ul className="dashboard-list divide-y divide-border">
-                {stockAlertsPreview.map((p) => {
-                  const st = stockRepository.getStatus(p);
-                  return (
-                    <li
-                      key={p.id}
-                      className="flex items-center justify-between px-5 py-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">
-                          {p.name}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Stock: {p.stock} · mínimo {p.minStock}
-                        </div>
+                {pendingDeliveriesPreview.map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex items-center justify-between px-5 py-3 gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium font-mono truncate">
+                        {s.number}
                       </div>
-                      <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
-                    </li>
-                  );
-                })}
-                {summary.stockAlerts.length === 0 && (
-                  <li className="px-5 py-6 text-sm text-muted-foreground text-center">
-                    Sin alertas.
+                      <div className="text-xs text-muted-foreground">
+                        {formatDateTimeAR(s.date)} · {formatARS(s.total)}
+                      </div>
+                    </div>
+                    <StatusBadge tone="warning">Pendiente</StatusBadge>
                   </li>
-                )}
+                ))}
               </ul>
-            </Card>
-          </div>
+            )}
+          </Card>
 
-          <Card className="dashboard-sales min-w-0 lg:col-span-2">
+          <Card className="dashboard-alerts min-w-0 lg:col-start-2 lg:row-start-2">
+            <CardHeader
+              title="Alertas de stock"
+              action={
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/stock">Ver stock</Link>
+                </Button>
+              }
+            />
+            <ul className="dashboard-list divide-y divide-border">
+              {stockAlertsPreview.map((p) => {
+                const st = stockRepository.getStatus(p);
+                return (
+                  <li
+                    key={p.id}
+                    className="flex items-center justify-between px-5 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {p.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Stock: {p.stock} · mínimo {p.minStock}
+                      </div>
+                    </div>
+                    <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
+                  </li>
+                );
+              })}
+              {summary.stockAlerts.length === 0 && (
+                <li className="px-5 py-6 text-sm text-muted-foreground text-center">
+                  Sin alertas.
+                </li>
+              )}
+            </ul>
+          </Card>
+          <Card className="dashboard-sales min-w-0 lg:col-start-1 lg:row-start-2">
             <CardHeader
               title="Ventas recientes"
               action={
@@ -265,24 +261,6 @@ export function Dashboard() {
             </div>
           </Card>
         </div>
-
-        {summary.pendingDeliveries.length > 0 && (
-          <div className="dashboard-delivery-notice mt-6 rounded-lg border border-warning/30 bg-warning/10 px-5 py-3 flex items-center gap-3">
-            <AlertTriangle className="h-4 w-4 text-warning-foreground shrink-0" />
-            <div className="text-sm text-foreground flex-1">
-              Tenés <strong>{summary.pendingDeliveries.length}</strong>{" "}
-              {summary.pendingDeliveries.length === 1
-                ? "venta pendiente de entrega"
-                : "ventas pendientes de entrega"}
-              . El stock está reservado hasta despacharlas.
-            </div>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/ventas" search={{ entrega: "Pendiente" }}>
-                Ver pendientes
-              </Link>
-            </Button>
-          </div>
-        )}
       </div>
     </AppShell>
   );
