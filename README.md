@@ -1,4 +1,4 @@
-# Lozano Core
+# vape society Core
 
 Núcleo comercial local independiente, actualizado desde `main` de Lozano (`afe3a101`, 15 de agosto de 2026). Es una base para desarrollar otro negocio; conserva sus reglas comerciales y usa el estilo visual del prototipo de Vape Society.
 
