@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Supplier {
+  id           String     @id
+  name         String
+  phone        String
+  email        String
+  lastPurchase DateTime?
+  active       Boolean    @default(true)
+  notes        String?
+  products     Product[]
+  purchases    Purchase[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([name])
+}
+
+model Category {
+  id        String    @id
+  name      String    @unique
+  active    Boolean   @default(true)
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model PaymentMethod {
+  id                   String   @id
+  name                 String   @unique
+  enabled              Boolean  @default(true)
+  surchargeBasisPoints Int      @default(0)
+  cashHandling         Boolean  @default(false)
+  sales                Sale[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Coupon {
+  id                  String   @id @default(cuid())
+  code                String   @unique
+  discountType        String
+  discountBasisPoints Int?
+  discountAmountCents Int?
+  enabled             Boolean  @default(true)
+  sales               Sale[]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([enabled])
+}
+
+model Product {
+  id               String              @id
+  barcode          String?             @unique
+  name             String
+  categoryId       String
+  supplierId       String?
+  costAmountCents  Int
+  priceAmountCents Int
+  marginPct        Int
+  physicalStock    Int                 @default(0)
+  minStock         Int                 @default(0)
+  saleEnabled      Boolean             @default(true)
+  archived         Boolean             @default(false)
+  category         Category            @relation(fields: [categoryId], references: [id])
+  supplier         Supplier?           @relation(fields: [supplierId], references: [id])
+  saleItems        SaleItem[]
+  comboItems       ComboItem[]
+  saleComponents   SaleItemComponent[]
+  purchaseItems    PurchaseItem[]
+  stockMovements   StockMovement[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([categoryId])
+  @@index([supplierId])
+  @@index([name])
+}
+
+model Combo {
+  id               String      @id @default(cuid())
+  barcode          String?     @unique
+  name             String
+  priceAmountCents Int
+  archived         Boolean     @default(false)
+  items            ComboItem[]
+  saleItems        SaleItem[]
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([name])
+}
+
+model ComboItem {
+  id        String  @id @default(cuid())
+  comboId   String
+  productId String
+  qty       Int
+  combo     Combo   @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@unique([comboId, productId])
+  @@index([comboId])
+  @@index([productId])
+}
+
+model Sale {
+  id                      String        @id @default(cuid())
+  number                  String        @unique
+  date                    DateTime      @default(now())
+  customerName            String?
+  customerPhone           String?
+  deliveryStatus          String
+  status                  String
+  paymentMethodId         String
+  couponId                String?
+  couponCode              String?
+  couponType              String?
+  couponBasisPoints       Int?
+  couponValueAmountCents  Int?
+  discountAmountCents     Int           @default(0)
+  paymentMethodName       String        @default("")
+  surchargeBasisPoints    Int           @default(0)
+  surchargeAmountCents    Int           @default(0)
+  cashReceivedAmountCents Int?
+  changeAmountCents       Int?
+  subtotalAmountCents     Int
+  totalAmountCents        Int
+  cancelReason            String?
+  cancelledAt             DateTime?
+  paymentMethod           PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  coupon                  Coupon?       @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  items                   SaleItem[]
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  @@index([date])
+  @@index([deliveryStatus])
+  @@index([status])
+  @@index([paymentMethodId])
+  @@index([couponId])
+}
+
+model SaleItem {
+  id                       String              @id @default(cuid())
+  saleId                   String
+  itemType                 String              @default("Product")
+  productId                String?
+  comboId                  String?
+  productName              String
+  barcode                  String
+  qty                      Int
+  unitPriceAmountCents     Int
+  lineTotalAmountCents     Int
+  comboDiscountAmountCents Int                 @default(0)
+  sale                     Sale                @relation(fields: [saleId], references: [id])
+  product                  Product?            @relation(fields: [productId], references: [id])
+  combo                    Combo?              @relation(fields: [comboId], references: [id])
+  components               SaleItemComponent[]
+
+  @@index([saleId])
+  @@index([productId])
+  @@index([comboId])
+  @@index([itemType])
+}
+
+model SaleItemComponent {
+  id          String   @id @default(cuid())
+  saleItemId  String
+  productId   String
+  productName String
+  barcode     String
+  qtyPerCombo Int
+  totalQty    Int
+  saleItem    SaleItem @relation(fields: [saleItemId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@index([saleItemId])
+  @@index([productId])
+}
+
+model Purchase {
+  id               String         @id @default(cuid())
+  supplierId       String
+  date             DateTime
+  status           String
+  totalAmountCents Int
+  cancelReason     String?
+  cancelledAt      DateTime?
+  supplier         Supplier       @relation(fields: [supplierId], references: [id])
+  items            PurchaseItem[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([supplierId])
+  @@index([date])
+  @@index([status])
+}
+
+model PurchaseItem {
+  id                   String   @id @default(cuid())
+  purchaseId           String
+  productId            String
+  productName          String
+  qty                  Int
+  unitCostAmountCents  Int
+  lineTotalAmountCents Int
+  purchase             Purchase @relation(fields: [purchaseId], references: [id])
+  product              Product  @relation(fields: [productId], references: [id])
+
+  @@index([purchaseId])
+  @@index([productId])
+}
+
+model StockMovement {
+  id            String   @id @default(cuid())
+  productId     String
+  type          String
+  sourceType    String
+  sourceId      String
+  physicalDelta Int
+  note          String?
+  reversalOfId  String?
+  product       Product  @relation(fields: [productId], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([productId])
+  @@index([sourceType, sourceId])
+  @@index([reversalOfId])
+}
+
+model BusinessSettings {
+  id        String   @id
+  name      String
+  address   String
+  cuit      String
+  phone     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ReceiptSettings {
+  id        String   @id
+  header    String
+  footer    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AppSettings {
+  id               String   @id
+  defaultMarginPct Int
+  comboTicketMode  String   @default("ComboLine")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Counter {
+  key       String   @id
+  value     Int
+  updatedAt DateTime @updatedAt
+}
+
+model BackupLog {
+  id        String   @id @default(cuid())
+  filename  String
+  path      String
+  sizeBytes Int
+  status    String
+  createdAt DateTime @default(now())
+}

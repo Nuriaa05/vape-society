@@ -1,0 +1,15 @@
+**/node_modules/
+**/dist/
+**/coverage/
+**/test-results/
+**/playwright-report/
+**/.tanstack/
+**/*.tsbuildinfo
+**/*.log
+**/*.db
+**/*.db-*
+**/*.sqlite*
+backend/backups/
+.env
+**/.env
+.verification/
