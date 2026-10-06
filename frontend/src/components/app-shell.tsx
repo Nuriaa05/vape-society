@@ -232,7 +232,13 @@ export function AppShell({
       </Dialog>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
+        <header
+          className={cn(
+            "flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6",
+            pathname === "/configuracion" &&
+              "sticky top-0 z-20 bg-background print:static",
+          )}
+        >
           <div className="flex min-w-0 items-center gap-3">
             <Button
               variant="outline"

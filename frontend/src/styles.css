@@ -168,6 +168,17 @@
   }
 }
 
+.settings-controls :is(input, textarea, [role="combobox"]) {
+  background-color: var(--muted);
+}
+.dark .settings-controls :is(input, textarea, [role="combobox"]) {
+  background-color: #27272a;
+}
+.settings-controls :is(input, textarea)::placeholder {
+  color: var(--secondary-foreground);
+  opacity: 1;
+}
+
 @layer components {
   .app-page-layout {
     display: flex;

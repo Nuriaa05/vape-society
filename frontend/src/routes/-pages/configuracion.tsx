@@ -1,6 +1,12 @@
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { DataExportControls } from "@/components/data-export-controls";
+import { SettingsReceiptPreview } from "@/components/settings-receipt-preview";
+import {
+  SettingsSectionNavigation,
+  type SettingsSection,
+} from "@/components/settings-section-navigation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,9 +38,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  ChevronDown,
   Database,
-  Info,
   LoaderCircle,
   Monitor,
   Pencil,
@@ -303,7 +307,7 @@ export function ConfigPage() {
 
   const [pays, setPays] = useState<Pay[]>(settings.paymentMethods);
   const [newPay, setNewPay] = useState("");
-  const [paymentMethodsOpen, setPaymentMethodsOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<SettingsSection>("local");
   const [paymentPercentInputs, setPaymentPercentInputs] = useState<
     Record<string, string>
   >({});
@@ -321,22 +325,36 @@ export function ConfigPage() {
   const coupons = couponsQuery.data ?? [];
 
   useEffect(() => {
-    if (!settingsQuery.data) return;
-    setBiz(settingsQuery.data.business);
-    setTicket(settingsQuery.data.receipt);
-    setComboTicketMode(settingsQuery.data.comboTicketMode ?? "ComboLine");
-    setDefaultMargin(settingsQuery.data.defaultMargin);
-    setCats(settingsQuery.data.categories);
-    setPays(settingsQuery.data.paymentMethods);
+    setBiz(settings.business);
+  }, [settings.business]);
+
+  useEffect(() => {
+    setTicket(settings.receipt);
+  }, [settings.receipt]);
+
+  useEffect(() => {
+    setComboTicketMode(settings.comboTicketMode ?? "ComboLine");
+  }, [settings.comboTicketMode]);
+
+  useEffect(() => {
+    setDefaultMargin(settings.defaultMargin);
+  }, [settings.defaultMargin]);
+
+  useEffect(() => {
+    setCats(settings.categories);
+  }, [settings.categories]);
+
+  useEffect(() => {
+    setPays(settings.paymentMethods);
     setPaymentPercentInputs(
       Object.fromEntries(
-        settingsQuery.data.paymentMethods.map((method) => [
+        settings.paymentMethods.map((method) => [
           method.id,
           basisPointsToPercentInput(method.surchargeBasisPoints),
         ]),
       ),
     );
-  }, [settingsQuery.data]);
+  }, [settings.paymentMethods]);
 
   useEffect(() => {
     if (printerSettingsQuery.data) {
@@ -632,7 +650,7 @@ export function ConfigPage() {
 
   if (settingsQuery.isLoading) {
     return (
-      <AppShell title="Configuración" subtitle="Datos del local y catálogos">
+      <AppShell title="Configuración">
         <Card className="app-card-body text-sm text-muted-foreground">
           Cargando configuración...
         </Card>
@@ -642,7 +660,7 @@ export function ConfigPage() {
 
   if (settingsQuery.error) {
     return (
-      <AppShell title="Configuración" subtitle="Datos del local y catálogos">
+      <AppShell title="Configuración">
         <Card className="app-card-body text-sm text-destructive">
           No se pudo cargar la configuración.
         </Card>
@@ -651,597 +669,736 @@ export function ConfigPage() {
   }
 
   return (
-    <AppShell title="Configuración" subtitle="Datos del local y catálogos">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <SettingsCard
-          title="Datos del local"
-          actions={
-            <Button
-              size="sm"
-              onClick={() =>
-                void saveSettingsSection("business", () =>
-                  updateBusinessMutation.mutateAsync(biz),
-                )
-              }
-              disabled={updateBusinessMutation.isPending}
-            >
-              <Save /> Guardar
-            </Button>
-          }
-        >
-          <Field label="Nombre del local">
-            <Input
-              value={biz.name}
-              onChange={(e) => setBiz({ ...biz, name: e.target.value })}
-            />
-          </Field>
-          <Field label="Dirección">
-            <Input
-              value={biz.address}
-              onChange={(e) => setBiz({ ...biz, address: e.target.value })}
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="CUIT">
-              <Input
-                value={biz.cuit}
-                onChange={(e) => setBiz({ ...biz, cuit: e.target.value })}
-              />
-            </Field>
-            <Field label="Teléfono">
-              <Input
-                value={biz.phone}
-                onChange={(e) => setBiz({ ...biz, phone: e.target.value })}
-              />
-            </Field>
-          </div>
-        </SettingsCard>
-
-        <SettingsCard
-          title="Comprobante interno"
-          actions={
-            <Button
-              size="sm"
-              onClick={() =>
-                void saveSettingsSection("receipt", () =>
-                  updateReceiptMutation.mutateAsync(ticket),
-                )
-              }
-              disabled={updateReceiptMutation.isPending}
-            >
-              <Save /> Guardar
-            </Button>
-          }
-        >
-          <Field label="Encabezado del ticket">
-            <Input
-              value={ticket.header}
-              onChange={(e) => setTicket({ ...ticket, header: e.target.value })}
-            />
-          </Field>
-          <Field label="Pie del ticket">
-            <Textarea
-              rows={2}
-              value={ticket.footer}
-              onChange={(e) => setTicket({ ...ticket, footer: e.target.value })}
-            />
-          </Field>
-          <Field label="Combos en el ticket">
-            <div className="flex items-center gap-2">
-              <Select
-                value={comboTicketMode}
-                onValueChange={(value) =>
-                  setComboTicketMode(
-                    value as NonNullable<LocalSettings["comboTicketMode"]>,
-                  )
-                }
-              >
-                <SelectTrigger className="max-w-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ComboLine">Una linea de combo</SelectItem>
-                  <SelectItem value="ComboWithComponents">
-                    Combo + componentes sin precios
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  void saveSettingsSection("comboTicket", () =>
-                    updateComboTicketModeMutation.mutateAsync(comboTicketMode),
-                  )
-                }
-                disabled={updateComboTicketModeMutation.isPending}
-              >
-                <Save /> Guardar formato
-              </Button>
-            </div>
-          </Field>
-          <div className="flex items-start gap-2 p-3 rounded-md bg-warning/10 border border-warning/30 text-xs">
-            <Info className="h-4 w-4 mt-0.5 text-warning-foreground" />
-            <span>
-              <strong>Importante:</strong> los comprobantes generados son
-              internos y <strong>no válidos como factura fiscal AFIP</strong>.
-            </span>
-          </div>
-        </SettingsCard>
-
-        <SettingsCard
-          title="Precios"
-          actions={
-            <Button
-              size="sm"
-              onClick={() =>
-                void saveSettingsSection("defaultMargin", () =>
-                  updateDefaultMarginMutation.mutateAsync(defaultMargin),
-                )
-              }
-              disabled={updateDefaultMarginMutation.isPending}
-            >
-              <Save /> Guardar
-            </Button>
-          }
-        >
-          <Field label="Margen de ganancia predeterminado (%)">
-            <div className="relative max-w-[160px]">
-              <Input
-                type="number"
-                min={0}
-                step={1}
-                value={defaultMargin}
-                onChange={(e) => setDefaultMargin(Number(e.target.value))}
-                className="pr-8"
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                %
-              </span>
-            </div>
-          </Field>
-          <p className="text-xs text-muted-foreground">
-            Se aplica al crear un producto nuevo. Igual podés modificarlo
-            manualmente en cada producto.
-          </p>
-        </SettingsCard>
-
-        <SettingsCard title="Categorías globales">
-          <p className="text-xs text-muted-foreground -mt-1">
-            Las categorías se usan para clasificar los productos del catálogo.
-          </p>
-          <div className="flex gap-2">
-            <Input
-              value={newCat}
-              onChange={(e) => setNewCat(e.target.value)}
-              placeholder="Ej. Helados"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && newCat.trim()) {
-                  void addCategory();
-                }
-              }}
-            />
-            <Button
-              disabled={!newCat.trim() || createCategoryMutation.isPending}
-              onClick={() => void addCategory()}
-            >
-              <Plus /> Agregar
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-1">
-            {cats.map((c) => {
-              const verifying = productsQuery.isLoading;
-              const blocked =
-                !verifying &&
-                productsQuery.data !== undefined &&
-                !canDeleteCategory(c, products);
-
-              return (
-                <span
-                  key={c.id}
-                  className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full bg-muted text-sm"
+    <AppShell title="Configuración">
+      <div className="grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-7">
+        <SettingsSectionNavigation
+          selected={activeSection}
+          categoryCount={cats.length}
+          onSelect={setActiveSection}
+        />
+        <div className="mx-auto w-full min-w-0 max-w-[1080px]">
+          <section
+            id="settings-panel-local"
+            aria-labelledby="settings-nav-local"
+            hidden={activeSection !== "local"}
+            className="space-y-5"
+          >
+            <SettingsCard
+              title="Datos del local"
+              description="Información que aparece en los comprobantes."
+              actions={
+                <Button
+                  size="sm"
+                  type="button"
+                  onClick={() =>
+                    void saveSettingsSection("business", () =>
+                      updateBusinessMutation.mutateAsync(biz),
+                    )
+                  }
+                  disabled={updateBusinessMutation.isPending}
                 >
-                  {c.name}
-                  <button
-                    disabled={
-                      deleteCategoryMutation.isPending || verifying || blocked
-                    }
-                    title={
-                      verifying
-                        ? "Verificando productos asociados"
-                        : blocked
-                          ? "No se puede eliminar: tiene productos asociados"
-                          : "Eliminar categoría"
-                    }
-                    onClick={() => void deleteCategory(c)}
-                    className="h-5 w-5 rounded-full hover:bg-destructive/10 hover:text-destructive inline-flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-                    aria-label={`Eliminar ${c.name}`}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </span>
-              );
-            })}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Solo se pueden borrar categorías sin productos asociados.
-          </p>
-        </SettingsCard>
-
-        <SettingsCard
-          title={`Métodos de pago (${pays.length})`}
-          collapsed={!paymentMethodsOpen}
-          contentId="payment-methods-content"
-          actions={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-expanded={paymentMethodsOpen}
-              aria-controls="payment-methods-content"
-              onClick={() => setPaymentMethodsOpen((current) => !current)}
+                  <Save /> Guardar
+                </Button>
+              }
             >
-              <ChevronDown
-                className={`transition-transform ${paymentMethodsOpen ? "rotate-180" : ""}`}
-              />
-              {paymentMethodsOpen ? "Ocultar" : "Mostrar"}
-            </Button>
-          }
-        >
-          <p className="text-xs text-muted-foreground -mt-1">
-            Activá los que el local acepta en la pantalla de venta.
-          </p>
-          <ul className="divide-y divide-border -m-5 mt-0">
-            {pays.map((p) => {
-              const verifying = salesQuery.isLoading;
-              const blocked =
-                !verifying &&
-                salesQuery.data !== undefined &&
-                !canDeletePaymentMethod(p, sales);
+              <div>
+                <SettingsRow label="Nombre del local" inputId="business-name">
+                  <Input
+                    id="business-name"
+                    placeholder="Nombre del local"
+                    value={biz.name}
+                    onChange={(e) => setBiz({ ...biz, name: e.target.value })}
+                  />
+                </SettingsRow>
+                <SettingsRow label="Dirección" inputId="business-address">
+                  <Input
+                    id="business-address"
+                    placeholder="Dirección del local"
+                    value={biz.address}
+                    onChange={(e) =>
+                      setBiz({ ...biz, address: e.target.value })
+                    }
+                  />
+                </SettingsRow>
+                <SettingsRow
+                  label="CUIT"
+                  description="Opcional"
+                  inputId="business-cuit"
+                >
+                  <Input
+                    id="business-cuit"
+                    placeholder="Número de CUIT"
+                    aria-describedby="business-cuit-description"
+                    value={biz.cuit}
+                    onChange={(e) => setBiz({ ...biz, cuit: e.target.value })}
+                  />
+                </SettingsRow>
+                <SettingsRow label="Teléfono" inputId="business-phone">
+                  <Input
+                    id="business-phone"
+                    type="tel"
+                    placeholder="Número de teléfono"
+                    value={biz.phone}
+                    onChange={(e) => setBiz({ ...biz, phone: e.target.value })}
+                  />
+                </SettingsRow>
+              </div>
+            </SettingsCard>
+            <SettingsCard title="Modo del sistema">
+              <div className="flex items-center gap-3">
+                <Monitor
+                  className="h-5 w-5 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <span className="text-sm">Uso local en una computadora</span>
+              </div>
+            </SettingsCard>
+          </section>
+          <section
+            id="settings-panel-sales"
+            aria-labelledby="settings-nav-sales"
+            hidden={activeSection !== "sales"}
+            className="space-y-5"
+          >
+            <SettingsCard
+              title="Precios"
+              actions={
+                <Button
+                  size="sm"
+                  type="button"
+                  onClick={() =>
+                    void saveSettingsSection("defaultMargin", () =>
+                      updateDefaultMarginMutation.mutateAsync(defaultMargin),
+                    )
+                  }
+                  disabled={updateDefaultMarginMutation.isPending}
+                >
+                  <Save /> Guardar
+                </Button>
+              }
+            >
+              <SettingsRow
+                label="Margen de ganancia predeterminado (%)"
+                description="Se aplica al crear un producto. Podés cambiarlo en cada uno."
+                inputId="default-margin"
+              >
+                <div className="relative w-32">
+                  <Input
+                    id="default-margin"
+                    placeholder="0"
+                    aria-describedby="default-margin-description"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={defaultMargin}
+                    onChange={(e) => setDefaultMargin(Number(e.target.value))}
+                    className="pr-8 text-right tabular-nums"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                    %
+                  </span>
+                </div>
+              </SettingsRow>
+            </SettingsCard>
+            <SettingsCard
+              title="Métodos de pago"
+              description={`${pays.filter((method) => method.enabled).length} activos de ${pays.length}`}
+            >
+              <ul className="divide-y divide-border">
+                {pays.map((p) => {
+                  const verifying = salesQuery.isLoading;
+                  const blocked =
+                    !verifying &&
+                    salesQuery.data !== undefined &&
+                    !canDeletePaymentMethod(p, sales);
+                  return (
+                    <li
+                      key={p.id}
+                      className="flex flex-wrap items-center gap-x-5 gap-y-3 py-4 first:pt-0"
+                    >
+                      <Input
+                        value={p.name}
+                        placeholder="Nombre del método de pago"
+                        onChange={(e) =>
+                          setPays((arr) =>
+                            arr.map((x) =>
+                              x.id === p.id
+                                ? { ...x, name: e.target.value }
+                                : x,
+                            ),
+                          )
+                        }
+                        onBlur={() => void savePaymentMethod(p)}
+                        aria-label={`Nombre del método ${p.name}`}
+                        className="w-full sm:min-w-40 sm:flex-1 sm:basis-40"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Label
+                          htmlFor={`payment-surcharge-${p.id}`}
+                          className="text-xs text-muted-foreground"
+                        >
+                          Recargo
+                        </Label>
+                        <div className="relative w-20">
+                          <Input
+                            id={`payment-surcharge-${p.id}`}
+                            inputMode="decimal"
+                            placeholder="0"
+                            value={
+                              paymentPercentInputs[p.id] ??
+                              basisPointsToPercentInput(p.surchargeBasisPoints)
+                            }
+                            onChange={(event) =>
+                              setPaymentPercentInputs((current) => ({
+                                ...current,
+                                [p.id]: event.target.value,
+                              }))
+                            }
+                            onBlur={(event) =>
+                              void savePaymentSurcharge(
+                                p,
+                                event.currentTarget.value,
+                              )
+                            }
+                            className="pr-7 tabular-nums"
+                            aria-label={`Recargo de ${p.name}`}
+                          />
+                          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                            %
+                          </span>
+                        </div>
+                      </div>
+                      <label className="flex min-h-10 items-center gap-2 text-xs text-muted-foreground">
+                        <Switch
+                          checked={p.cashHandling}
+                          disabled={updatePaymentMethodMutation.isPending}
+                          onCheckedChange={() => void toggleCashHandling(p)}
+                          aria-label={`Calcula vuelto para ${p.name}`}
+                        />
+                        Calcula vuelto
+                      </label>
+                      <div className="ml-auto flex items-center gap-3">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="text-muted-foreground hover:text-destructive"
+                          disabled={
+                            deletePaymentMethodMutation.isPending ||
+                            verifying ||
+                            blocked ||
+                            Boolean(salesQuery.error)
+                          }
+                          title={
+                            verifying
+                              ? "Verificando ventas históricas"
+                              : blocked
+                                ? "No se puede eliminar: tiene ventas asociadas"
+                                : "Eliminar método de pago"
+                          }
+                          aria-label={`Eliminar ${p.name}`}
+                          onClick={() => void deletePaymentMethod(p)}
+                        >
+                          <Trash2 />
+                        </Button>
+                        <label className="flex min-h-10 items-center gap-2 text-xs text-muted-foreground">
+                          {p.enabled ? "Activo" : "Inactivo"}
+                          <Switch
+                            checked={p.enabled}
+                            disabled={updatePaymentMethodMutation.isPending}
+                            onCheckedChange={() => void togglePaymentMethod(p)}
+                            aria-label={`Método activo: ${p.name}`}
+                          />
+                        </label>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row">
+                <Input
+                  value={newPay}
+                  onChange={(e) => setNewPay(e.target.value)}
+                  placeholder="Nombre del método de pago"
+                  aria-label="Nombre del método de pago"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={
+                    !newPay.trim() || createPaymentMethodMutation.isPending
+                  }
+                  onClick={() => void addPaymentMethod()}
+                >
+                  <Plus /> Agregar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Los métodos con ventas históricas se pueden desactivar, pero no
+                borrar.
+              </p>
+            </SettingsCard>
+            <SettingsCard
+              title="Cupones"
+              description="Descuentos que podés aplicar al confirmar una venta."
+              actions={
+                <Button size="sm" onClick={openNewCoupon}>
+                  <Plus /> Nuevo cupón
+                </Button>
+              }
+            >
+              {couponsQuery.isLoading && (
+                <div className="py-5 text-center text-sm text-muted-foreground">
+                  Cargando cupones...
+                </div>
+              )}
+              {couponsQuery.error && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                  No se pudieron cargar los cupones.
+                </div>
+              )}
+              {!couponsQuery.isLoading && !couponsQuery.error && (
+                <ul className="divide-y divide-border">
+                  {coupons.length === 0 && (
+                    <li className="py-4 text-sm text-muted-foreground">
+                      Todavía no hay cupones creados.
+                    </li>
+                  )}
+                  {coupons.map((coupon) => {
+                    const verifying = salesQuery.isLoading;
+                    const blocked =
+                      !verifying &&
+                      salesQuery.data !== undefined &&
+                      !canDeleteCoupon(coupon, sales);
 
-              return (
-                <li key={p.id} className="space-y-2.5 px-5 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <Input
-                      value={p.name}
-                      onChange={(e) =>
-                        setPays((arr) =>
-                          arr.map((x) =>
-                            x.id === p.id ? { ...x, name: e.target.value } : x,
-                          ),
+                    return (
+                      <li
+                        key={coupon.id}
+                        className="flex flex-wrap items-center justify-between gap-3 py-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="font-medium">{coupon.code}</span>
+                            <span className="text-xs tabular-nums text-muted-foreground">
+                              {getCouponDiscountLabel(coupon)}
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {coupon.enabled ? "Activo" : "Inactivo"}
+                            {blocked ? " · Tiene ventas asociadas" : ""}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Switch
+                            checked={coupon.enabled}
+                            disabled={updateCouponMutation.isPending}
+                            onCheckedChange={() => void toggleCoupon(coupon)}
+                            aria-label={`${coupon.enabled ? "Desactivar" : "Activar"} ${coupon.code}`}
+                          />
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="text-muted-foreground"
+                            disabled={updateCouponMutation.isPending}
+                            onClick={() => openEditCoupon(coupon)}
+                            aria-label={`Editar ${coupon.code}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="text-muted-foreground hover:text-destructive"
+                            disabled={
+                              deleteCouponMutation.isPending ||
+                              verifying ||
+                              blocked
+                            }
+                            title={
+                              verifying
+                                ? "Verificando ventas históricas"
+                                : blocked
+                                  ? "Tiene ventas asociadas; desactivá el cupón"
+                                  : "Eliminar cupón"
+                            }
+                            onClick={() => setCouponToDelete(coupon)}
+                            aria-label={`Eliminar ${coupon.code}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <p className="text-xs text-muted-foreground pt-3">
+                Los cupones usados se conservan para mantener el historial y
+                pueden desactivarse.
+              </p>
+            </SettingsCard>
+          </section>
+          <section
+            id="settings-panel-catalog"
+            aria-labelledby="settings-nav-catalog"
+            hidden={activeSection !== "catalog"}
+          >
+            <SettingsCard
+              title="Categorías"
+              description="Clasifican los productos del catálogo."
+            >
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  value={newCat}
+                  onChange={(e) => setNewCat(e.target.value)}
+                  placeholder="Nombre de la categoría"
+                  aria-label="Nombre de la categoría"
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === "Enter" &&
+                      newCat.trim() &&
+                      !createCategoryMutation.isPending
+                    )
+                      void addCategory();
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!newCat.trim() || createCategoryMutation.isPending}
+                  onClick={() => void addCategory()}
+                >
+                  <Plus /> Agregar
+                </Button>
+              </div>
+              <ul className="grid gap-x-6 sm:grid-cols-2 xl:grid-cols-3">
+                {cats.map((c) => {
+                  const verifying = productsQuery.isLoading;
+                  const count = products.filter(
+                    (product) =>
+                      product.categoryId === c.id ||
+                      product.category === c.name,
+                  ).length;
+                  const blocked =
+                    !verifying &&
+                    productsQuery.data !== undefined &&
+                    !canDeleteCategory(c, products);
+                  return (
+                    <li
+                      key={c.id}
+                      className="flex min-w-0 items-center justify-between gap-3 border-t border-border py-3"
+                    >
+                      <span className="min-w-0 break-words text-sm">
+                        {c.name}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {productsQuery.isLoading
+                            ? "..."
+                            : productsQuery.error
+                              ? "Sin datos"
+                              : `${count} ${count === 1 ? "producto" : "productos"}`}
+                        </span>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          disabled={
+                            deleteCategoryMutation.isPending ||
+                            verifying ||
+                            blocked ||
+                            Boolean(productsQuery.error)
+                          }
+                          title={
+                            verifying
+                              ? "Verificando productos asociados"
+                              : blocked
+                                ? "No se puede eliminar: tiene productos asociados"
+                                : "Eliminar categoría"
+                          }
+                          onClick={() => void deleteCategory(c)}
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          aria-label={`Eliminar ${c.name}`}
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
+                {cats.length === 0 && (
+                  <li className="py-3 text-sm text-muted-foreground">
+                    Todavía no hay categorías. Agregá una para organizar el
+                    catálogo.
+                  </li>
+                )}
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                Solo se pueden borrar categorías sin productos asociados.
+              </p>
+            </SettingsCard>
+          </section>
+          <section
+            id="settings-panel-receipts"
+            aria-labelledby="settings-nav-receipts"
+            hidden={activeSection !== "receipts"}
+          >
+            <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_280px] xl:gap-7">
+              <div className="min-w-0 space-y-5">
+                <SettingsCard
+                  title="Comprobante interno"
+                  description="Comprobante interno: no válido como factura fiscal."
+                  actions={
+                    <Button
+                      size="sm"
+                      type="button"
+                      onClick={() =>
+                        void saveSettingsSection("receipt", () =>
+                          updateReceiptMutation.mutateAsync(ticket),
                         )
                       }
-                      onBlur={() => void savePaymentMethod(p)}
-                      className="max-w-xs h-8"
-                    />
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant={p.enabled ? "outline" : "secondary"}
-                        disabled={updatePaymentMethodMutation.isPending}
-                        onClick={() => void togglePaymentMethod(p)}
-                      >
-                        {p.enabled ? "Activo" : "Inactivo"}
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        disabled={
-                          deletePaymentMethodMutation.isPending ||
-                          verifying ||
-                          blocked
+                      disabled={updateReceiptMutation.isPending}
+                    >
+                      <Save /> Guardar
+                    </Button>
+                  }
+                >
+                  <div>
+                    <SettingsRow
+                      label="Encabezado del ticket"
+                      inputId="receipt-header"
+                    >
+                      <Input
+                        id="receipt-header"
+                        placeholder="Encabezado del comprobante"
+                        value={ticket.header}
+                        onChange={(e) =>
+                          setTicket({ ...ticket, header: e.target.value })
                         }
-                        title={
-                          verifying
-                            ? "Verificando ventas históricas"
-                            : blocked
-                              ? "No se puede eliminar: tiene ventas asociadas"
-                              : "Eliminar método de pago"
-                        }
-                        aria-label={`Eliminar ${p.name}`}
-                        onClick={() => void deletePaymentMethod(p)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label
-                        htmlFor={`payment-surcharge-${p.id}`}
-                        className="text-xs text-muted-foreground"
-                      >
-                        Recargo
+                      />
+                    </SettingsRow>
+                    <div className="space-y-2 border-b border-border py-4">
+                      <Label htmlFor="receipt-footer" className="text-sm">
+                        Pie del ticket
                       </Label>
-                      <div className="relative w-24">
-                        <Input
-                          id={`payment-surcharge-${p.id}`}
-                          inputMode="decimal"
-                          value={
-                            paymentPercentInputs[p.id] ??
-                            basisPointsToPercentInput(p.surchargeBasisPoints)
-                          }
-                          onChange={(event) =>
-                            setPaymentPercentInputs((current) => ({
-                              ...current,
-                              [p.id]: event.target.value,
-                            }))
-                          }
-                          onBlur={(event) =>
-                            void savePaymentSurcharge(
-                              p,
-                              event.currentTarget.value,
+                      <Textarea
+                        id="receipt-footer"
+                        placeholder="Texto al final del comprobante"
+                        rows={3}
+                        value={ticket.footer}
+                        onChange={(e) =>
+                          setTicket({ ...ticket, footer: e.target.value })
+                        }
+                      />
+                    </div>
+                    <SettingsRow
+                      label="Combos en el ticket"
+                      description="Cómo se muestran los productos de un combo."
+                      inputId="receipt-combo-mode"
+                    >
+                      <div className="flex flex-col items-stretch gap-2">
+                        <Select
+                          value={comboTicketMode}
+                          onValueChange={(value) =>
+                            setComboTicketMode(
+                              value as NonNullable<
+                                LocalSettings["comboTicketMode"]
+                              >,
                             )
                           }
-                          className="h-8 pr-7 tabular-nums"
-                          aria-label={`Recargo de ${p.name}`}
-                        />
-                        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          %
-                        </span>
+                        >
+                          <SelectTrigger
+                            id="receipt-combo-mode"
+                            aria-describedby="receipt-combo-mode-description"
+                          >
+                            <SelectValue placeholder="Seleccionar formato" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ComboLine">
+                              Una línea por combo
+                            </SelectItem>
+                            <SelectItem value="ComboWithComponents">
+                              Combo + componentes sin precios
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          type="button"
+                          className="self-end"
+                          onClick={() =>
+                            void saveSettingsSection("comboTicket", () =>
+                              updateComboTicketModeMutation.mutateAsync(
+                                comboTicketMode,
+                              ),
+                            )
+                          }
+                          disabled={updateComboTicketModeMutation.isPending}
+                        >
+                          <Save /> Guardar formato
+                        </Button>
                       </div>
-                    </div>
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Switch
-                        checked={p.cashHandling}
-                        disabled={updatePaymentMethodMutation.isPending}
-                        onCheckedChange={() => void toggleCashHandling(p)}
-                        aria-label={`Calcula vuelto para ${p.name}`}
-                      />
-                      Calcula vuelto
-                    </label>
+                    </SettingsRow>
                   </div>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="text-xs text-muted-foreground pt-3">
-            Los métodos con ventas históricas se pueden desactivar, pero no
-            borrar.
-          </p>
-          <div className="flex gap-2 mt-3 pt-3 border-t border-border">
-            <Input
-              value={newPay}
-              onChange={(e) => setNewPay(e.target.value)}
-              placeholder="Ej. Mercado Pago"
-            />
-            <Button
-              disabled={!newPay.trim() || createPaymentMethodMutation.isPending}
-              onClick={() => void addPaymentMethod()}
-            >
-              <Plus /> Agregar
-            </Button>
-          </div>
-        </SettingsCard>
-
-        <SettingsCard
-          title={`Cupones (${coupons.length})`}
-          actions={
-            <Button size="sm" onClick={openNewCoupon}>
-              <Plus /> Nuevo cupón
-            </Button>
-          }
-        >
-          <p className="text-xs text-muted-foreground -mt-1">
-            Definí descuentos reutilizables para aplicar al confirmar una venta.
-          </p>
-          {couponsQuery.isLoading && (
-            <div className="py-5 text-center text-sm text-muted-foreground">
-              Cargando cupones...
-            </div>
-          )}
-          {couponsQuery.error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-              No se pudieron cargar los cupones.
-            </div>
-          )}
-          {!couponsQuery.isLoading && !couponsQuery.error && (
-            <ul className="divide-y divide-border -m-5 mt-0">
-              {coupons.length === 0 && (
-                <li className="px-5 py-6 text-center text-sm text-muted-foreground">
-                  Todavía no hay cupones creados.
-                </li>
-              )}
-              {coupons.map((coupon) => {
-                const verifying = salesQuery.isLoading;
-                const blocked =
-                  !verifying &&
-                  salesQuery.data !== undefined &&
-                  !canDeleteCoupon(coupon, sales);
-
-                return (
-                  <li
-                    key={coupon.id}
-                    className="flex items-center justify-between gap-3 px-5 py-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="font-medium">{coupon.code}</span>
-                        <span className="text-xs tabular-nums text-muted-foreground">
-                          {getCouponDiscountLabel(coupon)}
-                        </span>
+                </SettingsCard>
+                <SettingsCard title="Impresora">
+                  <div className="flex items-start gap-3">
+                    <div className="h-9 w-9 rounded-md bg-muted text-muted-foreground flex items-center justify-center">
+                      <Printer className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">
+                        Impresión de comprobantes
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {coupon.enabled ? "Activo" : "Inactivo"}
-                        {blocked ? " · Tiene ventas asociadas" : ""}
+                        Usá la impresora o el destino PDF del navegador.
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Switch
-                        checked={coupon.enabled}
-                        disabled={updateCouponMutation.isPending}
-                        onCheckedChange={() => void toggleCoupon(coupon)}
-                        aria-label={`${coupon.enabled ? "Desactivar" : "Activar"} ${coupon.code}`}
-                      />
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-muted-foreground"
-                        disabled={updateCouponMutation.isPending}
-                        onClick={() => openEditCoupon(coupon)}
-                        aria-label={`Editar ${coupon.code}`}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        disabled={
-                          deleteCouponMutation.isPending || verifying || blocked
-                        }
-                        title={
-                          verifying
-                            ? "Verificando ventas históricas"
-                            : blocked
-                              ? "Tiene ventas asociadas; desactivá el cupón"
-                              : "Eliminar cupón"
-                        }
-                        onClick={() => setCouponToDelete(coupon)}
-                        aria-label={`Eliminar ${coupon.code}`}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                    <span className="text-xs text-muted-foreground font-medium">
+                      Local
+                    </span>
+                  </div>
+                  {!printerBridge && (
+                    <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-muted-foreground">
+                      Al imprimir se abrirá el diálogo del navegador. Allí podés
+                      elegir una impresora o guardar el comprobante como PDF.
                     </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <p className="text-xs text-muted-foreground pt-3">
-            Los cupones usados se conservan para mantener el historial y pueden
-            desactivarse.
-          </p>
-        </SettingsCard>
-
-        <SettingsCard title="Backups y datos">
-          <p className="text-xs text-muted-foreground -mt-1 mb-2">
-            Generá una copia de seguridad de productos, ventas y compras.
-          </p>
-          <div className="text-xs text-muted-foreground">
-            Último backup:{" "}
-            <span className="text-foreground font-medium">
-              {backupsQuery.isLoading
-                ? "Cargando..."
-                : formatBackupDate(latestBackup?.createdAt)}
-            </span>
-          </div>
-          {latestBackup && (
-            <div className="text-xs text-muted-foreground">
-              {latestBackup.filename} ·{" "}
-              {formatBackupSize(latestBackup.sizeBytes)}
+                  )}
+                  {printerBridge && (
+                    <>
+                      <Field label="Impresora" inputId="printer-selection">
+                        <Select
+                          value={selectedPrinterValue}
+                          onValueChange={setSelectedPrinterValue}
+                          disabled={printersQuery.isLoading}
+                        >
+                          <SelectTrigger id="printer-selection">
+                            <SelectValue placeholder="Seleccionar impresora" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={SYSTEM_DIALOG_SELECTION}>
+                              Usar diálogo del sistema
+                            </SelectItem>
+                            {(printersQuery.data ?? []).map((printer) => (
+                              <SelectItem
+                                key={printer.name}
+                                value={printer.name}
+                              >
+                                {printer.displayName}
+                                {printer.recommended ? " · recomendada" : ""}
+                                {printer.isDefault ? " · predeterminada" : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      <Button
+                        className="self-start"
+                        disabled={savePrinterMutation.isPending}
+                        onClick={() =>
+                          void savePrinterMutation
+                            .mutateAsync(selectedPrinterValue)
+                            .then(() => toast.success("Impresora guardada."))
+                            .catch((error) =>
+                              toast.error(
+                                getMutationErrorMessage(
+                                  error,
+                                  "No se pudo guardar la impresora.",
+                                ),
+                              ),
+                            )
+                        }
+                      >
+                        <Save /> Guardar impresora
+                      </Button>
+                    </>
+                  )}
+                  <Field label="Ancho de papel" inputId="printer-paper-width">
+                    <Input
+                      id="printer-paper-width"
+                      placeholder="Ancho de papel"
+                      defaultValue="58 mm"
+                      disabled
+                    />
+                  </Field>
+                </SettingsCard>
+              </div>
+              <SettingsReceiptPreview
+                business={biz}
+                receipt={ticket}
+                comboTicketMode={comboTicketMode}
+              />
             </div>
-          )}
-          <Button
-            className="mt-1 self-start"
-            disabled={createBackupMutation.isPending}
-            onClick={() =>
-              void createBackupMutation
-                .mutateAsync()
-                .then(() => toast.success("Backup creado."))
-                .catch((error) =>
-                  toast.error(
-                    getMutationErrorMessage(
-                      error,
-                      "No se pudo crear el backup.",
-                    ),
-                  ),
-                )
-            }
+          </section>
+          <section
+            id="settings-panel-data"
+            aria-labelledby="settings-nav-data"
+            hidden={activeSection !== "data"}
+            className="space-y-5"
           >
-            <Database /> Crear backup
-          </Button>
-        </SettingsCard>
-
-        <SettingsCard title="Impresora">
-          <div className="flex items-start gap-3 p-3 rounded-md border border-border bg-muted/30">
-            <div className="h-9 w-9 rounded-md bg-accent/10 text-accent flex items-center justify-center">
-              <Printer className="h-4 w-4" />
-            </div>
-            <div className="flex-1">
-              <div className="text-sm font-medium">
-                Impresión de comprobantes
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Usá la impresora o el destino PDF del navegador.
-              </div>
-            </div>
-            <span className="text-[11px] text-muted-foreground font-medium">
-              Local
-            </span>
-          </div>
-          {!printerBridge && (
-            <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-muted-foreground">
-              Al imprimir se abrirá el diálogo del navegador. Allí podés elegir
-              una impresora o guardar el comprobante como PDF.
-            </div>
-          )}
-          {printerBridge && (
-            <>
-              <Field label="Impresora">
-                <Select
-                  value={selectedPrinterValue}
-                  onValueChange={setSelectedPrinterValue}
-                  disabled={printersQuery.isLoading}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar impresora" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SYSTEM_DIALOG_SELECTION}>
-                      Usar diálogo del sistema
-                    </SelectItem>
-                    {(printersQuery.data ?? []).map((printer) => (
-                      <SelectItem key={printer.name} value={printer.name}>
-                        {printer.displayName}
-                        {printer.recommended ? " · recomendada" : ""}
-                        {printer.isDefault ? " · predeterminada" : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Button
-                className="self-start"
-                disabled={savePrinterMutation.isPending}
-                onClick={() =>
-                  void savePrinterMutation
-                    .mutateAsync(selectedPrinterValue)
-                    .then(() => toast.success("Impresora guardada."))
-                    .catch((error) =>
-                      toast.error(
-                        getMutationErrorMessage(
-                          error,
-                          "No se pudo guardar la impresora.",
-                        ),
-                      ),
-                    )
+            <SettingsCard
+              title="Copias de seguridad"
+              description="Respaldo de los datos del sistema."
+            >
+              <SettingsRow
+                label="Último backup"
+                description={
+                  <>
+                    <span>
+                      {backupsQuery.isLoading
+                        ? "Cargando..."
+                        : backupsQuery.error
+                          ? "No se pudieron cargar los backups."
+                          : formatBackupDate(latestBackup?.createdAt)}
+                      {latestBackup &&
+                        ` · ${formatBackupSize(latestBackup.sizeBytes)}`}
+                    </span>
+                    {latestBackup && (
+                      <span className="mt-1 block break-words">
+                        {latestBackup.filename}
+                      </span>
+                    )}
+                  </>
                 }
               >
-                <Save /> Guardar impresora
-              </Button>
-            </>
-          )}
-          <Field label="Ancho de papel">
-            <Input defaultValue="58 mm" disabled />
-          </Field>
-        </SettingsCard>
-
-        <SettingsCard title="Modo del sistema" className="lg:col-span-2">
-          <div className="flex items-start gap-3 p-3 rounded-md border border-border bg-muted/30">
-            <div className="h-9 w-9 rounded-md bg-primary/5 text-primary flex items-center justify-center">
-              <Monitor className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-sm font-medium">
-                Uso local en una computadora
-              </div>
-            </div>
-          </div>
-        </SettingsCard>
+                <Button
+                  type="button"
+                  className="ml-auto"
+                  disabled={createBackupMutation.isPending}
+                  onClick={() =>
+                    void createBackupMutation
+                      .mutateAsync()
+                      .then(() => toast.success("Backup creado."))
+                      .catch((error) =>
+                        toast.error(
+                          getMutationErrorMessage(
+                            error,
+                            "No se pudo crear el backup.",
+                          ),
+                        ),
+                      )
+                  }
+                >
+                  {createBackupMutation.isPending ? (
+                    <LoaderCircle className="animate-spin" />
+                  ) : (
+                    <Database />
+                  )}{" "}
+                  Crear backup ahora
+                </Button>
+              </SettingsRow>
+            </SettingsCard>
+            <SettingsCard
+              title="Exportar datos"
+              description="Descargá una tabla CSV para Excel o Google Sheets."
+            >
+              <DataExportControls />
+            </SettingsCard>
+          </section>
+        </div>
       </div>
 
       <Dialog
@@ -1250,7 +1407,7 @@ export function ConfigPage() {
           if (!open) closeCouponDialog();
         }}
       >
-        <DialogContent>
+        <DialogContent className="settings-controls">
           <DialogHeader>
             <DialogTitle>
               {couponForm.id ? "Editar cupón" : "Nuevo cupón"}
@@ -1261,8 +1418,9 @@ export function ConfigPage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <Field label="Código">
+            <Field label="Código" inputId="coupon-code">
               <Input
+                id="coupon-code"
                 value={couponForm.code}
                 onChange={(event) =>
                   setCouponForm((current) => ({
@@ -1270,11 +1428,11 @@ export function ConfigPage() {
                     code: event.target.value,
                   }))
                 }
-                placeholder="Ej. VERANO10"
+                placeholder="Código del cupón"
                 autoFocus
               />
             </Field>
-            <Field label="Tipo de descuento">
+            <Field label="Tipo de descuento" inputId="coupon-discount-type">
               <Select
                 value={couponForm.discountType}
                 onValueChange={(value) =>
@@ -1285,8 +1443,8 @@ export function ConfigPage() {
                   }))
                 }
               >
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger id="coupon-discount-type">
+                  <SelectValue placeholder="Seleccionar tipo de descuento" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Percentage">Porcentaje</SelectItem>
@@ -1295,6 +1453,7 @@ export function ConfigPage() {
               </Select>
             </Field>
             <Field
+              inputId="coupon-discount-value"
               label={
                 couponForm.discountType === "Percentage"
                   ? "Descuento (%)"
@@ -1303,6 +1462,7 @@ export function ConfigPage() {
             >
               <div className="relative">
                 <Input
+                  id="coupon-discount-value"
                   inputMode="decimal"
                   value={couponForm.valueInput}
                   onChange={(event) =>
@@ -1313,8 +1473,8 @@ export function ConfigPage() {
                   }
                   placeholder={
                     couponForm.discountType === "Percentage"
-                      ? "Ej. 10"
-                      : "Ej. $2.500"
+                      ? "Porcentaje de descuento"
+                      : "Importe del descuento"
                   }
                   className={
                     couponForm.discountType === "Percentage" ? "pr-9" : ""
@@ -1411,44 +1571,89 @@ export function ConfigPage() {
 
 function SettingsCard({
   title,
+  description,
   children,
-  className = "",
   actions,
-  collapsed = false,
-  contentId,
 }: {
   title: string;
+  description?: string;
   children: React.ReactNode;
-  className?: string;
   actions?: React.ReactNode;
-  collapsed?: boolean;
-  contentId?: string;
 }) {
   return (
-    <Card className={className}>
+    <Card className="settings-controls">
       <CardHeader
         title={title}
+        description={description}
         action={actions}
-        className="border-b border-border"
+        className="items-start px-6 pt-6 pb-0"
       />
-      {!collapsed && (
-        <CardBody id={contentId} className="flex flex-col gap-3">
-          {children}
-        </CardBody>
-      )}
+      <CardBody className="flex flex-col gap-4 px-6 pt-5 pb-6">
+        {children}
+      </CardBody>
     </Card>
   );
 }
-function Field({
+
+function SettingsRow({
   label,
+  description,
+  inputId,
   children,
 }: {
   label: string;
+  description?: React.ReactNode;
+  inputId?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`border-b border-border py-4 first:pt-0 last:border-b-0 last:pb-0 ${
+        inputId
+          ? "flex flex-col gap-2"
+          : "grid items-center gap-3 md:grid-cols-2 md:gap-6"
+      }`}
+    >
+      <div className="min-w-0">
+        {inputId ? (
+          <Label htmlFor={inputId} className="text-sm">
+            {label}
+          </Label>
+        ) : (
+          <p className="text-sm">{label}</p>
+        )}
+        {description && (
+          <p
+            id={inputId ? `${inputId}-description` : undefined}
+            className="mt-1 text-xs text-muted-foreground"
+          >
+            {description}
+          </p>
+        )}
+      </div>
+      <div
+        className={`w-full min-w-0 ${inputId ? "" : "md:max-w-sm md:justify-self-end"}`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  inputId,
+  children,
+}: {
+  label: string;
+  inputId: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label htmlFor={inputId} className="text-xs text-muted-foreground">
+        {label}
+      </Label>
       {children}
     </div>
   );
