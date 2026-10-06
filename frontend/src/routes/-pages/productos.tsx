@@ -684,7 +684,7 @@ function ProductDialog({
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Ej. Hamburguesas premium x4"
+            placeholder="Nombre del producto"
           />
         </Field>
         <Field label="Código de barras (opcional)">
