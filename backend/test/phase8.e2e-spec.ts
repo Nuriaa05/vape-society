@@ -45,6 +45,24 @@ describe("Phase 8 backups endpoints", () => {
     delete process.env.BACKUP_DIR;
   });
 
+  it("reports the configured backup directory before the first backup", async () => {
+    const location = await request(app.getHttpServer())
+      .get("/api/backups/location")
+      .expect(200);
+
+    expect(location.body).toEqual({ directory: backupDir });
+    await expect(db.prisma.backupLog.count()).resolves.toBe(0);
+
+    const backup = await request(app.getHttpServer())
+      .post("/api/backups")
+      .send({})
+      .expect(201);
+
+    expect(
+      existsSync(join(location.body.directory, backup.body.filename)),
+    ).toBe(true);
+  });
+
   it("creates and lists local backups without exposing filesystem paths", async () => {
     const backup = await request(app.getHttpServer())
       .post("/api/backups")

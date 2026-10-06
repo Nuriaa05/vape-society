@@ -73,6 +73,10 @@ export class BackupsService {
     return backups.map((backup) => this.serializeBackup(backup));
   }
 
+  getLocation(): { directory: string } {
+    return { directory: this.getBackupDir() };
+  }
+
   async getRestorePlan(id: string): Promise<RestorePlanResponse> {
     const backup = await this.prisma.backupLog.findUnique({ where: { id } });
 

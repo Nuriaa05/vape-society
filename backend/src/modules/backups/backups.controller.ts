@@ -12,6 +12,11 @@ export class BackupsController {
     return this.backupsService.findAll();
   }
 
+  @Get("location")
+  getLocation() {
+    return this.backupsService.getLocation();
+  }
+
   @Post()
   create(@Body() _dto: CreateBackupDto) {
     return this.backupsService.createBackup();

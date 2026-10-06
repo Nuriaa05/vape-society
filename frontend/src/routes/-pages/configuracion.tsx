@@ -189,6 +189,10 @@ export function ConfigPage() {
     queryKey: ["backups"],
     queryFn: () => backupsRepository.findAll(),
   });
+  const backupLocationQuery = useQuery({
+    queryKey: ["backups", "location"],
+    queryFn: () => backupsRepository.getLocation(),
+  });
   const productsQuery = useQuery({
     queryKey: ["products", "all"],
     queryFn: () => productsRepository.findAll(),
@@ -1364,31 +1368,52 @@ export function ConfigPage() {
                   </>
                 }
               >
-                <Button
-                  type="button"
-                  className="ml-auto"
-                  disabled={createBackupMutation.isPending}
-                  onClick={() =>
-                    void createBackupMutation
-                      .mutateAsync()
-                      .then(() => toast.success("Backup creado."))
-                      .catch((error) =>
-                        toast.error(
-                          getMutationErrorMessage(
-                            error,
-                            "No se pudo crear el backup.",
+                <div className="space-y-2">
+                  <Button
+                    type="button"
+                    className="ml-auto"
+                    aria-describedby="backup-directory"
+                    disabled={createBackupMutation.isPending}
+                    onClick={() =>
+                      void createBackupMutation
+                        .mutateAsync()
+                        .then(() => toast.success("Backup creado."))
+                        .catch((error) =>
+                          toast.error(
+                            getMutationErrorMessage(
+                              error,
+                              "No se pudo crear el backup.",
+                            ),
                           ),
-                        ),
-                      )
-                  }
-                >
-                  {createBackupMutation.isPending ? (
-                    <LoaderCircle className="animate-spin" />
-                  ) : (
-                    <Database />
-                  )}{" "}
-                  Crear backup ahora
-                </Button>
+                        )
+                    }
+                  >
+                    {createBackupMutation.isPending ? (
+                      <LoaderCircle className="animate-spin" />
+                    ) : (
+                      <Database />
+                    )}{" "}
+                    Crear backup ahora
+                  </Button>
+                  <p
+                    id="backup-directory"
+                    className="text-xs text-muted-foreground"
+                    aria-live="polite"
+                  >
+                    {backupLocationQuery.isLoading ? (
+                      "Consultando carpeta de backups..."
+                    ) : backupLocationQuery.error ? (
+                      "No se pudo consultar la carpeta de backups."
+                    ) : (
+                      <>
+                        Se guarda en:
+                        <code className="mt-1 block break-all text-foreground select-text">
+                          {backupLocationQuery.data?.directory}
+                        </code>
+                      </>
+                    )}
+                  </p>
+                </div>
               </SettingsRow>
             </SettingsCard>
             <SettingsCard

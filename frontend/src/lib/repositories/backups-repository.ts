@@ -10,6 +10,9 @@ export const backupsRepository = {
   findAll(): Promise<Backup[]> {
     return apiClient.get<Backup[]>("/backups");
   },
+  getLocation(): Promise<{ directory: string }> {
+    return apiClient.get<{ directory: string }>("/backups/location");
+  },
   create(): Promise<Backup> {
     return apiClient.post<Backup>("/backups", {});
   },
