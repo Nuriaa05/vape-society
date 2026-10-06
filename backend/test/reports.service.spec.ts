@@ -928,7 +928,7 @@ describe("ReportsService", () => {
       expect(series.points.at(-1)?.to).toBe("2026-10-04T03:00:00.000Z");
     });
 
-    it("groups units from January through the current month using Argentine month boundaries", async () => {
+    it("keeps all twelve calendar months and groups sold units using Argentine month boundaries", async () => {
       await sellUnits("961001", "2026-01-01T03:00:00.000Z", 2);
       await sellUnits("961002", "2026-09-01T02:59:59.999Z", 3);
       await sellUnits("961003", "2026-09-01T03:00:00.000Z", 4);
@@ -936,18 +936,40 @@ describe("ReportsService", () => {
       await sellUnits("961005", "2026-10-01T03:00:00.000Z", 6);
       await sellUnits("961006", "2026-01-01T02:59:59.999Z", 100);
       await sellUnits("961007", "2026-10-04T03:00:00.000Z", 50);
+      await sellUnits("961008", "2026-11-01T03:00:00.000Z", 25);
 
       const series = await service.getSoldUnitsSeries("month");
 
       expect(series.meta.subtitle).toBe("Unidades por mes, 2026");
       expect(series.points.map((point) => point.label)).toEqual([
-        "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct",
+        "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
       ]);
       expect(series.points.map((point) => point.units)).toEqual([
-        2, 0, 0, 0, 0, 0, 0, 3, 9, 6,
+        2, 0, 0, 0, 0, 0, 0, 3, 9, 6, 0, 0,
       ]);
       expect(series.points[0].from).toBe("2026-01-01T03:00:00.000Z");
-      expect(series.points.at(-1)?.to).toBe("2026-10-04T03:00:00.000Z");
+      expect(series.points[9].to).toBe("2026-11-01T03:00:00.000Z");
+      expect(series.points.at(-1)?.to).toBe("2027-01-01T03:00:00.000Z");
+    });
+
+    it("shows January through December at the start of the Argentine year without counting future sales", async () => {
+      jest.setSystemTime(new Date("2026-01-01T03:30:00.000Z"));
+      await sellUnits("963001", "2026-01-01T02:59:59.999Z", 100);
+      await sellUnits("963002", "2026-01-01T03:00:00.000Z", 2);
+      await sellUnits("963003", "2026-02-01T03:00:00.000Z", 50);
+
+      const series = await service.getSoldUnitsSeries("month");
+
+      expect(series.meta.subtitle).toBe("Unidades por mes, 2026");
+      expect(series.points.map((point) => point.label)).toEqual([
+        "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+      ]);
+      expect(series.points.map((point) => point.units)).toEqual([
+        2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      ]);
+      expect(series.points.every((point) => point.from < point.to)).toBe(true);
+      expect(series.points[0].from).toBe("2026-01-01T03:00:00.000Z");
+      expect(series.points.at(-1)?.to).toBe("2027-01-01T03:00:00.000Z");
     });
 
     it("zero-fills empty periods and chooses the Argentine year at the UTC year boundary", async () => {

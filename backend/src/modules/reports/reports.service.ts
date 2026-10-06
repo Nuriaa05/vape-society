@@ -239,12 +239,13 @@ export class ReportsService {
 
     const now = new Date();
     const buckets = buildSoldUnitsBuckets(periodInput, now);
+    const salesEnd = addDays(startOfArgentinaDay(now), 1);
     const sales = await this.prisma.sale.findMany({
       where: {
         status: "Confirmada",
         date: {
           gte: buckets[0].start,
-          lt: buckets[buckets.length - 1].end,
+          lt: salesEnd,
         },
       },
       select: {
@@ -752,13 +753,12 @@ function buildSoldUnitsBuckets(
   now: Date,
 ): Omit<Bucket, "v">[] {
   const today = startOfArgentinaDay(now);
-  const end = addDays(today, 1);
-  const { year, month } = getArgentinaParts(now);
+  const { year } = getArgentinaParts(now);
   const first =
     period === "week"
       ? addDays(today, -6)
       : argentinaLocalToUtc(year, 1, 1);
-  const count = period === "week" ? 7 : month;
+  const count = period === "week" ? 7 : 12;
   const labelFormatter = new Intl.DateTimeFormat("es-AR", {
     timeZone: ARGENTINA_TIME_ZONE,
     ...(period === "week" ? { weekday: "short" } : { month: "short" }),
@@ -777,7 +777,7 @@ function buildSoldUnitsBuckets(
           ? formatArgentinaDate(start)
           : formatArgentinaMonth(start),
       start,
-      end: next < end ? next : end,
+      end: next,
     };
   });
 }
