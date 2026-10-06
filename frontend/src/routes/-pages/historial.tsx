@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { formatARS, formatDateTimeAR } from "@/lib/formatters";
 import { historyRepository, type HistoryEventType } from "@/lib/repositories";
+import { cn } from "@/lib/utils";
 
 const HISTORY_PREVIEW_LIMIT = 5;
 
@@ -36,15 +37,56 @@ const eventTypes: Array<{
   id: HistoryEventType;
   label: string;
   icon: LucideIcon;
+  iconClassName: string;
 }> = [
-  { id: "sales", label: "Ventas", icon: Receipt },
-  { id: "purchases", label: "Compras", icon: Truck },
-  { id: "products", label: "Productos", icon: Package },
-  { id: "stock", label: "Stock", icon: Boxes },
-  { id: "suppliers", label: "Proveedores", icon: Users },
-  { id: "combos", label: "Combos", icon: PackagePlus },
-  { id: "settings", label: "Configuración", icon: Settings },
-  { id: "backups", label: "Backups", icon: DatabaseBackup },
+  {
+    id: "sales",
+    label: "Ventas",
+    icon: Receipt,
+    iconClassName: "bg-success/10 text-success",
+  },
+  {
+    id: "purchases",
+    label: "Compras",
+    icon: Truck,
+    iconClassName: "bg-accent/10 text-accent",
+  },
+  {
+    id: "products",
+    label: "Productos",
+    icon: Package,
+    iconClassName: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
+  },
+  {
+    id: "stock",
+    label: "Stock",
+    icon: Boxes,
+    iconClassName: "bg-warning/15 text-warning-foreground",
+  },
+  {
+    id: "suppliers",
+    label: "Proveedores",
+    icon: Users,
+    iconClassName: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+  },
+  {
+    id: "combos",
+    label: "Combos",
+    icon: PackagePlus,
+    iconClassName: "bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300",
+  },
+  {
+    id: "settings",
+    label: "Configuración",
+    icon: Settings,
+    iconClassName: "bg-brand/10 text-brand",
+  },
+  {
+    id: "backups",
+    label: "Backups",
+    icon: DatabaseBackup,
+    iconClassName: "bg-teal-500/10 text-teal-700 dark:text-teal-300",
+  },
 ];
 
 const eventTypeById = new Map(eventTypes.map((type) => [type.id, type]));
@@ -224,8 +266,14 @@ export function HistorialPage() {
               const Icon = eventType?.icon ?? History;
               return (
                 <article key={event.id} className="flex gap-3 px-5 py-4">
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    <Icon className="h-4 w-4" />
+                  <div
+                    className={cn(
+                      "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+                      eventType?.iconClassName ??
+                        "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    <Icon aria-hidden="true" className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
