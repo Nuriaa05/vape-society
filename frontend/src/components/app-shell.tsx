@@ -51,12 +51,12 @@ const navItems: {
   exact?: boolean;
 }[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { to: "/productos", label: "Productos", icon: Package },
-  { to: "/combos", label: "Combos", icon: PackagePlus },
   { to: "/nueva-venta", label: "Nueva venta", icon: ScanBarcode },
   { to: "/ventas", label: "Ventas", icon: Receipt },
-  { to: "/compras", label: "Compras", icon: Truck },
+  { to: "/productos", label: "Productos", icon: Package },
+  { to: "/combos", label: "Combos", icon: PackagePlus },
   { to: "/stock", label: "Stock", icon: Boxes },
+  { to: "/compras", label: "Compras", icon: Truck },
   { to: "/proveedores", label: "Proveedores", icon: Users },
   { to: "/historial", label: "Historial", icon: History },
   { to: "/reportes", label: "Reportes", icon: BarChart3 },
