@@ -30,8 +30,10 @@ export function filterSaleCatalogItems(
   const normalizedQuery = query.trim().toLocaleLowerCase("es-AR");
   if (!normalizedQuery) return [];
 
-  return items.filter((item) =>
-    item.name.toLocaleLowerCase("es-AR").includes(normalizedQuery),
+  return items.filter(
+    (item) =>
+      item.name.toLocaleLowerCase("es-AR").includes(normalizedQuery) ||
+      item.barcode.toLocaleLowerCase("es-AR").includes(normalizedQuery),
   );
 }
 

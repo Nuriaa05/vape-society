@@ -207,6 +207,30 @@ describe("Nueva venta cart helpers", () => {
     expect(filterSaleCatalogItems(catalog, "   ")).toEqual([]);
   });
 
+  it("finds a product by barcode without dropping leading zeros", () => {
+    const first = { ...product("p1"), barcode: "00123456" };
+    const second = { ...product("p2"), barcode: "123456" };
+
+    expect(filterSaleCatalogItems([first, second], " 00123456 ")).toEqual([
+      first,
+    ]);
+    expect(filterSaleCatalogItems([first, second], "00123")).toEqual([first]);
+  });
+
+  it("searches products and combos by either name or barcode", () => {
+    const first = { ...product("p1"), name: "Producto compartido" };
+    const firstCombo = {
+      ...combo(),
+      name: "Combo compartido",
+      barcode: "ABC-001",
+    };
+    const catalog = [first, firstCombo];
+
+    expect(filterSaleCatalogItems(catalog, " COMPARTIDO ")).toEqual(catalog);
+    expect(filterSaleCatalogItems(catalog, "abc-001")).toEqual([firstCombo]);
+    expect(filterSaleCatalogItems(catalog, "sin coincidencias")).toEqual([]);
+  });
+
   it("confirms only with a complete valid quote and sufficient cash", () => {
     const validState = {
       hasLines: true,

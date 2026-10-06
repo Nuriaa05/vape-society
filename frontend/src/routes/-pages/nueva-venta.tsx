@@ -156,7 +156,6 @@ export function NuevaVenta() {
     () => [...saleProducts, ...saleCombos],
     [saleProducts, saleCombos],
   );
-  const [scan, setScan] = useState("");
   const [search, setSearch] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
   const [activeLineProductId, setActiveLineProductId] = useState<string | null>(
@@ -322,7 +321,6 @@ export function NuevaVenta() {
       ),
     );
     setSearch("");
-    setScan("");
     inputRef.current?.focus();
   };
 
@@ -485,34 +483,54 @@ export function NuevaVenta() {
     });
   };
 
-  const submitScan = async () => {
-    const code = scan.trim();
-    if (!code) return;
-    const found =
-      (await catalogRepository.findByBarcode(code)) ??
-      findCatalogItemByBarcode(saleCatalogItems, code);
-    if (found) {
-      addProduct(
-        found.itemType === "Combo"
-          ? enrichComboStock(
-              found.item,
-              new Map(
-                (stockQuery.data ?? []).map((product) => [product.id, product]),
-              ),
-            )
-          : (saleProducts.find((product) => product.id === found.item.id) ??
-              found.item),
-      );
-    } else {
-      toast.error("Producto o combo no encontrado.");
+  const submitCatalogSearch = async () => {
+    const query = search.trim();
+    if (!query || locked) return;
+
+    const barcodeMatch = findCatalogItemByBarcode(saleCatalogItems, query);
+    if (!barcodeMatch && filtered.length > 0) {
+      if (filtered.length === 1) {
+        addProduct(filtered[0]);
+        setSearch("");
+      }
+      return;
     }
-    setScan("");
+
+    try {
+      const found =
+        (await catalogRepository.findByBarcode(query)) ?? barcodeMatch;
+      if (found) {
+        addProduct(
+          found.itemType === "Combo"
+            ? enrichComboStock(
+                found.item,
+                new Map(
+                  (stockQuery.data ?? []).map((product) => [
+                    product.id,
+                    product,
+                  ]),
+                ),
+              )
+            : (saleProducts.find((product) => product.id === found.item.id) ??
+                found.item),
+        );
+      } else {
+        toast.error("Producto o combo no encontrado.");
+      }
+      setSearch((current) => (current.trim() === query ? "" : current));
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo buscar el producto o combo. Intentá nuevamente.",
+      );
+    }
     inputRef.current?.focus();
   };
 
-  const handleScan = (e: React.FormEvent) => {
+  const handleCatalogSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    void submitScan();
+    void submitCatalogSearch();
   };
 
   const submitSale = async (allowNegativeStock: boolean) => {
@@ -686,31 +704,27 @@ export function NuevaVenta() {
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5 items-start">
         <div className="flex min-w-0 flex-col gap-5">
           <Card>
-            <form onSubmit={handleScan} className="app-card-body">
+            <form onSubmit={handleCatalogSearch} className="app-card-body">
               <div className="relative">
                 <ScanLine className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-accent" />
                 <Input
                   ref={inputRef}
-                  value={scan}
-                  onChange={(e) => setScan(e.target.value)}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                   onKeyDown={(e) => {
                     if (isScannerSubmitKey(e.key)) {
                       e.preventDefault();
-                      void submitScan();
+                      void submitCatalogSearch();
                     }
                   }}
-                  placeholder="Escanear código de barras o buscar producto/combo"
-                  className="h-14 pl-12 text-base"
+                  aria-label="Buscar producto o combo por nombre o código"
+                  placeholder="Escaneá un código o buscá por nombre"
+                  className="h-14 pl-12 text-base placeholder:text-muted-foreground"
+                  autoComplete="off"
+                  disabled={locked}
                   autoFocus
                 />
-              </div>
-              <div className="mt-3 relative">
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar producto o combo por nombre..."
-                />
-                {filtered.length > 0 && (
+                {!locked && filtered.length > 0 && (
                   <div className="absolute z-10 top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-card border border-border rounded-md shadow-sm">
                     {filtered.map((p) => (
                       <button
@@ -787,7 +801,7 @@ export function NuevaVenta() {
                         colSpan={5}
                         className="px-5 py-10 text-center text-muted-foreground text-sm"
                       >
-                        Sin productos ni combos. Escaneá uno para comenzar.
+                        Escaneá un código o buscá por nombre para comenzar.
                       </td>
                     </tr>
                   )}
