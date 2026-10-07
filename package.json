@@ -13,6 +13,8 @@
     "lint": "node scripts/core.mjs lint",
     "test": "node scripts/core.mjs test",
     "build": "node scripts/core.mjs build",
-    "test:smoke": "node scripts/smoke.cjs"
+    "test:smoke": "node scripts/smoke.cjs",
+    "build:installer": "node scripts/windows/build-installer.mjs",
+    "test:installer": "node --test scripts/windows/runtime.test.cjs"
   }
 }

@@ -13,3 +13,4 @@ backend/backups/
 .env
 **/.env
 .verification/
+release/
