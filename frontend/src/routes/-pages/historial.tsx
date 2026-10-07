@@ -259,7 +259,7 @@ export function HistorialPage() {
 
           <div
             ref={eventsScrollRef}
-            className="max-h-[640px] divide-y divide-border/70 overflow-y-auto overscroll-contain"
+            className="max-h-[640px] divide-y divide-border/70 overflow-y-auto"
           >
             {events.map((event) => {
               const eventType = eventTypeById.get(event.type);
