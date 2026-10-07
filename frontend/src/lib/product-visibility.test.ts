@@ -4,16 +4,15 @@ import type { Product } from "./contracts";
 import {
   filterProductsForList,
   getSaleableProducts,
-  type ProductSaleFilter,
 } from "./product-visibility";
 
 const baseProduct: Product = {
   itemType: "Product",
   id: "product-1",
   barcode: "7790001000001",
-  name: "Producto vendible",
+  name: "Producto activo",
   categoryId: "cat-1",
-  category: "Hamburguesas",
+  category: "Categoría general",
   supplierId: "supplier-1",
   cost: 1000,
   marginPct: 40,
@@ -21,64 +20,67 @@ const baseProduct: Product = {
   stock: 10,
   minStock: 2,
   archived: false,
-  saleEnabled: true,
 };
 
-function product(overrides: Partial<Product>): Product {
+function product(
+  overrides: Partial<Product> & { saleEnabled?: boolean },
+): Product {
   return { ...baseProduct, ...overrides };
 }
 
 describe("product visibility helpers", () => {
   const products = [
-    product({ id: "saleable", name: "Milanesa", saleEnabled: true }),
+    product({ id: "active", saleEnabled: true }),
     product({
-      id: "stock-only",
-      name: "Masa receta",
-      barcode: "",
+      id: "legacy-disabled",
+      name: "Producto anterior",
+      barcode: "ABC123",
       saleEnabled: false,
     }),
-    product({ id: "legacy", name: "Legacy", saleEnabled: undefined }),
+    product({ id: "legacy", name: "Otro producto" }),
+    product({ id: "archived", name: "Producto archivado", archived: true }),
+    product({ id: "other-category", category: "Otra categoría" }),
   ];
 
-  it.each([
-    ["Vendibles", ["saleable", "legacy"]],
-    ["Solo stock", ["stock-only"]],
-  ] satisfies Array<[ProductSaleFilter, string[]]>)(
-    "filters products by %s",
-    (saleFilter, expectedIds) => {
+  it("lists active products regardless of the legacy sale flag", () => {
+    expect(
+      filterProductsForList(products, {
+        query: "",
+        category: "Todas",
+        showArchived: false,
+      }).map((item) => item.id),
+    ).toEqual(["active", "legacy-disabled", "legacy", "other-category"]);
+  });
+
+  it.each([" anterior ", " abc123 "])(
+    "finds legacy active products by name or barcode with query %s",
+    (query) => {
       expect(
         filterProductsForList(products, {
-          query: "",
-          category: "Todas",
+          query,
+          category: "Categoría general",
           showArchived: false,
-          saleFilter,
         }).map((item) => item.id),
-      ).toEqual(expectedIds);
+      ).toEqual(["legacy-disabled"]);
     },
   );
 
-  it("searches by name or barcode while respecting category and archived filters", () => {
-    const result = filterProductsForList(
-      [
-        product({ id: "match-name", name: "Papas noisette" }),
-        product({ id: "match-code", barcode: "ABC123", name: "Otro" }),
-        product({ id: "archived", name: "Papas archivadas", archived: true }),
-      ],
-      {
-        query: "papas",
-        category: "Todas",
-        showArchived: false,
-        saleFilter: "Todos",
-      },
-    );
-
-    expect(result.map((item) => item.id)).toEqual(["match-name"]);
+  it("includes archived products only when requested and respects the category", () => {
+    expect(
+      filterProductsForList(products, {
+        query: "",
+        category: "Categoría general",
+        showArchived: true,
+      }).map((item) => item.id),
+    ).toEqual(["active", "legacy-disabled", "legacy", "archived"]);
   });
 
-  it("excludes stock-only products from the sale catalog", () => {
+  it("offers every active product for sale and excludes archived products", () => {
     expect(getSaleableProducts(products).map((item) => item.id)).toEqual([
-      "saleable",
+      "active",
+      "legacy-disabled",
       "legacy",
+      "other-category",
     ]);
   });
 });

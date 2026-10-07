@@ -78,7 +78,7 @@ export class ProductsService {
     }
 
     const product = await this.prisma.product.findFirst({
-      where: { barcode: normalizedBarcode, archived: false, saleEnabled: true },
+      where: { barcode: normalizedBarcode, archived: false },
       include: productInclude,
     });
 

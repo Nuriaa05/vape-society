@@ -1,17 +1,9 @@
 import type { Product } from "./contracts";
 
-export type ProductSaleFilter = "Todos" | "Vendibles" | "Solo stock";
-
-export function isSaleEnabledProduct(
-  product: Pick<Product, "saleEnabled">,
-): boolean {
-  return product.saleEnabled !== false;
-}
-
-export function getSaleableProducts<T extends Pick<Product, "saleEnabled">>(
+export function getSaleableProducts<T extends Pick<Product, "archived">>(
   products: T[],
 ): T[] {
-  return products.filter(isSaleEnabledProduct);
+  return products.filter((product) => !product.archived);
 }
 
 export function filterProductsForList(
@@ -20,12 +12,10 @@ export function filterProductsForList(
     query,
     category,
     showArchived,
-    saleFilter,
   }: {
     query: string;
     category: string;
     showArchived: boolean;
-    saleFilter: ProductSaleFilter;
   },
 ): Product[] {
   const normalizedQuery = query.trim().toLowerCase();
@@ -38,13 +28,6 @@ export function filterProductsForList(
       normalizedQuery.length === 0 ||
       product.name.toLowerCase().includes(normalizedQuery) ||
       product.barcode.toLowerCase().includes(normalizedQuery);
-    const matchesSaleFilter =
-      saleFilter === "Todos" ||
-      (saleFilter === "Vendibles" && isSaleEnabledProduct(product)) ||
-      (saleFilter === "Solo stock" && !isSaleEnabledProduct(product));
-
-    return (
-      matchesArchived && matchesCategory && matchesQuery && matchesSaleFilter
-    );
+    return matchesArchived && matchesCategory && matchesQuery;
   });
 }

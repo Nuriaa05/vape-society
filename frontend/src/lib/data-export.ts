@@ -203,7 +203,6 @@ function productRows(
       "Stock físico",
       "Stock mínimo",
       "Archivado",
-      "Venta habilitada",
     ],
     ...products.map((product) => [
       product.id,
@@ -219,7 +218,6 @@ function productRows(
       product.stock,
       product.minStock,
       product.archived ?? false,
-      product.saleEnabled ?? true,
     ]),
   ];
 }

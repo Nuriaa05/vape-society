@@ -191,19 +191,22 @@ describe("SalesService", () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it("rejects direct sales for sale-disabled products", async () => {
+  it("sells active products with a disabled legacy sale flag", async () => {
     await db.prisma.product.update({
       where: { id: "p1" },
       data: { saleEnabled: false },
     });
 
+    const sale = await service.create({
+      deliveryStatus: "Entregado",
+      paymentMethodId: "pm2",
+      items: [{ productId: "p1", qty: 1 }],
+    });
+
+    expect(sale.items[0]).toMatchObject({ productId: "p1", qty: 1 });
     await expect(
-      service.create({
-        deliveryStatus: "Entregado",
-        paymentMethodId: "pm2",
-        items: [{ productId: "p1", qty: 1 }],
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+      db.prisma.product.findUniqueOrThrow({ where: { id: "p1" } }),
+    ).resolves.toMatchObject({ physicalStock: 23 });
   });
 
   it("creates a delivered sale, decreases physical stock, and writes stock movements", async () => {

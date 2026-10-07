@@ -45,7 +45,6 @@ export interface Product {
   availableStock?: number;
   minStock: number;
   archived?: boolean;
-  saleEnabled?: boolean;
 }
 
 export interface ComboItem {

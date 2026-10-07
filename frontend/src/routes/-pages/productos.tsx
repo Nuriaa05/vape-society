@@ -82,10 +82,7 @@ import {
   calculateMarginPctFromSalePrice,
   calculateSalePriceFromMargin,
 } from "@/lib/product-pricing";
-import {
-  filterProductsForList,
-  type ProductSaleFilter,
-} from "@/lib/product-visibility";
+import { filterProductsForList } from "@/lib/product-visibility";
 import { requiresNegativeInitialStockConfirmation } from "@/lib/product-stock-warning";
 import { toast } from "sonner";
 
@@ -146,7 +143,6 @@ export function ProductosPage() {
   });
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("Todas");
-  const [saleFilter, setSaleFilter] = useState<ProductSaleFilter>("Todos");
   const [showArchived, setShowArchived] = useState(false);
   const [editing, setEditing] = useState<Editing>(null);
   const [archiving, setArchiving] = useState<Product | null>(null);
@@ -168,14 +164,13 @@ export function ProductosPage() {
         query: q,
         category: cat,
         showArchived,
-        saleFilter,
       }),
-    [items, q, cat, showArchived, saleFilter],
+    [items, q, cat, showArchived],
   );
 
   useEffect(() => {
     setVisibleProductsCount(PAGE_LIST_INCREMENT);
-  }, [q, cat, saleFilter, showArchived]);
+  }, [q, cat, showArchived]);
 
   const visibleProducts = useMemo(
     () => getVisibleItems(filtered, visibleProductsCount),
@@ -304,19 +299,6 @@ export function ProductosPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select
-            value={saleFilter}
-            onValueChange={(value) => setSaleFilter(value as ProductSaleFilter)}
-          >
-            <SelectTrigger className="md:w-52">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todos">Todos</SelectItem>
-              <SelectItem value="Vendibles">Vendibles</SelectItem>
-              <SelectItem value="Solo stock">Solo stock</SelectItem>
-            </SelectContent>
-          </Select>
           <label className="flex items-center gap-2 text-sm text-muted-foreground px-2">
             <Switch checked={showArchived} onCheckedChange={setShowArchived} />
             Mostrar archivados
@@ -363,12 +345,7 @@ export function ProductosPage() {
                       {p.barcode}
                     </td>
                     <td className="px-5 py-3 font-medium text-foreground">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span>{p.name}</span>
-                        {p.saleEnabled === false && (
-                          <StatusBadge tone="muted">Solo stock</StatusBadge>
-                        )}
-                      </div>
+                      {p.name}
                       {p.archived && (
                         <span className="ml-2 text-xs text-muted-foreground">
                           (archivado)

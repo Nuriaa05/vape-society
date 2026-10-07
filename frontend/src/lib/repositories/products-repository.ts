@@ -13,7 +13,6 @@ export type ApiProduct = {
   marginPct: number;
   physicalStock: number;
   minStock: number;
-  saleEnabled?: boolean;
   archived: boolean;
 };
 
@@ -36,7 +35,6 @@ export function toProduct(product: ApiProduct): Product {
     stock: product.physicalStock,
     minStock: product.minStock,
     archived: product.archived,
-    saleEnabled: product.saleEnabled ?? true,
   };
 }
 

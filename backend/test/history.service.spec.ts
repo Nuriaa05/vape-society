@@ -92,6 +92,28 @@ describe("HistoryService", () => {
       expect.arrayContaining(firstPage.items.map((event) => event.id)),
     );
   });
+
+  it("describes product creation independently of the legacy sale flag", async () => {
+    await db.prisma.product.update({
+      where: { id: "history-product" },
+      data: { saleEnabled: false },
+    });
+
+    const history = await service.findAll({
+      month: "2026-05",
+      type: "products",
+      take: 20,
+      skip: 0,
+    });
+
+    expect(history.items).toEqual([
+      expect.objectContaining({
+        title: "Producto creado",
+        entityId: "history-product",
+        status: "Creado",
+      }),
+    ]);
+  });
 });
 
 async function seedHistoricalEvents(db: SeededTestDatabase) {

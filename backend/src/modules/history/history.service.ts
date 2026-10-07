@@ -269,7 +269,7 @@ export class HistoryService {
         title: "Producto creado",
         description: `${product.name} · ${product.category.name}`,
         entityId: product.id,
-        status: product.saleEnabled ? "Vendible" : "Solo stock",
+        status: "Creado",
       });
     }
     for (const supplier of suppliers) {

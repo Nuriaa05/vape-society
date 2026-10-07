@@ -92,14 +92,15 @@ describe("CatalogService", () => {
     );
   });
 
-  it("does not expose sale-disabled products through the sale catalog", async () => {
+  it("resolves active products with a disabled legacy sale flag", async () => {
     await db.prisma.product.update({
       where: { id: "p1" },
       data: { saleEnabled: false },
     });
 
-    await expect(catalog.findByBarcode("7790001000017")).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(catalog.findByBarcode("7790001000017")).resolves.toMatchObject({
+      itemType: "Product",
+      item: { id: "p1", archived: false },
+    });
   });
 });

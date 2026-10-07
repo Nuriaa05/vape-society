@@ -85,7 +85,6 @@ type ProductForSale = {
   priceAmountCents: number;
   physicalStock: number;
   archived: boolean;
-  saleEnabled: boolean;
 };
 
 type PaymentMethodForSale = {
@@ -597,7 +596,6 @@ export class SalesService {
         priceAmountCents: true,
         physicalStock: true,
         archived: true,
-        saleEnabled: true,
       },
     });
     const productsById = new Map(
@@ -613,12 +611,6 @@ export class SalesService {
 
       if (product.archived) {
         throw new BadRequestException("El producto indicado está archivado.");
-      }
-
-      if (!product.saleEnabled) {
-        throw new BadRequestException(
-          "El producto indicado no está habilitado para venta.",
-        );
       }
     }
 

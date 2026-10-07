@@ -52,7 +52,7 @@ describe("settings data exports", () => {
     const cell = (column: string) => rows[12][rows[0].indexOf(column)];
     expect(rows).toHaveLength(13);
     expect(cell("Archivado")).toBe(true);
-    expect(cell("Venta habilitada")).toBe(false);
+    expect(rows[0]).not.toContain("Venta habilitada");
     expect(cell("Proveedor")).toBe("Proveedor");
     expect(cell("Costo ARS")).toBe(1200.25);
     expect(cell("Precio de venta ARS")).toBe(1800.5);
