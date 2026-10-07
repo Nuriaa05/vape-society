@@ -87,7 +87,7 @@ function SelectContent({
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         className={cn(
-          "relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-32 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-md data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          "relative z-50 max-h-[min(24rem,calc(var(--radix-select-content-available-height)/var(--interface-scale)))] min-w-32 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-md data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className,
@@ -98,9 +98,9 @@ function SelectContent({
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
           className={cn(
-            "max-h-[min(22rem,var(--radix-select-content-available-height))] overflow-y-auto p-1",
+            "max-h-[min(22rem,calc(var(--radix-select-content-available-height)/var(--interface-scale)))] overflow-y-auto p-1",
             position === "popper" &&
-              "min-h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+              "min-h-[calc(var(--radix-select-trigger-height)/var(--interface-scale))] w-full min-w-[calc(var(--radix-select-trigger-width)/var(--interface-scale))]",
           )}
         >
           {children}

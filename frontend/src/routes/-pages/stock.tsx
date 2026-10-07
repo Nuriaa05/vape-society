@@ -913,7 +913,7 @@ function ProductCombobox({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="p-0 w-[var(--radix-popover-trigger-width)]"
+        className="p-0 w-[calc(var(--radix-popover-trigger-width)/var(--interface-scale))]"
         align="start"
         sideOffset={4}
       >

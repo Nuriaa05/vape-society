@@ -76,6 +76,8 @@
 
 :root {
   color-scheme: light;
+  --interface-scale: 1;
+  --app-viewport-height: calc(100dvh / var(--interface-scale));
   --radius: 0.75rem;
   --background: #ffffff;
   --foreground: #18181b;
@@ -148,6 +150,10 @@
 }
 
 @layer base {
+  html {
+    zoom: var(--interface-scale);
+  }
+
   * {
     border-color: var(--color-border);
   }
@@ -177,6 +183,15 @@
 .settings-controls :is(input, textarea)::placeholder {
   color: var(--secondary-foreground);
   opacity: 1;
+}
+
+/* Los desplegables reciben posiciones calculadas en píxeles de pantalla. */
+[data-radix-popper-content-wrapper] {
+  zoom: calc(1 / var(--interface-scale));
+}
+
+[data-radix-popper-content-wrapper] > * {
+  zoom: var(--interface-scale);
 }
 
 @layer components {
@@ -320,6 +335,11 @@
 }
 
 @media print {
+  html {
+    --interface-scale: 1 !important;
+    zoom: 1;
+  }
+
   .dark {
     color-scheme: light;
     --background: #ffffff;

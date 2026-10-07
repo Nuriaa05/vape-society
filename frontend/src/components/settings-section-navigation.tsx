@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 
 export type SettingsSection =
   | "local"
+  | "appearance"
   | "sales"
   | "catalog"
   | "receipts"
@@ -22,6 +23,11 @@ export function SettingsSectionNavigation({
     description: string;
   }[] = [
     { id: "local", label: "Local", description: "Datos y modo del sistema" },
+    {
+      id: "appearance",
+      label: "Apariencia",
+      description: "Tamaño de la interfaz",
+    },
     { id: "sales", label: "Ventas", description: "Precios, pagos y cupones" },
     {
       id: "catalog",
@@ -39,7 +45,7 @@ export function SettingsSectionNavigation({
   return (
     <nav
       aria-label="Secciones de configuración"
-      className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:sticky lg:top-24 lg:flex lg:flex-col"
+      className="grid grid-cols-2 gap-1 @min-[30rem]/app-content:grid-cols-3 @min-[45rem]/app-content:sticky @min-[45rem]/app-content:top-24 @min-[45rem]/app-content:flex @min-[45rem]/app-content:flex-col"
     >
       {sections.map((section) => (
         <button

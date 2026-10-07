@@ -5,6 +5,8 @@ export type Appearance = "light" | "dark";
 export const AppearanceContext = createContext<{
   appearance: Appearance;
   setAppearance: (appearance: Appearance) => void;
+  interfaceScale: number;
+  setInterfaceScale: (scale: number) => void;
 } | null>(null);
 
 export function useAppearance() {

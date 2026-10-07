@@ -1,6 +1,7 @@
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { InterfaceScaleControl } from "@/components/interface-scale-control";
 import { DataExportControls } from "@/components/data-export-controls";
 import { DataImportControls } from "@/components/data-import-controls";
 import { SettingsReceiptPreview } from "@/components/settings-receipt-preview";
@@ -694,7 +695,7 @@ export function ConfigPage() {
 
   return (
     <AppShell title="Configuración">
-      <div className="grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-7">
+      <div className="grid items-start gap-5 @min-[45rem]/app-content:grid-cols-[240px_minmax(0,1fr)] @min-[45rem]/app-content:gap-7">
         <SettingsSectionNavigation
           selected={activeSection}
           categoryCount={cats.length}
@@ -776,6 +777,28 @@ export function ConfigPage() {
                 />
                 <span className="text-sm">Uso local en una computadora</span>
               </div>
+            </SettingsCard>
+          </section>
+          <section
+            id="settings-panel-appearance"
+            aria-labelledby="settings-nav-appearance"
+            hidden={activeSection !== "appearance"}
+            className="space-y-5"
+          >
+            <SettingsCard
+              title="Tamaño de la interfaz"
+              description="Los cambios se aplican al instante y se guardan automáticamente en este navegador."
+            >
+              <SettingsRow
+                label="Escala"
+                description="Ajusta el tamaño de los textos, botones y menús de todo el sistema."
+              >
+                <InterfaceScaleControl />
+              </SettingsRow>
+              <p className="text-xs text-muted-foreground">
+                De 50 % a 150 %, en pasos de 5 %. El tamaño predeterminado es
+                100 %.
+              </p>
             </SettingsCard>
           </section>
           <section
@@ -1691,7 +1714,7 @@ function SettingsCard({
   actions?: React.ReactNode;
 }) {
   return (
-    <Card className="settings-controls">
+    <Card className="settings-controls @container/settings-card">
       <CardHeader
         title={title}
         description={description}
@@ -1721,7 +1744,7 @@ function SettingsRow({
       className={`border-b border-border py-4 first:pt-0 last:border-b-0 last:pb-0 ${
         inputId
           ? "flex flex-col gap-2"
-          : "grid items-center gap-3 md:grid-cols-2 md:gap-6"
+          : "grid items-center gap-3 @min-[32rem]/settings-card:grid-cols-2 @min-[32rem]/settings-card:gap-6"
       }`}
     >
       <div className="min-w-0">
@@ -1742,7 +1765,7 @@ function SettingsRow({
         )}
       </div>
       <div
-        className={`w-full min-w-0 ${inputId ? "" : "md:max-w-sm md:justify-self-end"}`}
+        className={`w-full min-w-0 ${inputId ? "" : "@min-[32rem]/settings-card:max-w-sm @min-[32rem]/settings-card:justify-self-end"}`}
       >
         {children}
       </div>

@@ -212,15 +212,20 @@ export function AppShell({
   );
 
   return (
-    <div className={cn("flex min-h-screen w-full bg-background", className)}>
-      <aside className="sticky top-0 hidden h-dvh w-[236px] shrink-0 overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:block print:hidden">
+    <div
+      className={cn(
+        "@container/app-shell flex min-h-[var(--app-viewport-height)] w-full bg-background",
+        className,
+      )}
+    >
+      <aside className="sticky top-0 hidden h-[var(--app-viewport-height)] w-[236px] shrink-0 overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground @min-[48rem]/app-shell:block print:hidden">
         <div className="flex min-h-full flex-col px-3.5 py-5">
           {sidebarContent}
         </div>
       </aside>
 
       <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
-        <DialogContent className="left-0 top-0 flex h-dvh max-h-dvh w-[min(280px,calc(100%-2rem))] max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 border-r border-sidebar-border bg-sidebar px-3.5 py-5 text-sidebar-foreground">
+        <DialogContent className="left-0 top-0 flex h-[var(--app-viewport-height)] max-h-[var(--app-viewport-height)] w-[min(280px,calc(100%-2rem))] max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 border-r border-sidebar-border bg-sidebar px-3.5 py-5 text-sidebar-foreground">
           <DialogHeader className="sr-only">
             <DialogTitle>Menú</DialogTitle>
             <DialogDescription>
@@ -243,7 +248,7 @@ export function AppShell({
             <Button
               variant="outline"
               size="icon"
-              className="shrink-0 md:hidden print:hidden"
+              className="shrink-0 @min-[48rem]/app-shell:hidden print:hidden"
               aria-label="Abrir menú"
               onClick={() => setMenuOpen(true)}
             >
@@ -296,7 +301,9 @@ export function AppShell({
           {subtitle && (
             <p className="mb-4 text-sm text-muted-foreground">{subtitle}</p>
           )}
-          <div className="app-page-layout">{children}</div>
+          <div className="app-page-layout @container/app-content">
+            {children}
+          </div>
         </main>
       </div>
     </div>

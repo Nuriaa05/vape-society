@@ -33,7 +33,7 @@ export function HistoryMonthNavigation({
           {years.length} {years.length === 1 ? "año" : "años"}
         </div>
       </div>
-      <div className="max-h-64 space-y-2 overflow-y-auto overscroll-contain p-2 lg:max-h-[calc(100vh-13rem)]">
+      <div className="max-h-64 space-y-2 overflow-y-auto overscroll-contain p-2 lg:max-h-[calc(var(--app-viewport-height)-13rem)]">
         {years.map((group) => (
           <HistoryYearMonths
             key={group.year}
