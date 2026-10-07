@@ -62,7 +62,7 @@ for (const engine of ['schema-engine-windows.exe', 'query_engine-windows.dll.nod
   cpSync(join(root, 'backend/node_modules/@prisma/engines', engine), join(backend, 'node_modules/@prisma/engines', engine));
 }
 
-const iconPath = join(stage, 'vape-society.ico');
+const iconPath = join(stage, `vape-society-${version}.ico`);
 run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', readFileSync(join(source, 'build-icon.ps1'), 'utf8')], root, {
   VAPE_BUILD_LOGO_PATH: join(root, 'frontend/public/brand/vape-society-logo.png'),
   VAPE_BUILD_ICON_PATH: iconPath,

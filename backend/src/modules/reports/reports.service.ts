@@ -266,7 +266,7 @@ export class ReportsService {
         title: "Unidades vendidas",
         subtitle:
           periodInput === "week"
-            ? "Últimos 7 días"
+            ? "Semana actual"
             : `Unidades por mes, ${getArgentinaParts(now).year}`,
       },
       points: buckets.map((bucket) => ({
@@ -756,7 +756,7 @@ function buildSoldUnitsBuckets(
   const { year } = getArgentinaParts(now);
   const first =
     period === "week"
-      ? addDays(today, -6)
+      ? addDays(today, -((today.getUTCDay() + 6) % 7))
       : argentinaLocalToUtc(year, 1, 1);
   const count = period === "week" ? 7 : 12;
   const labelFormatter = new Intl.DateTimeFormat("es-AR", {

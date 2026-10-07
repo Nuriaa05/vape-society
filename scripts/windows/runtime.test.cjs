@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
-const { mkdtempSync, mkdirSync, cpSync, readdirSync, symlinkSync, rmSync, rmdirSync, writeFileSync } = require('node:fs');
+const { execFileSync } = require('node:child_process');
+const { mkdtempSync, mkdirSync, cpSync, readFileSync, readdirSync, symlinkSync, rmSync, rmdirSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { resolve, join, relative, isAbsolute } = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
@@ -18,6 +19,53 @@ async function withDirectory(run) {
     rmSync(target, { recursive: true, force: true });
   }
 }
+
+test('keeps the logo colors and transparency in Windows icon sizes', { skip: process.platform !== 'win32' }, async () => {
+  await withDirectory(async (directory) => {
+    const iconPath = join(directory, 'vape-society.ico');
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', join(__dirname, 'build-icon.ps1')], {
+      windowsHide: true,
+      env: {
+        ...process.env,
+        VAPE_BUILD_LOGO_PATH: resolve(__dirname, '../../frontend/public/brand/vape-society-logo.png'),
+        VAPE_BUILD_ICON_PATH: iconPath,
+      },
+    });
+    const bytes = readFileSync(iconPath);
+    const sizes = [];
+    for (let index = 0; index < bytes.readUInt16LE(4); index++) {
+      const offset = 6 + index * 16;
+      assert.equal(bytes.readUInt16LE(offset + 6), 32, 'the icon must retain 32-bit color and alpha');
+      sizes.push(bytes[offset] || 256);
+    }
+    for (const size of [16, 32, 48, 256]) assert.ok(sizes.includes(size), `missing ${size}px icon`);
+
+    const rendered = JSON.parse(execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `
+      Add-Type -AssemblyName System.Drawing
+      $icon = New-Object System.Drawing.Icon($env:VAPE_BUILD_ICON_PATH, 32, 32)
+      $bitmap = $icon.ToBitmap()
+      try {
+        $colors = @{}
+        $redPixels = 0
+        $transparentPixels = 0
+        for ($x = 0; $x -lt $bitmap.Width; $x++) {
+          for ($y = 0; $y -lt $bitmap.Height; $y++) {
+            $color = $bitmap.GetPixel($x, $y)
+            if ($color.A -eq 0) { $transparentPixels++ }
+            else {
+              $colors[$color.ToArgb()] = $true
+              if ($color.A -gt 200 -and $color.R -gt 150 -and $color.G -lt 80 -and $color.B -lt 80) { $redPixels++ }
+            }
+          }
+        }
+        @{ colors = $colors.Count; redPixels = $redPixels; transparentPixels = $transparentPixels } | ConvertTo-Json -Compress
+      } finally { $bitmap.Dispose(); $icon.Dispose() }
+    `], { windowsHide: true, encoding: 'utf8', env: { ...process.env, VAPE_BUILD_ICON_PATH: iconPath } }));
+    assert.ok(rendered.colors > 100, 'Windows must render the full-color logo');
+    assert.ok(rendered.redPixels > 30, 'the red logo must remain visible at shortcut size');
+    assert.ok(rendered.transparentPixels > 100, 'the icon background must remain transparent');
+  });
+});
 
 function olderBackend(directory) {
   const root = join(directory, 'previous-backend');

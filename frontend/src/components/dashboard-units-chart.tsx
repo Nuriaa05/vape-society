@@ -50,7 +50,7 @@ export function DashboardUnitsChart() {
           </h2>
           <p className="text-sm text-muted-foreground">
             {data?.meta.subtitle ??
-              (period === "week" ? "Últimos 7 días" : "Unidades por mes")}
+              (period === "week" ? "Semana actual" : "Unidades por mes")}
           </p>
         </div>
         <div

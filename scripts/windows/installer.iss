@@ -22,8 +22,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19041
 OutputDir={#OutputPath}
 OutputBaseFilename=Vape-Society-Setup-{#AppVersion}-x64
-SetupIconFile={#PayloadPath}\vape-society.ico
-UninstallDisplayIcon={app}\Vape Society.exe
+SetupIconFile={#PayloadPath}\vape-society-{#AppVersion}.ico
+UninstallDisplayIcon={app}\vape-society-{#AppVersion}.ico
 Compression=lzma2/fast
 SolidCompression=yes
 WizardStyle=modern
@@ -45,10 +45,10 @@ Name: "{localappdata}\VapeSociety\logs"; Flags: uninsneveruninstall
 Source: "{#PayloadPath}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Vape Society"; Filename: "{app}\Vape Society.exe"
+Name: "{group}\Vape Society"; Filename: "{app}\Vape Society.exe"; IconFilename: "{app}\vape-society-{#AppVersion}.ico"
 Name: "{group}\Datos y backups"; Filename: "{localappdata}\VapeSociety"
 Name: "{group}\Desinstalar"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Vape Society"; Filename: "{app}\Vape Society.exe"; Tasks: desktopicon
+Name: "{autodesktop}\Vape Society"; Filename: "{app}\Vape Society.exe"; IconFilename: "{app}\vape-society-{#AppVersion}.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Vape Society.exe"; Description: "Abrir Vape Society"; Flags: nowait postinstall skipifsilent

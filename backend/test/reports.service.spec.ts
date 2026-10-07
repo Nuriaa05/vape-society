@@ -879,15 +879,15 @@ describe("ReportsService", () => {
       });
     }
 
-    it("counts direct and combo units across seven Argentine days, excluding cancellations and dates outside the period", async () => {
-      await sellUnits("960001", "2026-09-27T03:00:00.000Z", 2);
+    it("counts direct and combo units from Monday through Sunday, excluding cancellations and future days", async () => {
+      await sellUnits("960001", "2026-09-28T03:00:00.000Z", 2);
       await sellUnits("960002", "2026-10-04T01:00:00.000Z", 3, {
         deliveryStatus: "Pendiente",
       });
       await sellUnits("960003", "2026-10-03T15:00:00.000Z", 20, {
         status: "Anulada",
       });
-      await sellUnits("960004", "2026-09-27T02:59:59.999Z", 100);
+      await sellUnits("960004", "2026-09-28T02:59:59.999Z", 100);
       await sellUnits("960005", "2026-10-04T03:00:00.000Z", 50);
       await createComboSale(db, {
         number: "960006",
@@ -914,18 +914,38 @@ describe("ReportsService", () => {
       const series = await service.getSoldUnitsSeries();
 
       expect(series.period).toBe("week");
-      expect(series.meta.subtitle).toBe("Últimos 7 días");
+      expect(series.meta.subtitle).toBe("Semana actual");
       expect(series.points.map((point) => point.units)).toEqual([
-        2, 0, 0, 0, 0, 0, 12,
+        2, 0, 0, 0, 0, 12, 0,
       ]);
       expect(series.points.map((point) => point.label)).toEqual([
-        "Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb",
+        "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom",
       ]);
       expect(series.points[0]).toMatchObject({
-        fullLabel: "27/09/2026",
-        from: "2026-09-27T03:00:00.000Z",
+        fullLabel: "28/09/2026",
+        from: "2026-09-28T03:00:00.000Z",
       });
-      expect(series.points.at(-1)?.to).toBe("2026-10-04T03:00:00.000Z");
+      expect(series.points.at(-1)?.to).toBe("2026-10-05T03:00:00.000Z");
+    });
+
+    it.each([
+      ["Monday", "2026-10-05T03:00:00.000Z", "2026-10-05T03:00:00.000Z"],
+      ["Tuesday", "2026-10-06T15:00:00.000Z", "2026-10-05T03:00:00.000Z"],
+      ["Sunday", "2026-10-12T02:59:59.999Z", "2026-10-05T03:00:00.000Z"],
+      ["Sunday at the UTC Monday boundary", "2026-10-05T02:59:59.999Z", "2026-09-28T03:00:00.000Z"],
+    ])("keeps weekday order on %s using the Argentine calendar", async (_day, now, monday) => {
+      jest.setSystemTime(new Date(now));
+      await sellUnits("960101", monday, 4);
+      await sellUnits("960102", new Date(new Date(monday).getTime() - 1).toISOString(), 100);
+
+      const series = await service.getSoldUnitsSeries("week");
+
+      expect(series.points.map((point) => point.label)).toEqual([
+        "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom",
+      ]);
+      expect(series.points[0].from).toBe(monday);
+      expect(series.points[0].units).toBe(4);
+      expect(series.points.slice(1).every((point) => point.units === 0)).toBe(true);
     });
 
     it("keeps all twelve calendar months and groups sold units using Argentine month boundaries", async () => {
@@ -979,7 +999,9 @@ describe("ReportsService", () => {
       const monthly = await service.getSoldUnitsSeries("month");
 
       expect(weekly.points).toHaveLength(7);
-      expect(weekly.points.at(-1)?.fullLabel).toBe("31/12/2025");
+      expect(weekly.points[0].fullLabel).toBe("29/12/2025");
+      expect(weekly.points[2].fullLabel).toBe("31/12/2025");
+      expect(weekly.points.at(-1)?.fullLabel).toBe("04/01/2026");
       expect(monthly.meta.subtitle).toBe("Unidades por mes, 2025");
       expect(monthly.points).toHaveLength(12);
       expect(monthly.points[0].from).toBe("2025-01-01T03:00:00.000Z");
