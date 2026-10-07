@@ -15,10 +15,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         <Link to="/">Volver al inicio</Link>
       </div>
     ),
-    errorComponent: ({ reset }) => (
+    errorComponent: ({ error, reset }) => (
       <div className="p-6">
         <p>No se pudo cargar esta página.</p>
-        <button type="button" onClick={reset}>
+        <button
+          type="button"
+          onClick={() => {
+            if (
+              /^(Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed)/.test(
+                error.message,
+              )
+            ) {
+              window.location.reload();
+            } else {
+              reset();
+            }
+          }}
+        >
           Reintentar
         </button>
       </div>
