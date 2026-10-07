@@ -5,6 +5,7 @@ export type AppConfig = {
   frontendDistDir?: string;
   databaseUrl: string;
   backupDir: string;
+  backupSchedulerEnabled: boolean;
 };
 
 function toPort(value: string | undefined): number {
@@ -19,4 +20,5 @@ export const appConfig = (): AppConfig => ({
   frontendDistDir: process.env.FRONTEND_DIST_DIR?.trim() || undefined,
   databaseUrl: process.env.DATABASE_URL ?? "file:./core.db",
   backupDir: process.env.BACKUP_DIR ?? "backups",
+  backupSchedulerEnabled: process.env.NODE_ENV !== "test",
 });

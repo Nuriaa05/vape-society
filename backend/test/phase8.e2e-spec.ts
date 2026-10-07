@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { INestApplication, ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 
@@ -45,6 +46,60 @@ describe("Phase 8 backups endpoints", () => {
     delete process.env.BACKUP_DIR;
   });
 
+  it("enables daily backups by default and persists the user's choice", async () => {
+    await request(app.getHttpServer())
+      .get("/api/backups/automation")
+      .expect(200)
+      .expect({ enabled: true });
+
+    await request(app.getHttpServer())
+      .patch("/api/backups/automation")
+      .send({ enabled: false })
+      .expect(200)
+      .expect({ enabled: false });
+
+    await request(app.getHttpServer())
+      .get("/api/backups/automation")
+      .expect(200)
+      .expect({ enabled: false });
+
+    await request(app.getHttpServer())
+      .post("/api/backups")
+      .send({})
+      .expect(201);
+  });
+
+  it("rejects invalid automatic backup preferences", async () => {
+    await request(app.getHttpServer())
+      .patch("/api/backups/automation")
+      .send({ enabled: "false" })
+      .expect(400);
+  });
+
+  it("creates a missing daily backup when the runtime starts", async () => {
+    await app.close();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(ConfigService)
+      .useValue(
+        new ConfigService({
+          databaseUrl: db.url,
+          backupDir,
+          backupSchedulerEnabled: true,
+        }),
+      )
+      .compile();
+    app = moduleRef.createNestApplication();
+    await app.init();
+
+    const response = await request(app.getHttpServer())
+      .get("/api/backups")
+      .expect(200);
+
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].status).toBe("Ok");
+    expect(existsSync(join(backupDir, response.body[0].filename))).toBe(true);
+  });
+
   it("reports the configured backup directory before the first backup", async () => {
     const location = await request(app.getHttpServer())
       .get("/api/backups/location")
@@ -70,7 +125,7 @@ describe("Phase 8 backups endpoints", () => {
       .expect(201);
 
     expect(backup.body).toMatchObject({
-      filename: expect.stringMatching(/^core-backup-\d{4}-\d{2}-\d{2}-\d{6}\.db$/),
+      filename: expect.stringMatching(/^core-backup-\d{4}-\d{2}-\d{2}-\d{6}-[0-9a-f-]{36}\.db$/),
       status: "Ok",
     });
     expect(backup.body).not.toHaveProperty("path");

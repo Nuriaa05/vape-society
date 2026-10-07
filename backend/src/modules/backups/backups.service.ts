@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, resolve } from "node:path";
 
@@ -28,19 +29,30 @@ export type RestorePlanResponse = {
 
 @Injectable()
 export class BackupsService {
+  private backupInProgress?: Promise<BackupResponse>;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {}
 
-  async createBackup(): Promise<BackupResponse> {
+  createBackup(): Promise<BackupResponse> {
+    if (!this.backupInProgress) {
+      this.backupInProgress = this.writeBackup().finally(() => {
+        this.backupInProgress = undefined;
+      });
+    }
+    return this.backupInProgress;
+  }
+
+  private async writeBackup(): Promise<BackupResponse> {
     const backupDir = this.getBackupDir();
-    await mkdir(backupDir, { recursive: true });
 
     const filename = formatBackupFilename(new Date());
     const destinationPath = join(backupDir, filename);
 
     try {
+      await mkdir(backupDir, { recursive: true });
       await this.prisma.$executeRawUnsafe(
         `VACUUM INTO '${toSqlitePathLiteral(destinationPath)}'`,
       );
@@ -75,6 +87,25 @@ export class BackupsService {
 
   getLocation(): { directory: string } {
     return { directory: this.getBackupDir() };
+  }
+
+  async getAutomation(): Promise<{ enabled: boolean }> {
+    const settings = await this.prisma.appSettings.findUnique({
+      where: { id: "default" },
+      select: { dailyBackupEnabled: true },
+    });
+    if (!settings) {
+      throw new NotFoundException("La configuración inicial no está cargada.");
+    }
+    return { enabled: settings.dailyBackupEnabled };
+  }
+
+  async updateAutomation(enabled: boolean): Promise<{ enabled: boolean }> {
+    await this.prisma.appSettings.update({
+      where: { id: "default" },
+      data: { dailyBackupEnabled: enabled },
+    });
+    return { enabled };
   }
 
   async getRestorePlan(id: string): Promise<RestorePlanResponse> {
@@ -140,7 +171,7 @@ function formatBackupFilename(date: Date): string {
   const minutes = String(date.getMinutes()).padStart(2, "0");
   const seconds = String(date.getSeconds()).padStart(2, "0");
 
-  return `core-backup-${year}-${month}-${day}-${hours}${minutes}${seconds}.db`;
+  return `core-backup-${year}-${month}-${day}-${hours}${minutes}${seconds}-${randomUUID()}.db`;
 }
 
 function toSqlitePathLiteral(path: string): string {

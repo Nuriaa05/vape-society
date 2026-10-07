@@ -1,11 +1,19 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
 
-import { CreateBackupDto, RestorePlanDto } from "./dto/backup.dto";
+import {
+  CreateBackupDto,
+  RestorePlanDto,
+  UpdateBackupAutomationDto,
+} from "./dto/backup.dto";
 import { BackupsService } from "./backups.service";
+import { DailyBackupsService } from "./daily-backups.service";
 
 @Controller("api/backups")
 export class BackupsController {
-  constructor(private readonly backupsService: BackupsService) {}
+  constructor(
+    private readonly backupsService: BackupsService,
+    private readonly dailyBackupsService: DailyBackupsService,
+  ) {}
 
   @Get()
   findAll() {
@@ -15,6 +23,18 @@ export class BackupsController {
   @Get("location")
   getLocation() {
     return this.backupsService.getLocation();
+  }
+
+  @Get("automation")
+  getAutomation() {
+    return this.backupsService.getAutomation();
+  }
+
+  @Patch("automation")
+  async updateAutomation(@Body() dto: UpdateBackupAutomationDto) {
+    const settings = await this.backupsService.updateAutomation(dto.enabled);
+    if (settings.enabled) void this.dailyBackupsService.runScheduledBackup();
+    return settings;
   }
 
   @Post()

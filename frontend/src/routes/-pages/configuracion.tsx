@@ -2,6 +2,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { DataExportControls } from "@/components/data-export-controls";
+import { DataImportControls } from "@/components/data-import-controls";
 import { SettingsReceiptPreview } from "@/components/settings-receipt-preview";
 import {
   SettingsSectionNavigation,
@@ -188,10 +189,15 @@ export function ConfigPage() {
   const backupsQuery = useQuery({
     queryKey: ["backups"],
     queryFn: () => backupsRepository.findAll(),
+    refetchInterval: 60_000,
   });
   const backupLocationQuery = useQuery({
     queryKey: ["backups", "location"],
     queryFn: () => backupsRepository.getLocation(),
+  });
+  const backupAutomationQuery = useQuery({
+    queryKey: ["backups", "automation"],
+    queryFn: () => backupsRepository.getAutomation(),
   });
   const productsQuery = useQuery({
     queryKey: ["products", "all"],
@@ -284,6 +290,17 @@ export function ConfigPage() {
     mutationFn: () => backupsRepository.create(),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["backups"] });
+    },
+  });
+  const updateBackupAutomationMutation = useMutation({
+    mutationFn: (enabled: boolean) =>
+      backupsRepository.updateAutomation(enabled),
+    onSuccess: (automation) => {
+      queryClient.setQueryData(["backups", "automation"], automation);
+      void queryClient.invalidateQueries({
+        queryKey: ["backups"],
+        exact: true,
+      });
     },
   });
   const savePrinterMutation = useMutation({
@@ -650,7 +667,10 @@ export function ConfigPage() {
     }
   };
 
-  const latestBackup = backupsQuery.data?.[0];
+  const latestBackup = backupsQuery.data?.find(
+    (backup) => backup.status === "Ok",
+  );
+  const latestBackupFailed = backupsQuery.data?.[0]?.status === "Error";
 
   if (settingsQuery.isLoading) {
     return (
@@ -1365,6 +1385,12 @@ export function ConfigPage() {
                         {latestBackup.filename}
                       </span>
                     )}
+                    {latestBackupFailed && (
+                      <span className="mt-1 block text-destructive">
+                        El último intento falló. Revisá la carpeta de backups y
+                        el espacio disponible.
+                      </span>
+                    )}
                   </>
                 }
               >
@@ -1415,12 +1441,71 @@ export function ConfigPage() {
                   </p>
                 </div>
               </SettingsRow>
+              <SettingsRow
+                label="Backup automático diario"
+                description={
+                  <span id="daily-backup-description">
+                    Una copia cada 24 horas desde el último backup. Si el
+                    sistema estaba cerrado, se crea al volver a abrirlo.
+                  </span>
+                }
+              >
+                <div className="space-y-2">
+                  <label className="flex min-h-10 items-center justify-end gap-3 text-sm text-muted-foreground">
+                    {backupAutomationQuery.isLoading
+                      ? "Cargando..."
+                      : backupAutomationQuery.error
+                        ? "No disponible"
+                        : backupAutomationQuery.data?.enabled
+                          ? "Activo"
+                          : "Inactivo"}
+                    <Switch
+                      checked={backupAutomationQuery.data?.enabled ?? false}
+                      disabled={
+                        backupAutomationQuery.isLoading ||
+                        Boolean(backupAutomationQuery.error) ||
+                        updateBackupAutomationMutation.isPending
+                      }
+                      aria-label="Backup automático diario"
+                      aria-describedby="daily-backup-description"
+                      onCheckedChange={(enabled) =>
+                        void updateBackupAutomationMutation
+                          .mutateAsync(enabled)
+                          .then(() =>
+                            toast.success(
+                              enabled
+                                ? "Backup automático activado."
+                                : "Backup automático desactivado.",
+                            ),
+                          )
+                          .catch((error) =>
+                            toast.error(
+                              getMutationErrorMessage(
+                                error,
+                                "No se pudo guardar el backup automático.",
+                              ),
+                            ),
+                          )
+                      }
+                    />
+                  </label>
+                  {backupAutomationQuery.error && (
+                    <p className="text-xs text-destructive" role="status">
+                      No se pudo consultar la configuración del backup
+                      automático.
+                    </p>
+                  )}
+                </div>
+              </SettingsRow>
             </SettingsCard>
             <SettingsCard
               title="Exportar datos"
               description="Descargá una tabla CSV para Excel o Google Sheets."
             >
               <DataExportControls />
+              <DataImportControls
+                backupDirectory={backupLocationQuery.data?.directory}
+              />
             </SettingsCard>
           </section>
         </div>

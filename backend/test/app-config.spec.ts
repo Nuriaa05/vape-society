@@ -17,4 +17,12 @@ describe("appConfig", () => {
     expect(appConfig().port).toBe(0);
   });
 
+  it("enables the backup scheduler in the runtime and disables it during tests", () => {
+    process.env.NODE_ENV = "development";
+    expect(appConfig().backupSchedulerEnabled).toBe(true);
+
+    process.env.NODE_ENV = "test";
+    expect(appConfig().backupSchedulerEnabled).toBe(false);
+  });
+
 });

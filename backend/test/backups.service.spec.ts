@@ -55,7 +55,7 @@ describe("BackupsService", () => {
     const backup = await service.createBackup();
 
     expect(backup).toMatchObject({
-      filename: expect.stringMatching(/^core-backup-\d{4}-\d{2}-\d{2}-\d{6}\.db$/),
+      filename: expect.stringMatching(/^core-backup-\d{4}-\d{2}-\d{2}-\d{6}-[0-9a-f-]{36}\.db$/),
       status: "Ok",
     });
     expect(backup).not.toHaveProperty("path");
@@ -69,6 +69,27 @@ describe("BackupsService", () => {
       status: "Ok",
     });
     expect(logs[0].path).toBe(join(backupDir, backup.filename));
+  });
+
+  it("shares one backup when manual and scheduled requests overlap", async () => {
+    const [manual, scheduled] = await Promise.all([
+      service.createBackup(),
+      service.createBackup(),
+    ]);
+
+    expect(manual.id).toBe(scheduled.id);
+    expect(manual.filename).toBe(scheduled.filename);
+    await expect(db.prisma.backupLog.count()).resolves.toBe(1);
+  });
+
+  it("creates separate files for sequential requests within the same second", async () => {
+    const first = await service.createBackup();
+    const second = await service.createBackup();
+
+    expect(second.filename).not.toBe(first.filename);
+    expect(existsSync(join(backupDir, first.filename))).toBe(true);
+    expect(existsSync(join(backupDir, second.filename))).toBe(true);
+    await expect(db.prisma.backupLog.count()).resolves.toBe(2);
   });
 
   it("lists backups from the log without exposing filesystem paths", async () => {
