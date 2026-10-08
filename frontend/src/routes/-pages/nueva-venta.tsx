@@ -61,21 +61,13 @@ import {
   saveReceiptPdfBySaleId,
 } from "@/lib/desktop-printer";
 import {
-  buildCartWhatsAppMessage,
-  buildSaleWhatsAppMessage,
-  copyOrderText,
-  shareOrderOnWhatsApp,
-} from "@/lib/whatsapp-share";
-import {
   Banknote,
   CheckCircle2,
   Clock,
-  Copy,
   CreditCard,
   FileDown,
   FilePlus2,
   LoaderCircle,
-  MessageCircle,
   Printer,
   ScanLine,
   Trash2,
@@ -178,8 +170,6 @@ export function NuevaVenta() {
   const [confirmNegativeStock, setConfirmNegativeStock] = useState(false);
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [isSavingReceiptPdf, setIsSavingReceiptPdf] = useState(false);
-  const [isSharingWhatsApp, setIsSharingWhatsApp] = useState(false);
-  const [isCopyingOrder, setIsCopyingOrder] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [saleError, setSaleError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -306,8 +296,6 @@ export function NuevaVenta() {
     setSaleError(null);
     setIsPrintingReceipt(false);
     setIsSavingReceiptPdf(false);
-    setIsSharingWhatsApp(false);
-    setIsCopyingOrder(false);
     setConfirmNegativeStock(false);
     setCouponInput("");
     setAppliedCouponCode("");
@@ -654,45 +642,6 @@ export function NuevaVenta() {
       );
     } finally {
       setIsSavingReceiptPdf(false);
-    }
-  };
-
-  const getOrderShareMessage = () =>
-    confirmedSale
-      ? buildSaleWhatsAppMessage(confirmedSale)
-      : buildCartWhatsAppMessage(lines);
-
-  const shareWhatsApp = async () => {
-    if (isSharingWhatsApp) return;
-
-    setIsSharingWhatsApp(true);
-    try {
-      await shareOrderOnWhatsApp(getOrderShareMessage(), {
-        sharingBridge: window.retailCore?.sharing,
-      });
-      toast.success("Pedido abierto en WhatsApp.");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo abrir WhatsApp.",
-      );
-    } finally {
-      setIsSharingWhatsApp(false);
-    }
-  };
-
-  const copyOrder = async () => {
-    if (isCopyingOrder) return;
-
-    setIsCopyingOrder(true);
-    try {
-      await copyOrderText(getOrderShareMessage());
-      toast.success("Detalle del pedido copiado.");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo copiar el pedido.",
-      );
-    } finally {
-      setIsCopyingOrder(false);
     }
   };
 
@@ -1207,52 +1156,8 @@ export function NuevaVenta() {
                   {quoteQuery.isFetching ? "Calculando..." : "Confirmar venta"}
                 </Button>
               )}
-              {!locked && lines.length > 0 && (
-                <div className="grid grid-cols-4 gap-2">
-                  <Button
-                    variant="outline"
-                    className="col-span-3"
-                    disabled={isSharingWhatsApp}
-                    onClick={() => void shareWhatsApp()}
-                  >
-                    <MessageCircle />{" "}
-                    {isSharingWhatsApp ? "Abriendo..." : "Compartir WhatsApp"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="col-span-1 px-2"
-                    disabled={isCopyingOrder}
-                    onClick={() => void copyOrder()}
-                    aria-label="Copiar detalle del pedido"
-                    title="Copiar detalle"
-                  >
-                    <Copy />
-                  </Button>
-                </div>
-              )}
               {locked && !cancelled && (
                 <>
-                  <div className="grid grid-cols-4 gap-2">
-                    <Button
-                      variant="outline"
-                      className="col-span-3"
-                      disabled={isSharingWhatsApp}
-                      onClick={() => void shareWhatsApp()}
-                    >
-                      <MessageCircle />{" "}
-                      {isSharingWhatsApp ? "Abriendo..." : "Compartir WhatsApp"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="col-span-1 px-2"
-                      disabled={isCopyingOrder}
-                      onClick={() => void copyOrder()}
-                      aria-label="Copiar detalle del pedido"
-                      title="Copiar detalle"
-                    >
-                      <Copy />
-                    </Button>
-                  </div>
                   <Button
                     variant="outline"
                     className="w-full"

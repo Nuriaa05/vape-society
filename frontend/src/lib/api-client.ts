@@ -48,9 +48,6 @@ declare global {
             }
         >;
       };
-      sharing?: {
-        openWhatsApp: (request: { text: string }) => Promise<{ ok: true }>;
-      };
     };
   }
 }

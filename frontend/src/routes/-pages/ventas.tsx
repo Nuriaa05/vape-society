@@ -62,11 +62,6 @@ import {
   saveReceiptPdfBySaleId,
 } from "@/lib/desktop-printer";
 import {
-  buildSaleWhatsAppMessage,
-  copyOrderText,
-  shareOrderOnWhatsApp,
-} from "@/lib/whatsapp-share";
-import {
   canShowLess,
   canShowMore,
   getNextVisibleCount,
@@ -75,10 +70,8 @@ import {
 } from "@/lib/visible-items";
 import {
   CheckCircle2,
-  Copy,
   FileDown,
   Eye,
-  MessageCircle,
   MoreHorizontal,
   Printer,
   Search,
@@ -141,8 +134,6 @@ export function VentasPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [printingSaleId, setPrintingSaleId] = useState<string | null>(null);
   const [savingPdfSaleId, setSavingPdfSaleId] = useState<string | null>(null);
-  const [sharingSaleId, setSharingSaleId] = useState<string | null>(null);
-  const [copyingSaleId, setCopyingSaleId] = useState<string | null>(null);
   const [visibleSalesCount, setVisibleSalesCount] =
     useState(PAGE_LIST_INCREMENT);
 
@@ -236,40 +227,6 @@ export function VentasPage() {
       );
     } finally {
       setSavingPdfSaleId(null);
-    }
-  };
-
-  const shareWhatsApp = async (s: Sale) => {
-    if (sharingSaleId) return;
-
-    setSharingSaleId(s.id);
-    try {
-      await shareOrderOnWhatsApp(buildSaleWhatsAppMessage(s), {
-        sharingBridge: window.retailCore?.sharing,
-      });
-      toast.success(`Pedido ${s.number} abierto en WhatsApp.`);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo abrir WhatsApp.",
-      );
-    } finally {
-      setSharingSaleId(null);
-    }
-  };
-
-  const copyOrder = async (s: Sale) => {
-    if (copyingSaleId) return;
-
-    setCopyingSaleId(s.id);
-    try {
-      await copyOrderText(buildSaleWhatsAppMessage(s));
-      toast.success(`Pedido ${s.number} copiado.`);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo copiar el pedido.",
-      );
-    } finally {
-      setCopyingSaleId(null);
     }
   };
 
@@ -455,24 +412,6 @@ export function VentasPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => setViewing(s)}>
                                   <Eye /> Ver comprobante
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  disabled={sharingSaleId !== null}
-                                  onClick={() => void shareWhatsApp(s)}
-                                >
-                                  <MessageCircle />{" "}
-                                  {sharingSaleId === s.id
-                                    ? "Abriendo..."
-                                    : "Compartir WhatsApp"}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  disabled={copyingSaleId !== null}
-                                  onClick={() => void copyOrder(s)}
-                                >
-                                  <Copy />{" "}
-                                  {copyingSaleId === s.id
-                                    ? "Copiando..."
-                                    : "Copiar pedido"}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   disabled={printingSaleId !== null}
@@ -744,26 +683,6 @@ export function VentasPage() {
                   </div>
                 )}
                 <DialogFooter className="grid grid-cols-1 sm:grid-cols-2 sm:justify-normal">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:col-span-2">
-                    <Button
-                      variant="outline"
-                      className="h-auto min-h-9 min-w-0 whitespace-normal px-3"
-                      disabled={sharingSaleId !== null}
-                      onClick={() => viewing && void shareWhatsApp(viewing)}
-                    >
-                      <MessageCircle /> Compartir WhatsApp
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      disabled={copyingSaleId !== null}
-                      onClick={() => viewing && void copyOrder(viewing)}
-                      aria-label="Copiar detalle del pedido"
-                      title="Copiar detalle"
-                    >
-                      <Copy />
-                    </Button>
-                  </div>
                   <Button
                     variant="outline"
                     className="w-full"
