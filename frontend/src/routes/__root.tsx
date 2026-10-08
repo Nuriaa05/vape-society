@@ -5,6 +5,7 @@ import {
   Outlet,
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { SaleDraftProvider } from "@/components/sale-draft-provider";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   {
@@ -43,7 +44,9 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <SaleDraftProvider>
+        <Outlet />
+      </SaleDraftProvider>
       <Toaster position="top-right" />
     </QueryClientProvider>
   );

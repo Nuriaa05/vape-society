@@ -1,6 +1,10 @@
 import { Card, CardToolbar } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import {
+  createEmptySaleDraft,
+  useSaleDraft,
+} from "@/components/sale-draft-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,6 +85,7 @@ import { toast } from "sonner";
 
 export function NuevaVenta() {
   const queryClient = useQueryClient();
+  const { draft, setDraft } = useSaleDraft();
   const productsQuery = useQuery({
     queryKey: ["products", "active"],
     queryFn: () => productsRepository.findActive(),
@@ -100,6 +105,7 @@ export function NuevaVenta() {
   const createSaleMutation = useMutation({
     mutationFn: salesRepository.create,
     onSuccess: () => {
+      setDraft(createEmptySaleDraft());
       void queryClient.invalidateQueries({ queryKey: ["sales"] });
       void queryClient.invalidateQueries({ queryKey: ["stock"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
@@ -148,20 +154,24 @@ export function NuevaVenta() {
     () => [...saleProducts, ...saleCombos],
     [saleProducts, saleCombos],
   );
-  const [search, setSearch] = useState("");
-  const [lines, setLines] = useState<Line[]>([]);
+  const [search, setSearch] = useState(draft.search);
+  const [lines, setLines] = useState<Line[]>(draft.lines);
   const [activeLineProductId, setActiveLineProductId] = useState<string | null>(
-    null,
+    draft.activeLineProductId,
   );
-  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [paymentMethodId, setPaymentMethodId] = useState(draft.paymentMethodId);
   const [delivery, setDelivery] = useState<"Entregado" | "Pendiente">(
-    "Entregado",
+    draft.delivery,
   );
-  const [couponInput, setCouponInput] = useState("");
-  const [appliedCouponCode, setAppliedCouponCode] = useState("");
-  const [cashReceivedInput, setCashReceivedInput] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const [couponInput, setCouponInput] = useState(draft.couponInput);
+  const [appliedCouponCode, setAppliedCouponCode] = useState(
+    draft.appliedCouponCode,
+  );
+  const [cashReceivedInput, setCashReceivedInput] = useState(
+    draft.cashReceivedInput,
+  );
+  const [customerName, setCustomerName] = useState(draft.customerName);
+  const [customerPhone, setCustomerPhone] = useState(draft.customerPhone);
   const [confirmed, setConfirmed] = useState(false);
   const [confirmedSale, setConfirmedSale] = useState<Sale | null>(null);
   const [cancelled, setCancelled] = useState<{ reason: string } | null>(null);
@@ -279,6 +289,38 @@ export function NuevaVenta() {
             : null;
 
   useEffect(() => {
+    if (confirmed) return;
+
+    setDraft({
+      search,
+      lines,
+      activeLineProductId,
+      paymentMethodId,
+      delivery,
+      couponInput,
+      appliedCouponCode,
+      cashReceivedInput,
+      customerName,
+      customerPhone,
+    });
+  }, [
+    search,
+    lines,
+    activeLineProductId,
+    paymentMethodId,
+    delivery,
+    couponInput,
+    appliedCouponCode,
+    cashReceivedInput,
+    customerName,
+    customerPhone,
+    confirmed,
+    setDraft,
+  ]);
+
+  useEffect(() => {
+    if (!settingsQuery.data?.paymentMethods) return;
+
     setPaymentMethodId((current) =>
       resolveSelectedPaymentMethodId(
         current,
@@ -302,6 +344,7 @@ export function NuevaVenta() {
     setCashReceivedInput("");
     setCustomerName("");
     setCustomerPhone("");
+    setDelivery("Entregado");
     setPaymentMethodId(
       resolveSelectedPaymentMethodId(
         "",
