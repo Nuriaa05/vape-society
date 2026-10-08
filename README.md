@@ -29,6 +29,14 @@ También crea configuración genérica, un contador de comprobantes en cero y el
 
 Los datos sintéticos en `backend/test/fixtures` existen exclusivamente para pruebas sobre bases temporales. No se ejecutan durante la preparación o el arranque.
 
+Para cargar un catálogo ficticio de **20 categorías con 5 productos cada una** (100 productos) en el sistema local, ejecutar con la aplicación abierta y la API en el puerto 3002:
+
+```powershell
+node scripts/load-test-catalog.cjs
+```
+
+El script crea y verifica un respaldo antes de agregar los datos mediante la API. Conserva los registros existentes y usa nombres marcados como `[PRUEBA]`, códigos `TEST-01-01` a `TEST-20-05`, costos, precios y stock variado. Incluye productos agotados y con stock bajo; no crea ventas ni carga las fixtures de pruebas. Se puede repetir para completar una carga interrumpida sin duplicar productos ni reiniciar sus precios o stock. Requiere Node.js de la versión indicada en Uso. Para verificarlo sobre una base temporal, compilar primero el proyecto y ejecutar `node --test scripts/load-test-catalog.test.cjs`.
+
 ## Uso
 
 Requiere Node.js 24.15 o posterior de la rama 24 y npm. Desde esta carpeta:
