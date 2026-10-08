@@ -57,10 +57,7 @@ import {
   buildReceiptHeaderLines,
   getReceiptFooter,
 } from "@/lib/receipt-view";
-import {
-  printReceiptBySaleId,
-  saveReceiptPdfBySaleId,
-} from "@/lib/desktop-printer";
+import { printReceiptBySaleId } from "@/lib/desktop-printer";
 import {
   canShowLess,
   canShowMore,
@@ -70,7 +67,6 @@ import {
 } from "@/lib/visible-items";
 import {
   CheckCircle2,
-  FileDown,
   Eye,
   MoreHorizontal,
   Printer,
@@ -133,7 +129,6 @@ export function VentasPage() {
   const [cancelling, setCancelling] = useState<Sale | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [printingSaleId, setPrintingSaleId] = useState<string | null>(null);
-  const [savingPdfSaleId, setSavingPdfSaleId] = useState<string | null>(null);
   const [visibleSalesCount, setVisibleSalesCount] =
     useState(PAGE_LIST_INCREMENT);
 
@@ -202,31 +197,6 @@ export function VentasPage() {
       );
     } finally {
       setPrintingSaleId(null);
-    }
-  };
-
-  const savePdf = async (s: Sale) => {
-    if (savingPdfSaleId) return;
-
-    setSavingPdfSaleId(s.id);
-    try {
-      const result = await saveReceiptPdfBySaleId({
-        saleId: s.id,
-        source: "history",
-        printerBridge: window.retailCore?.printer,
-      });
-
-      if (result.ok) {
-        toast.success(`Comprobante ${s.number} guardado en PDF.`);
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "No se pudo guardar el comprobante en PDF.",
-      );
-    } finally {
-      setSavingPdfSaleId(null);
     }
   };
 
@@ -421,20 +391,6 @@ export function VentasPage() {
                                   {printingSaleId === s.id
                                     ? "Imprimiendo..."
                                     : "Reimprimir"}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  disabled={
-                                    savingPdfSaleId !== null ||
-                                    !window.retailCore?.printer
-                                      ?.saveSaleReceiptPdf
-                                  }
-                                  title="Para guardar un PDF en el navegador, usá Reimprimir y elegí Guardar como PDF."
-                                  onClick={() => void savePdf(s)}
-                                >
-                                  <FileDown />{" "}
-                                  {savingPdfSaleId === s.id
-                                    ? "Guardando..."
-                                    : "Guardar PDF"}
                                 </DropdownMenuItem>
                                 {isPending && (
                                   <>
@@ -682,7 +638,7 @@ export function VentasPage() {
                     </div>
                   </div>
                 )}
-                <DialogFooter className="grid grid-cols-1 sm:grid-cols-2 sm:justify-normal">
+                <DialogFooter className="grid grid-cols-1 sm:justify-normal">
                   <Button
                     variant="outline"
                     className="w-full"
@@ -690,22 +646,7 @@ export function VentasPage() {
                   >
                     <Printer /> Reimprimir
                   </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={
-                      savingPdfSaleId !== null ||
-                      !window.retailCore?.printer?.saveSaleReceiptPdf
-                    }
-                    title="Para guardar un PDF en el navegador, usá Reimprimir y elegí Guardar como PDF."
-                    onClick={() => viewing && void savePdf(viewing)}
-                  >
-                    <FileDown /> Guardar PDF
-                  </Button>
-                  <Button
-                    className="w-full sm:col-span-2"
-                    onClick={() => setViewing(null)}
-                  >
+                  <Button className="w-full" onClick={() => setViewing(null)}>
                     Cerrar
                   </Button>
                 </DialogFooter>
