@@ -117,9 +117,15 @@ export function ProveedoresPage() {
     >
       <Card className="overflow-hidden">
         <CardHeader title="Proveedores" />
-        <div className="overflow-x-auto">
+        <div
+          className={
+            visibleSuppliersCount > PAGE_LIST_INCREMENT
+              ? "max-h-[640px] overflow-auto"
+              : "overflow-x-auto"
+          }
+        >
           <table className="w-full min-w-[560px] text-sm">
-            <thead className="text-left text-sm text-foreground border-b border-border bg-card">
+            <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
               <tr>
                 <th className="app-table-heading font-medium">Proveedor</th>
                 <th className="app-table-heading font-medium">Contacto</th>

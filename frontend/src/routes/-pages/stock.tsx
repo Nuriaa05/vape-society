@@ -260,7 +260,7 @@ export function StockPage() {
               <Settings2 /> Ajustar stock
             </Button>
           </CardToolbar>
-          <div className="max-h-[640px] overflow-auto overscroll-contain">
+          <div className="max-h-[640px] overflow-auto">
             <table className="w-full min-w-[640px] text-sm">
               <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
                 <tr>
@@ -397,7 +397,7 @@ export function StockPage() {
             title="Movimientos recientes"
             className="border-b border-border"
           />
-          <ul className="divide-y divide-border max-h-[640px] overflow-y-auto overscroll-contain">
+          <ul className="divide-y divide-border max-h-[640px] overflow-y-auto">
             {visibleMovements.map((m) => {
               const canRevert =
                 m.sourceType === "ManualAdjustment" &&

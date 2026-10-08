@@ -280,7 +280,13 @@ export function VentasPage() {
                 </Select>
               </CardToolbar>
 
-              <div className="max-h-[640px] overflow-auto overscroll-contain">
+              <div
+                className={
+                  visibleSalesCount > PAGE_LIST_INCREMENT
+                    ? "max-h-[640px] overflow-auto"
+                    : "overflow-x-auto"
+                }
+              >
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
                     <tr>

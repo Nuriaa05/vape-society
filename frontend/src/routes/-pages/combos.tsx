@@ -28,11 +28,12 @@ import {
   canShowMore,
   getNextVisibleCount,
   getVisibleItems,
-  PAGE_LIST_INCREMENT,
 } from "@/lib/visible-items";
 import { Archive, ArchiveRestore, Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+
+const COMBOS_PREVIEW_LIMIT = 7;
 
 type ComboForm = {
   id?: string;
@@ -81,7 +82,7 @@ export function CombosPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<ComboForm>(EMPTY_FORM);
   const [visibleCombosCount, setVisibleCombosCount] =
-    useState(PAGE_LIST_INCREMENT);
+    useState(COMBOS_PREVIEW_LIMIT);
   const products = useMemo(
     () => productsQuery.data ?? [],
     [productsQuery.data],
@@ -217,9 +218,15 @@ export function CombosPage() {
     >
       <Card className="overflow-hidden">
         <CardHeader title="Combos" />
-        <div className="overflow-x-auto">
+        <div
+          className={
+            visibleCombosCount > COMBOS_PREVIEW_LIMIT
+              ? "max-h-[640px] overflow-auto"
+              : "overflow-x-auto"
+          }
+        >
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="text-left text-sm text-foreground border-b border-border bg-card">
+            <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
               <tr>
                 <th className="app-table-heading font-medium">Combo</th>
                 <th className="app-table-heading font-medium">Componentes</th>
@@ -318,7 +325,7 @@ export function CombosPage() {
         {(canShowMore(visibleCombosCount, combos.length) ||
           canShowLess(
             visibleCombosCount,
-            PAGE_LIST_INCREMENT,
+            COMBOS_PREVIEW_LIMIT,
             combos.length,
           )) && (
           <div className="border-t border-border px-5 py-3 flex justify-center">
@@ -330,7 +337,7 @@ export function CombosPage() {
                   setVisibleCombosCount((current) =>
                     getNextVisibleCount(
                       current,
-                      PAGE_LIST_INCREMENT,
+                      COMBOS_PREVIEW_LIMIT,
                       combos.length,
                     ),
                   )
@@ -342,7 +349,7 @@ export function CombosPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setVisibleCombosCount(PAGE_LIST_INCREMENT)}
+                onClick={() => setVisibleCombosCount(COMBOS_PREVIEW_LIMIT)}
               >
                 Ver menos
               </Button>
