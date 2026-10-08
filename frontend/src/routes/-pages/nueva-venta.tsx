@@ -60,16 +60,12 @@ import {
   stockRepository,
 } from "@/lib/repositories";
 import { isScannerSubmitKey } from "@/lib/scanner-input";
-import {
-  printReceiptBySaleId,
-  saveReceiptPdfBySaleId,
-} from "@/lib/desktop-printer";
+import { printReceiptBySaleId } from "@/lib/desktop-printer";
 import {
   Banknote,
   CheckCircle2,
   Clock,
   CreditCard,
-  FileDown,
   FilePlus2,
   LoaderCircle,
   Printer,
@@ -179,7 +175,6 @@ export function NuevaVenta() {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmNegativeStock, setConfirmNegativeStock] = useState(false);
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
-  const [isSavingReceiptPdf, setIsSavingReceiptPdf] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [saleError, setSaleError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -337,7 +332,6 @@ export function NuevaVenta() {
     setCancelled(null);
     setSaleError(null);
     setIsPrintingReceipt(false);
-    setIsSavingReceiptPdf(false);
     setConfirmNegativeStock(false);
     setCouponInput("");
     setAppliedCouponCode("");
@@ -655,36 +649,6 @@ export function NuevaVenta() {
       );
     } finally {
       setIsPrintingReceipt(false);
-    }
-  };
-
-  const saveReceiptPdf = async () => {
-    if (isSavingReceiptPdf) return;
-
-    if (!confirmedSale) {
-      toast.error("Primero confirmá la venta para guardar el comprobante.");
-      return;
-    }
-
-    setIsSavingReceiptPdf(true);
-    try {
-      const result = await saveReceiptPdfBySaleId({
-        saleId: confirmedSale.id,
-        source: "new-sale",
-        printerBridge: window.retailCore?.printer,
-      });
-
-      if (result.ok) {
-        toast.success(`Comprobante ${confirmedSale.number} guardado en PDF.`);
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "No se pudo guardar el comprobante en PDF.",
-      );
-    } finally {
-      setIsSavingReceiptPdf(false);
     }
   };
 
@@ -1211,19 +1175,6 @@ export function NuevaVenta() {
                     {isPrintingReceipt
                       ? "Imprimiendo..."
                       : "Imprimir comprobante"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={
-                      isSavingReceiptPdf ||
-                      !window.retailCore?.printer?.saveSaleReceiptPdf
-                    }
-                    title="Para guardar un PDF en el navegador, usá Imprimir comprobante y elegí Guardar como PDF."
-                    onClick={() => void saveReceiptPdf()}
-                  >
-                    <FileDown />{" "}
-                    {isSavingReceiptPdf ? "Guardando..." : "Guardar PDF"}
                   </Button>
                   <Button
                     variant="outline"
