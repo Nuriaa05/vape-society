@@ -1,5 +1,6 @@
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { Purchase, PurchaseStatus } from "@/lib/contracts";
+import { TZ } from "@/lib/formatters";
 import { amountCentsToPesos, pesosToAmountCents } from "@/lib/money";
 
 type ApiPurchase = {
@@ -82,6 +83,19 @@ export const purchasesRepository = {
 
   findBySupplierId(source: Purchase[], supplierId: string): Purchase[] {
     return source.filter((purchase) => purchase.supplierId === supplierId);
+  },
+
+  findByMonth(source: Purchase[], date: Date = new Date()): Purchase[] {
+    const parts = new Intl.DateTimeFormat("es-AR", {
+      timeZone: TZ,
+      year: "numeric",
+      month: "2-digit",
+    }).formatToParts(date);
+    const byType = new Map(parts.map((part) => [part.type, part.value]));
+    const month = byType.get("month")?.padStart(2, "0");
+    const monthPrefix = `${byType.get("year")}-${month}-`;
+
+    return source.filter((purchase) => purchase.date.startsWith(monthPrefix));
   },
 
   countBySupplier(source: Purchase[]): Record<string, number> {

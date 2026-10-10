@@ -250,7 +250,8 @@ export function ComprasPage() {
     setDeleting(null);
   };
 
-  const monthTotal = purchasesRepository.getActiveTotal(list);
+  const monthlyPurchases = purchasesRepository.findByMonth(list);
+  const monthTotal = purchasesRepository.getActiveTotal(monthlyPurchases);
 
   if (
     productsQuery.isLoading ||
@@ -385,7 +386,8 @@ export function ComprasPage() {
             {formatARS(monthTotal)}
           </div>
           <div className="text-xs text-muted-foreground mb-4">
-            {purchasesRepository.getActiveCount(list)} compras (sin anuladas)
+            {purchasesRepository.getActiveCount(monthlyPurchases)} compras (sin
+            anuladas)
           </div>
           <div className="text-xs text-muted-foreground border-t border-border pt-3 space-y-2">
             <p>
