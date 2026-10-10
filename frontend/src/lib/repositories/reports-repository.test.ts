@@ -53,7 +53,7 @@ describe("reports repository", () => {
     },
   );
 
-  it("keeps hourly report display between 08:00 and 21:00 without requiring backend truncation", async () => {
+  it("keeps hourly report display between 08:00 and 22:00 without requiring backend truncation", async () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock.mockImplementationOnce(() =>
       mockJsonResponse({
@@ -71,14 +71,23 @@ describe("reports repository", () => {
 
     const points = await reportsRepository.getSalesDataset("hour");
 
-    expect(points).toHaveLength(14);
+    expect(points).toHaveLength(15);
     expect(points[0].label).toBe("08:00");
-    expect(points.at(-1)?.label).toBe("21:00");
+    expect(points.at(-1)).toMatchObject({
+      label: "22:00",
+      from: "2026-06-30T01:00:00.000Z",
+      to: "2026-06-30T02:00:00.000Z",
+      v: 2200,
+    });
     expect(points[0]).toMatchObject({
       from: "2026-06-29T11:00:00.000Z",
       to: "2026-06-29T12:00:00.000Z",
     });
-    expect(points.map((point) => point.label)).not.toContain("22:00");
+    expect(points.map((point) => point.label)).not.toContain("07:00");
+    expect(points.map((point) => point.label)).not.toContain("23:00");
+    expect(reportsRepository.getPeriodMeta("hour").subtitle).toBe(
+      "Hoy de 08:00 a 22:00",
+    );
   });
 
   it("maps combo component names from top products without rendering undefined", async () => {

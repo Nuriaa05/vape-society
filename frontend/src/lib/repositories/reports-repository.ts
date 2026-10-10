@@ -155,7 +155,7 @@ const periodOptions: { id: ReportsPeriod; label: string }[] = [
 const periodMeta: Record<ReportsPeriod, { title: string; subtitle: string }> = {
   hour: {
     title: "Ventas por hora",
-    subtitle: "Hoy de 08:00 a 21:00",
+    subtitle: "Hoy de 08:00 a 22:00",
   },
   month: {
     title: "Ventas por períodos de 3 días",
@@ -173,7 +173,7 @@ const periodMeta: Record<ReportsPeriod, { title: string; subtitle: string }> = {
 
 const paymentColors = ["bg-primary", "bg-accent", "bg-success", "bg-warning"];
 const VISIBLE_HOURLY_REPORT_START = 8;
-const VISIBLE_HOURLY_REPORT_END = 21;
+const VISIBLE_HOURLY_REPORT_END = 22;
 
 function toSale(sale: ApiSale): Sale {
   return {
