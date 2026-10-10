@@ -75,7 +75,7 @@ export async function ensureBaseData(prisma: PrismaClient): Promise<void> {
       update: {},
       create: {
         id: "default",
-        header: "Nuevo comercio",
+        header: "",
         footer: "Comprobante interno. No válido como factura fiscal.",
       },
     });

@@ -85,7 +85,7 @@ describe("database seed", () => {
         where: { id: "default" },
       }),
     ).resolves.toMatchObject({
-      header: "Nuevo comercio",
+      header: "",
     });
 
     await expect(

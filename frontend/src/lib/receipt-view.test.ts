@@ -7,7 +7,7 @@ import {
 } from "./receipt-view";
 
 describe("receipt view helpers", () => {
-  it("renders receipt header from settings instead of fixed demo text", () => {
+  it("renders only the local name and contact details, ignoring saved additional text", () => {
     expect(
       buildReceiptHeaderLines({
         business: {
@@ -17,17 +17,56 @@ describe("receipt view helpers", () => {
           phone: "11-2222-3333",
         },
         receipt: {
-          header: "CONGELADOS DEL BARRIO",
+          header: "Pods y accesorios",
           footer: "Gracias por elegirnos",
         },
       }),
     ).toEqual([
-      "CONGELADOS DEL BARRIO",
+      "Mi Local",
       "San Martín 123",
       "CUIT 20-11111111-1",
       "Tel. 11-2222-3333",
     ]);
   });
+
+  it("updates the local name even when an obsolete header is saved", () => {
+    const settings = {
+      business: { name: "Vape Society", address: "", cuit: "", phone: "" },
+      receipt: { header: "Gracias por elegirnos", footer: "" },
+    };
+
+    expect(buildReceiptHeaderLines(settings)).toEqual(["Vape Society"]);
+    expect(
+      buildReceiptHeaderLines({
+        ...settings,
+        business: { ...settings.business, name: "Vape Society Centro" },
+      }),
+    ).toEqual(["Vape Society Centro"]);
+  });
+
+  it.each(["Vape Society", "  VAPE SOCIETY  "])(
+    "does not repeat the local name from a legacy header: %s",
+    (header) => {
+      expect(
+        buildReceiptHeaderLines({
+          business: { name: "Vape Society", address: "", cuit: "", phone: "" },
+          receipt: { header, footer: "" },
+        }),
+      ).toEqual(["Vape Society"]);
+    },
+  );
+
+  it.each(["", "   "])(
+    "keeps the automatic name with an empty legacy header: %j",
+    (header) => {
+      expect(
+        buildReceiptHeaderLines({
+          business: { name: "Vape Society", address: "", cuit: "", phone: "" },
+          receipt: { header, footer: "" },
+        }),
+      ).toEqual(["Vape Society"]);
+    },
+  );
 
   it("uses the configured receipt footer when present", () => {
     expect(getReceiptFooter({ header: "", footer: "Vuelva pronto" })).toBe(

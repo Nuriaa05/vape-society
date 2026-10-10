@@ -573,7 +573,6 @@ export async function loadDataExport(
         ["Datos del local", "Dirección", settings.business.address],
         ["Datos del local", "CUIT", settings.business.cuit],
         ["Datos del local", "Teléfono", settings.business.phone],
-        ["Comprobante", "Encabezado", settings.receipt.header],
         ["Comprobante", "Pie", settings.receipt.footer],
         [
           "Comprobante",

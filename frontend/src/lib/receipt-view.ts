@@ -13,17 +13,16 @@ const clean = (value: string): string => value.trim();
 
 export function buildReceiptHeaderLines({
   business,
-  receipt,
 }: ReceiptViewSettings): string[] {
-  const header = clean(receipt.header) || clean(business.name);
+  const businessName = clean(business.name) || "Nuevo comercio";
   const lines = [
-    header,
+    businessName,
     clean(business.address),
     clean(business.cuit) ? `CUIT ${clean(business.cuit)}` : "",
     clean(business.phone) ? `Tel. ${clean(business.phone)}` : "",
   ].filter(Boolean);
 
-  return lines.length > 0 ? lines : ["Nuevo comercio"];
+  return lines;
 }
 
 export function getReceiptFooter(receipt: ReceiptSettings): string {

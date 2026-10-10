@@ -77,9 +77,34 @@ export class SettingsService {
   }
 
   async updateBusiness(dto: UpdateBusinessSettingsDto) {
-    return this.prisma.businessSettings.update({
-      where: { id: "default" },
-      data: dto,
+    return this.prisma.$transaction(async (tx) => {
+      const previousBusiness = await tx.businessSettings.findUniqueOrThrow({
+        where: { id: "default" },
+        select: { name: true },
+      });
+      const business = await tx.businessSettings.update({
+        where: { id: "default" },
+        data: dto,
+      });
+
+      if (business.name !== previousBusiness.name) {
+        const receipt = await tx.receiptSettings.findUnique({
+          where: { id: "default" },
+          select: { header: true },
+        });
+
+        if (
+          receipt?.header.trim().toLowerCase() ===
+          previousBusiness.name.trim().toLowerCase()
+        ) {
+          await tx.receiptSettings.update({
+            where: { id: "default" },
+            data: { header: "" },
+          });
+        }
+      }
+
+      return business;
     });
   }
 

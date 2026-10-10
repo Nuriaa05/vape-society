@@ -380,7 +380,9 @@ describe("settings data exports", () => {
       ),
     );
     const rows = await loadDataExport("settings");
-    expect(rows).toHaveLength(9);
+    expect(rows).toHaveLength(8);
+    expect(rows).toContainEqual(["Datos del local", "Nombre", "Local"]);
+    expect(rows.flat()).not.toContain("Encabezado");
     expect(rows).toContainEqual([
       "Comprobante",
       "Pie",

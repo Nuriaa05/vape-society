@@ -186,7 +186,10 @@ describe("desktop printer frontend helpers", () => {
     expect(open).toHaveBeenCalledWith("", "_blank", "width=360,height=720");
     expect(write).toHaveBeenCalledOnce();
     const html = String(write.mock.calls[0]?.[0]);
-    expect(html).toContain("LOZANO");
+    expect(html).toContain(
+      '<div class="center strong">Lozano Congelados</div><div class="center">Av. Cabildo 2450</div>',
+    );
+    expect(html).not.toContain(">LOZANO</div>");
     expect(html).toContain("000009");
     expect(html).toContain("1x Burga");
     expect(html).toContain("Subtotal");

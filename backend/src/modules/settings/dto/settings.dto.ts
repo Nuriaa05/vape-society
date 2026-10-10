@@ -34,7 +34,6 @@ export class UpdateBusinessSettingsDto {
 export class UpdateReceiptSettingsDto {
   @IsOptional()
   @IsString()
-  @IsNotEmpty()
   header?: string;
 
   @IsOptional()

@@ -1,6 +1,9 @@
 import { getApiBaseUrl } from "@/lib/api-client";
 import { basisPointsToPercentInput } from "@/lib/payment-pricing";
-import { RECEIPT_FINAL_RULE } from "@/lib/receipt-view";
+import {
+  buildReceiptHeaderLines,
+  RECEIPT_FINAL_RULE,
+} from "@/lib/receipt-view";
 
 export type PrinterMode = "system-dialog" | "silent";
 export type PrintSource = "new-sale" | "history";
@@ -199,18 +202,11 @@ export function buildBrowserReceiptHtml(
   receipt: SaleReceiptResponse,
   comboTicketMode: "ComboLine" | "ComboWithComponents",
 ): string {
-  const header = receipt.receipt.header.trim() || receipt.business.name;
   const lines = [
-    `<div class="center strong">${escapeHtml(header)}</div>`,
-    receipt.business.address
-      ? `<div class="center">${escapeHtml(receipt.business.address)}</div>`
-      : "",
-    receipt.business.cuit
-      ? `<div class="center">CUIT ${escapeHtml(receipt.business.cuit)}</div>`
-      : "",
-    receipt.business.phone
-      ? `<div class="center">Tel. ${escapeHtml(receipt.business.phone)}</div>`
-      : "",
+    ...buildReceiptHeaderLines(receipt).map(
+      (line, index) =>
+        `<div class="${index === 0 ? "center strong" : "center"}">${escapeHtml(line)}</div>`,
+    ),
     `<hr />`,
     row("Comp.", receipt.sale.number),
     row("Fecha", formatTicketDate(receipt.sale.date)),

@@ -1215,7 +1215,9 @@ export function ConfigPage() {
                       type="button"
                       onClick={() =>
                         void saveSettingsSection("receipt", () =>
-                          updateReceiptMutation.mutateAsync(ticket),
+                          updateReceiptMutation.mutateAsync({
+                            footer: ticket.footer,
+                          }),
                         )
                       }
                       disabled={updateReceiptMutation.isPending}
@@ -1226,17 +1228,12 @@ export function ConfigPage() {
                 >
                   <div>
                     <SettingsRow
-                      label="Encabezado del ticket"
-                      inputId="receipt-header"
+                      label="Nombre del local"
+                      description="Se toma automáticamente de los datos guardados en Local."
                     >
-                      <Input
-                        id="receipt-header"
-                        placeholder="Encabezado del comprobante"
-                        value={ticket.header}
-                        onChange={(e) =>
-                          setTicket({ ...ticket, header: e.target.value })
-                        }
-                      />
+                      <p className="text-sm font-medium break-words">
+                        {settings.business.name || "Nuevo comercio"}
+                      </p>
                     </SettingsRow>
                     <div className="space-y-2 border-b border-border py-4">
                       <Label htmlFor="receipt-footer" className="text-sm">

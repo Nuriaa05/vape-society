@@ -101,7 +101,7 @@ describe("BaseDataService", () => {
       db.prisma.receiptSettings.findUnique({
         where: { id: "default" },
       }),
-    ).resolves.toMatchObject({ header: "Nuevo comercio" });
+    ).resolves.toMatchObject({ header: "" });
     await expect(
       db.prisma.appSettings.findUnique({
         where: { id: "default" },

@@ -1,7 +1,9 @@
 import { Test } from "@nestjs/testing";
 import { ConflictException } from "@nestjs/common";
+import { validate } from "class-validator";
 
 import { SettingsService } from "../src/modules/settings/settings.service";
+import { UpdateReceiptSettingsDto } from "../src/modules/settings/dto/settings.dto";
 import { PrismaService } from "../src/prisma/prisma.service";
 import {
   createSeededTestDatabase,
@@ -62,6 +64,46 @@ describe("SettingsService", () => {
     await expect(service.getSettings()).resolves.toMatchObject({
       defaultMarginPct: 52,
       defaultMargin: 52,
+    });
+  });
+
+  it.each(["Lozano Congelados", "  LOZANO CONGELADOS  "])(
+    "clears a legacy header repeating the old local name when renamed: %s",
+    async (header) => {
+      await service.updateReceipt({ header });
+
+      await service.updateBusiness({ name: "Vape Society Centro" });
+
+      await expect(service.getSettings()).resolves.toMatchObject({
+        business: { name: "Vape Society Centro" },
+        receipt: { header: "" },
+      });
+    },
+  );
+
+  it("preserves custom additional text and the footer when the local name changes", async () => {
+    await service.updateReceipt({
+      header: "Pods y accesorios",
+      footer: "Gracias por tu compra",
+    });
+
+    await service.updateBusiness({ name: "Vape Society Centro" });
+
+    await expect(service.getSettings()).resolves.toMatchObject({
+      business: { name: "Vape Society Centro" },
+      receipt: {
+        header: "Pods y accesorios",
+        footer: "Gracias por tu compra",
+      },
+    });
+  });
+
+  it("allows clearing additional text without changing the receipt footer", async () => {
+    await service.updateReceipt({ footer: "Gracias por tu compra" });
+    await service.updateReceipt({ header: "" });
+
+    await expect(service.getSettings()).resolves.toMatchObject({
+      receipt: { header: "", footer: "Gracias por tu compra" },
     });
   });
 
@@ -133,5 +175,14 @@ describe("SettingsService", () => {
       surchargeBasisPoints: 250,
       cashHandling: false,
     });
+  });
+});
+
+describe("UpdateReceiptSettingsDto", () => {
+  it("accepts empty additional text so it can be removed through the API", async () => {
+    const dto = new UpdateReceiptSettingsDto();
+    dto.header = "";
+
+    await expect(validate(dto)).resolves.toEqual([]);
   });
 });
