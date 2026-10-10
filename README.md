@@ -67,7 +67,7 @@ Se puede activar o desactivar en **Configuración → Datos**, donde también se
 
 ## Instalador para Windows
 
-El instalador está en `release/Vape-Society-Setup-0.1.1-x64.exe`. Está preparado para Windows 10 (versión 2004 o posterior) y Windows 11 de 64 bits. Incluye el runtime de Node.js y las dependencias; el cliente no necesita instalar npm ni Node.js ni tener conexión para usar las funciones locales.
+El instalador está en `release/Vape-Society-Setup-0.1.4-x64.exe`. Está preparado para Windows 10 (versión 2004 o posterior) y Windows 11 de 64 bits. Incluye el runtime de Node.js y las dependencias; el cliente no necesita instalar npm ni Node.js ni tener conexión para usar las funciones locales.
 
 La primera apertura crea una base nueva, sin productos, categorías ni ventas. Completar los datos del negocio, medios de pago y categorías desde Configuración. Para trasladar datos posteriormente, usar **Configuración → Datos → Importar datos**.
 

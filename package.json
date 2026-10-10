@@ -1,6 +1,6 @@
 {
   "name": "lozano-core",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "private": true,
   "description": "Base comercial independiente extraída de Lozano",
   "engines": { "node": ">=24.15.0 <25" },
