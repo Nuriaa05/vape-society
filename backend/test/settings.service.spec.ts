@@ -3,7 +3,10 @@ import { ConflictException } from "@nestjs/common";
 import { validate } from "class-validator";
 
 import { SettingsService } from "../src/modules/settings/settings.service";
-import { UpdateReceiptSettingsDto } from "../src/modules/settings/dto/settings.dto";
+import {
+  UpdateBusinessSettingsDto,
+  UpdateReceiptSettingsDto,
+} from "../src/modules/settings/dto/settings.dto";
 import { PrismaService } from "../src/prisma/prisma.service";
 import {
   createSeededTestDatabase,
@@ -175,6 +178,33 @@ describe("SettingsService", () => {
       surchargeBasisPoints: 250,
       cashHandling: false,
     });
+  });
+});
+
+describe("UpdateBusinessSettingsDto", () => {
+  it.each([undefined, "", "20-11111111-1"])(
+    "accepts an optional CUIT when saving local details: %j",
+    async (cuit) => {
+      const dto = Object.assign(new UpdateBusinessSettingsDto(), {
+        name: "Vape Society",
+        address: "Av. Demo 123",
+        phone: "11-0000-0000",
+        ...(cuit === undefined ? {} : { cuit }),
+      });
+
+      await expect(validate(dto)).resolves.toEqual([]);
+    },
+  );
+
+  it("rejects a non-string CUIT", async () => {
+    const dto = Object.assign(new UpdateBusinessSettingsDto(), { cuit: 123 });
+
+    await expect(validate(dto)).resolves.toEqual([
+      expect.objectContaining({
+        property: "cuit",
+        constraints: { isString: expect.any(String) },
+      }),
+    ]);
   });
 });
 

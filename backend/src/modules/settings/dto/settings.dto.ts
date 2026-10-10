@@ -22,7 +22,6 @@ export class UpdateBusinessSettingsDto {
 
   @IsOptional()
   @IsString()
-  @IsNotEmpty()
   cuit?: string;
 
   @IsOptional()
