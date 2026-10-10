@@ -79,6 +79,7 @@ import { toast } from "sonner";
 import {
   createEmptyPurchaseDraft,
   discardPurchaseDraft,
+  formatPurchaseCostInput,
 } from "@/lib/purchase-draft";
 
 type Item = {
@@ -99,12 +100,7 @@ function parseCostInput(input: string): number {
 }
 
 function costInputFromProduct(product?: Product): string {
-  if (!product) return "0";
-
-  return new Intl.NumberFormat("es-AR", {
-    useGrouping: false,
-    maximumFractionDigits: 2,
-  }).format(product.cost);
+  return formatPurchaseCostInput(product?.cost ?? 0);
 }
 
 export function ComprasPage() {
@@ -771,7 +767,7 @@ function EditPurchaseDialog({
         purchase.items.map((i) => ({
           productId: i.productId,
           qty: i.qty,
-          cost: String(i.cost),
+          cost: formatPurchaseCostInput(i.cost),
         })),
       );
     }

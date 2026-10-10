@@ -17,3 +17,10 @@ export function createEmptyPurchaseDraft(): PurchaseDraft {
 }
 
 export const discardPurchaseDraft = createEmptyPurchaseDraft;
+
+export function formatPurchaseCostInput(cost: number): string {
+  return new Intl.NumberFormat("es-AR", {
+    useGrouping: false,
+    maximumFractionDigits: 2,
+  }).format(cost);
+}

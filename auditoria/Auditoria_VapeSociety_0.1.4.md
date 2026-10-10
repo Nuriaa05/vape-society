@@ -18,6 +18,8 @@ La revisión comparó formularios, repositorios del frontend, validaciones y ser
 
 [Captura del importe original y el formulario que lo multiplica](evidencia/compra-decimales.png).
 
+**Corrección posterior a la auditoría:** aplicada el 10 de octubre de 2026. Nueva compra y Editar compra utilizan el mismo formato argentino para cargar los costos: coma decimal y sin separadores de miles. La edición conserva el costo original de cada ítem, aunque el precio del catálogo haya cambiado. Siete pruebas de regresión verifican importes enteros, centavos y cero. La comprobación con Playwright y respuestas de API aisladas confirmó que dos guardados sucesivos y Guardar y registrar conservan costos, cantidades y total: `1250,25` se envía como 125.025 centavos. No se modificaron datos reales.
+
 ### A02 · Alta · La fecha de compra cambia de día en Historial y Reportes
 
 **Reproducción:** registrar una compra de $1.500 con fecha 01/10/2026. Se guarda como `2026-10-01T00:00:00.000Z`. En Argentina ese instante corresponde al 30/09/2026 a las 21:00. Historial la incluye el 30 de septiembre y el resumen comercial de octubre informa $0 en compras cuando debería incluir esos $1.500.
@@ -110,6 +112,8 @@ Las diez reproducciones terminaron correctamente, sin errores de JavaScript en e
 
 **Verificación posterior de A03:** typecheck, lint, build y tests completos correctos. Pasaron las 210 pruebas del frontend (37 archivos) y las 220 del backend (32 suites): 430 en total. Seis de los nuevos casos de regresión fallaron por el desfase de fecha antes de aplicar la corrección; después pasaron los ocho casos añadidos. Las 33 pruebas del filtro, búsqueda y formateadores también pasaron con `TZ=Pacific/Honolulu`. Logs locales de tests y build: `.verification/filtro-fecha-ventas/`.
 
+**Verificación posterior de A01:** typecheck, lint, build y tests completos correctos. Pasaron las 217 pruebas del frontend (37 archivos) y las 220 del backend (32 suites): 437 en total. También pasaron las 24 pruebas específicas de borradores, importes y compras. La reproducción en el navegador detectó la alteración de los costos antes de la corrección; después, los tres guardados conservaron los importes originales, sin errores de JavaScript. Se utilizó la interfaz real con respuestas de API aisladas y se bloquearon las mutaciones ajenas a los datos simulados.
+
 Evidencia estructurada: [reproducciones.json](evidencia/reproducciones.json). Script utilizado: `.verification/auditoria-0.1.4/verify.cjs`. Logs de las verificaciones: `.verification/auditoria-0.1.4/`.
 
 ## Orden recomendado de corrección
@@ -120,4 +124,4 @@ Evidencia estructurada: [reproducciones.json](evidencia/reproducciones.json). Sc
 4. Unificar disponibilidad de combos y estados del inventario.
 5. Respetar la eliminación de métodos de pago y alinear los formularios de configuración.
 
-Cada corrección debería incorporar una prueba que reproduzca su caso antes de cambiar el comportamiento. Las fechas de compras de A02, el filtro de fecha de ventas de A03 y el filtro mensual de A04 ya están corregidos; las demás recomendaciones están pendientes de implementación.
+Cada corrección debería incorporar una prueba que reproduzca su caso antes de cambiar el comportamiento. La conservación de importes al editar compras de A01, las fechas de compras de A02, el filtro de fecha de ventas de A03 y el filtro mensual de A04 ya están corregidos; las demás recomendaciones están pendientes de implementación.
