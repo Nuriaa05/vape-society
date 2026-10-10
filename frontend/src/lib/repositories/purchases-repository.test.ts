@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { apiClient } from "@/lib/api-client";
 import type { Purchase } from "@/lib/contracts";
 import { purchasesRepository } from "./purchases-repository";
 
@@ -15,7 +16,35 @@ function purchase(
 describe("purchase monthly summary", () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
+
+  it.each([
+    ["2026-10-01T03:00:00.000Z", "2026-10-01"],
+    ["2026-10-01T02:30:00.000Z", "2026-09-30"],
+    ["2026-10-02T02:30:00.000Z", "2026-10-01"],
+  ])(
+    "preserves the Argentine calendar day when reading %s",
+    async (date, day) => {
+      vi.spyOn(apiClient, "get").mockResolvedValue([
+        {
+          id: "purchase-1",
+          supplierId: "supplier-1",
+          supplier: { id: "supplier-1", name: "Proveedor" },
+          date,
+          status: "Registrada",
+          items: [],
+          totalAmountCents: 150000,
+          cancelReason: null,
+          cancelledAt: null,
+        },
+      ]);
+
+      const purchases = await purchasesRepository.findAll();
+      expect(purchases[0].date).toBe(day);
+      expect(purchases[0].total).toBe(1500);
+    },
+  );
 
   it("filters the complete history by month and year, including both boundary days", () => {
     const history = [

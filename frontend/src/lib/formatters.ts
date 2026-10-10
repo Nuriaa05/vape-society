@@ -5,6 +5,19 @@ export const formatARS = (n: number) =>
 
 export const TZ = "America/Argentina/Buenos_Aires";
 
+export const formatDateInputAR = (d: Date | string = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(typeof d === "string" ? new Date(d) : d);
+
+  return ["year", "month", "day"]
+    .map((type) => parts.find((part) => part.type === type)!.value)
+    .join("-");
+};
+
 export const formatDateTimeAR = (d: Date | string = new Date()) =>
   new Intl.DateTimeFormat("es-AR", {
     timeZone: TZ,

@@ -159,7 +159,7 @@ describe("Database import", () => {
     const older = modifySource((sqlite) => {
       sqlite.exec('ALTER TABLE "AppSettings" DROP COLUMN "dailyBackupEnabled"');
       sqlite.exec(
-        "DELETE FROM _prisma_migrations WHERE migration_name = '20261006000000_daily_backups'",
+        "DELETE FROM _prisma_migrations WHERE migration_name >= '20261006000000_daily_backups'",
       );
     });
     const preview = await upload(older);

@@ -14,6 +14,7 @@ import {
   CreatePurchaseItemDto,
   UpdatePurchaseDto,
 } from "./dto/purchase.dto";
+import { resolvePurchaseDate } from "./purchase-date";
 
 const purchaseInclude = {
   supplier: true,
@@ -99,7 +100,7 @@ export class PurchasesService {
       const purchase = await tx.purchase.create({
         data: {
           supplierId: dto.supplierId,
-          date: dto.date ? new Date(dto.date) : new Date(),
+          date: resolvePurchaseDate(dto.date),
           status: dto.status,
           totalAmountCents,
           items: {
@@ -143,7 +144,7 @@ export class PurchasesService {
         where: { id },
         data: {
           supplierId: dto.supplierId,
-          date: dto.date ? new Date(dto.date) : undefined,
+          date: dto.date ? resolvePurchaseDate(dto.date) : undefined,
           totalAmountCents: items
             ? this.calculateTotalAmountCents(items)
             : undefined,

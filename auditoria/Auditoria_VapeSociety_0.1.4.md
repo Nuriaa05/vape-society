@@ -26,6 +26,8 @@ La revisión comparó formularios, repositorios del frontend, validaciones y ser
 
 **Recomendación:** definir un criterio común para las fechas calendario de compras que preserve el día elegido, tanto al guardar como al consultar. La corrección debe contemplar las compras existentes.
 
+**Corrección posterior a la auditoría:** aplicada el 10 de octubre de 2026. Crear o editar una fecha calendario guarda el inicio del día argentino (03:00 UTC); las fechas ISO con hora explícita conservan su instante. El formulario toma el día argentino como fecha automática y la consulta de compras utiliza ese mismo criterio, incluida la exportación. La migración `20261010000000_purchase_calendar_dates` corrigió las tres compras existentes y recalculó la última compra de sus proveedores. Antes de aplicarla se creó un respaldo en `backend/backups/antes-corregir-fechas-compras-2026-10-11T03-01-15-136Z-1f0b6b18-ecb1-4f8b-9bef-984d31d99d03.db`; ambas bases pasaron la comprobación de integridad. La comparación completa de las tablas confirmó que se conservaron importes, estados, ítems, stock y fechas operativas. Playwright comprobó creación, edición, fecha automática después de las 21:00, Historial y Reportes en octubre y enero. En la base de trabajo, el filtro del 01/10/2026 devuelve su compra a las 00:00 y Reportes suma $31.500 en compras registradas de octubre.
+
 ### A03 · Media · El filtro de fecha de Ventas usa un día diferente al mostrado
 
 **Reproducción:** una venta del 10/10/2026 a las 23:30 se muestra correctamente con esa fecha. Filtrar por 10/10 no la encuentra; filtrar por 11/10 sí la muestra.
@@ -102,6 +104,8 @@ Las diez reproducciones terminaron correctamente, sin errores de JavaScript en e
 
 **Verificación posterior de A04:** typecheck, lint, build y tests completos correctos. Pasaron las 194 pruebas del frontend (37 archivos) y las 208 del backend (31 suites): 402 en total. La comprobación del resumen mensual con Playwright también pasó, sin errores de JavaScript en el navegador y sin modificar la base de trabajo.
 
+**Verificación posterior de A02:** typecheck, lint, build y tests completos correctos. Pasaron las 202 pruebas del frontend (37 archivos) y las 220 del backend (32 suites): 422 en total. También pasaron las cuatro pruebas del runtime de Windows, incluida la conservación de la fecha original en el respaldo previo a la actualización y su corrección en la base actualizada. Las comprobaciones de Playwright sobre una base temporal y sobre la base de trabajo finalizaron sin errores de JavaScript. Las regresiones cubren límites de mes y año, fechas automáticas, creación, edición, registro, anulación, días inválidos, timestamps ISO y repetición del despliegue. La migración identifica las fechas antiguas por su codificación exacta a 00:00 UTC, que coincide con las tres fechas calendario revisadas en la base de trabajo. Evidencia adicional local: `.verification/fechas-compras/`.
+
 Evidencia estructurada: [reproducciones.json](evidencia/reproducciones.json). Script utilizado: `.verification/auditoria-0.1.4/verify.cjs`. Logs de las verificaciones: `.verification/auditoria-0.1.4/`.
 
 ## Orden recomendado de corrección
@@ -112,4 +116,4 @@ Evidencia estructurada: [reproducciones.json](evidencia/reproducciones.json). Sc
 4. Unificar disponibilidad de combos y estados del inventario.
 5. Respetar la eliminación de métodos de pago y alinear los formularios de configuración.
 
-Cada corrección debería incorporar una prueba que reproduzca su caso antes de cambiar el comportamiento. El filtro mensual de A04 ya está corregido; las demás recomendaciones están pendientes de implementación.
+Cada corrección debería incorporar una prueba que reproduzca su caso antes de cambiar el comportamiento. Las fechas de compras de A02 y el filtro mensual de A04 ya están corregidos; las demás recomendaciones están pendientes de implementación.

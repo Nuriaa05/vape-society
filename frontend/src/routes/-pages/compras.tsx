@@ -48,7 +48,7 @@ import {
   type Purchase,
   type PurchaseStatus,
 } from "@/lib/contracts";
-import { formatARS } from "@/lib/formatters";
+import { formatARS, formatDateInputAR } from "@/lib/formatters";
 import {
   productsRepository,
   purchasesRepository,
@@ -164,7 +164,7 @@ export function ComprasPage() {
 
   // Draft form (top)
   const [supplier, setSupplier] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(formatDateInputAR());
   const [items, setItems] = useState<Item[]>([]);
   const [clearOpen, setClearOpen] = useState(false);
 
@@ -190,14 +190,14 @@ export function ComprasPage() {
     const draft = createEmptyPurchaseDraft();
 
     setSupplier(draft.supplierId);
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(formatDateInputAR());
     setItems(draft.items);
   };
 
   const discardDraft = () => {
     const draft = discardPurchaseDraft();
     setSupplier(draft.supplierId);
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(formatDateInputAR());
     setItems(draft.items);
   };
 

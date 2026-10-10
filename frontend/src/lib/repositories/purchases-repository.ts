@@ -1,6 +1,6 @@
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { Purchase, PurchaseStatus } from "@/lib/contracts";
-import { TZ } from "@/lib/formatters";
+import { formatDateInputAR, TZ } from "@/lib/formatters";
 import { amountCentsToPesos, pesosToAmountCents } from "@/lib/money";
 
 type ApiPurchase = {
@@ -38,7 +38,7 @@ function toPurchase(purchase: ApiPurchase): Purchase {
   return {
     id: purchase.id,
     supplierId: purchase.supplierId,
-    date: purchase.date.slice(0, 10),
+    date: formatDateInputAR(purchase.date),
     items: purchase.items.map((item) => ({
       productId: item.productId,
       name: item.name || item.productName,

@@ -73,7 +73,7 @@ function olderBackend(directory) {
   cpSync(join(backendDir, 'prisma/schema.prisma'), join(root, 'prisma/schema.prisma'));
   cpSync(join(backendDir, 'prisma/migrations/migration_lock.toml'), join(root, 'prisma/migrations/migration_lock.toml'));
   for (const migration of readdirSync(join(backendDir, 'prisma/migrations'), { withFileTypes: true })) {
-    if (migration.isDirectory() && migration.name !== '20261006000000_daily_backups') {
+    if (migration.isDirectory() && migration.name < '20261006000000_daily_backups') {
       cpSync(join(backendDir, 'prisma/migrations', migration.name), join(root, 'prisma/migrations', migration.name), { recursive: true });
     }
   }
@@ -121,6 +121,18 @@ test('backs up an older database before applying pending migrations without losi
     const dataDir = join(directory, 'data');
     const databasePath = await prepareDatabase({ backendDir: olderBackend(directory), dataDir });
     saveProduct(databasePath);
+    const calendarDateUtc = Date.UTC(2026, 9, 1);
+    const previous = new DatabaseSync(databasePath);
+    try {
+      previous.exec(`
+        INSERT INTO Supplier (id, name, phone, email, lastPurchase, updatedAt)
+        VALUES ('saved-supplier', 'Proveedor conservado', '', '', ${calendarDateUtc}, CURRENT_TIMESTAMP);
+        INSERT INTO Purchase (id, supplierId, date, status, totalAmountCents, updatedAt)
+        VALUES ('saved-purchase', 'saved-supplier', ${calendarDateUtc}, 'Registrada', 100000, CURRENT_TIMESTAMP);
+        INSERT INTO PurchaseItem (id, purchaseId, productId, productName, qty, unitCostAmountCents, lineTotalAmountCents)
+        VALUES ('saved-item', 'saved-purchase', 'saved-product', 'Producto conservado', 1, 100000, 100000);
+      `);
+    } finally { previous.close(); }
     await prepareDatabase({ backendDir, dataDir });
     const backups = readdirSync(join(dataDir, 'backups'));
     assert.equal(backups.length, 1);
@@ -131,6 +143,11 @@ test('backs up an older database before applying pending migrations without losi
       assert.ok(!snapshot.prepare('PRAGMA table_info(AppSettings)').all().some(column => column.name === 'dailyBackupEnabled'));
       assert.ok(current.prepare('PRAGMA table_info(AppSettings)').all().some(column => column.name === 'dailyBackupEnabled'));
       assert.equal(current.prepare('SELECT physicalStock FROM Product').get().physicalStock, 8);
+      assert.equal(snapshot.prepare('SELECT date FROM Purchase').get().date, calendarDateUtc);
+      assert.equal(current.prepare('SELECT date FROM Purchase').get().date, calendarDateUtc + 10800000);
+      assert.equal(current.prepare('SELECT lastPurchase FROM Supplier').get().lastPurchase, calendarDateUtc + 10800000);
+      assert.equal(current.prepare('SELECT totalAmountCents FROM Purchase').get().totalAmountCents, 100000);
+      assert.deepEqual(current.prepare('SELECT * FROM PurchaseItem').all(), snapshot.prepare('SELECT * FROM PurchaseItem').all());
     } finally { snapshot.close(); current.close(); }
   });
 });

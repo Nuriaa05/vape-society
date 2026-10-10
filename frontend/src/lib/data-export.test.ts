@@ -99,40 +99,46 @@ describe("settings data exports", () => {
     expect(cell("Stock disponible")).toBe(9);
   });
 
-  it("keeps purchase calendar dates and historical costs without repeating the total", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        respond([
-          {
-            id: "purchase-1",
-            supplierId: "supplier-1",
-            date: "2026-10-05T00:00:00.000Z",
-            status: "Anulada",
-            totalAmountCents: 240050,
-            cancelReason: "Error de carga",
-            items: [
-              {
-                productId: "product-1",
-                name: "Nombre al comprar",
-                qty: 2,
-                unitCostAmountCents: 120025,
-              },
-            ],
-          },
-        ]),
-      ),
-    );
+  it.each([
+    ["2026-10-05T03:00:00.000Z", "05/10/2026"],
+    ["2026-10-05T02:30:00.000Z", "04/10/2026"],
+  ])(
+    "keeps purchase calendar dates and historical costs for %s without repeating the total",
+    async (date, expectedDay) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() =>
+          respond([
+            {
+              id: "purchase-1",
+              supplierId: "supplier-1",
+              date,
+              status: "Anulada",
+              totalAmountCents: 240050,
+              cancelReason: "Error de carga",
+              items: [
+                {
+                  productId: "product-1",
+                  name: "Nombre al comprar",
+                  qty: 2,
+                  unitCostAmountCents: 120025,
+                },
+              ],
+            },
+          ]),
+        ),
+      );
 
-    const rows = await loadDataExport("purchase-items");
-    const cell = (column: string) => rows[1][rows[0].indexOf(column)];
-    expect(cell("Fecha")).toBe("05/10/2026");
-    expect(cell("Estado")).toBe("Anulada");
-    expect(cell("Producto")).toBe("Nombre al comprar");
-    expect(cell("Costo unitario ARS")).toBe(1200.25);
-    expect(cell("Subtotal del ítem ARS")).toBe(2400.5);
-    expect(rows[0]).not.toContain("Total ARS");
-  });
+      const rows = await loadDataExport("purchase-items");
+      const cell = (column: string) => rows[1][rows[0].indexOf(column)];
+      expect(cell("Fecha")).toBe(expectedDay);
+      expect(cell("Estado")).toBe("Anulada");
+      expect(cell("Producto")).toBe("Nombre al comprar");
+      expect(cell("Costo unitario ARS")).toBe(1200.25);
+      expect(cell("Subtotal del ítem ARS")).toBe(2400.5);
+      expect(rows[0]).not.toContain("Total ARS");
+    },
+  );
 
   it.each(dataExportOptions.filter((option) => option.id !== "settings"))(
     "exports an empty $label section with its headers",
