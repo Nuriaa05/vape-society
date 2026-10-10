@@ -1,0 +1,167 @@
+{
+  "startedAt": "2026-10-10T13:46:24.573Z",
+  "findings": [
+    {
+      "id": "local-campos-vacios",
+      "evidence": {
+        "status": 400,
+        "error": {
+          "message": [
+            "address should not be empty",
+            "phone should not be empty"
+          ],
+          "error": "Bad Request",
+          "statusCode": 400
+        },
+        "persisted": {
+          "name": "Nuevo comercio",
+          "address": "",
+          "cuit": "",
+          "phone": ""
+        }
+      }
+    },
+    {
+      "id": "pie-ticket-no-borrable",
+      "evidence": {
+        "status": 400,
+        "error": {
+          "message": [
+            "footer should not be empty"
+          ],
+          "error": "Bad Request",
+          "statusCode": 400
+        },
+        "previewHasFallback": true
+      }
+    },
+    {
+      "id": "fecha-compras-utc",
+      "evidence": {
+        "selectedDate": "2026-10-01",
+        "storedDate": "2026-10-01T00:00:00.000Z",
+        "expectedMonthlyPurchasesAmountCents": 150000,
+        "reportedMonthlyPurchasesAmountCents": 0,
+        "appearsInHistoryOn": "2026-09-30"
+      }
+    },
+    {
+      "id": "resumen-mes-sin-filtro",
+      "evidence": {
+        "visible": "Resumen del mes\n$8.750,25\n5 compras (sin anuladas)\n\nCada compra registrada ingresa stock al inventario.\n\nLas compras pendientes son borradores: se pueden editar antes de registrar.\n\nUna compra anulada devuelve el stock y queda en el historial con su motivo.",
+        "expectedCurrentMonthRegisteredAmountCents": 350000,
+        "actualAllNonCancelledAmountCents": 875025,
+        "includesPreviousMonth": true,
+        "includesPendingPurchases": true
+      }
+    },
+    {
+      "id": "compra-decimales-multiplicados",
+      "evidence": {
+        "beforeAmountCents": 125025,
+        "formInput": "1250.25",
+        "formText": "Editar compra pendiente\n\nAjustá proveedor, fecha, cantidades o costos antes de registrar la compra.\n\nProveedor\nLocal\nFecha\nProductos\nAgregar\nProducto\tCantidad\tCosto unit.\tSubtotal\t\n\nPod Decimales Auditoría\n\t\n\t\n\t$125.025\t\nTotal\n$125.025\nCancelar\nGuardar cambios\nGuardar y registrar\nCerrar",
+        "afterAmountCents": 12502500,
+        "multiplier": 100
+      }
+    },
+    {
+      "id": "ventas-filtro-utc",
+      "evidence": {
+        "visibleSale": "000001\t10/10/2026, 23:30\t10× Pod Inventario Auditoría\tSin registrar\tTransferencia\t$20.000\tPendiente\t",
+        "localDate": "2026-10-10",
+        "foundOnLocalDate": 0,
+        "foundOnUtcDate": "2026-10-11"
+      }
+    },
+    {
+      "id": "estado-stock-difiere",
+      "evidence": {
+        "productsText": "\tPod Inventario Auditoría\tPods Auditoría\t13\t$1.250,25\t60%\t$2.000\tOK\t",
+        "stockText": "Pod Inventario Auditoría\n\t13\t10\t3\t5\tBajo stock\t",
+        "stock": {
+          "productId": "184cb83f-2050-407b-84fa-7c5c1774f73f",
+          "barcode": null,
+          "productName": "Pod Inventario Auditoría",
+          "category": {
+            "id": "3a929082-f4b9-46bc-84f2-fd0cfc5d5634",
+            "name": "Pods Auditoría"
+          },
+          "supplier": {
+            "id": "local",
+            "name": "Local"
+          },
+          "costAmountCents": 125025,
+          "marginPct": 60,
+          "priceAmountCents": 200000,
+          "physicalStock": 13,
+          "reservedStock": 10,
+          "availableStock": 3,
+          "minStock": 5,
+          "archived": false
+        }
+      }
+    },
+    {
+      "id": "combo-activo-no-vendible",
+      "evidence": {
+        "comboId": "cmv2g7bz7000xg85o09e5h09h",
+        "visibleAndSelectable": true,
+        "backendResult": {
+          "status": 400,
+          "data": {
+            "message": "El combo contiene productos archivados.",
+            "error": "Bad Request",
+            "statusCode": 400
+          }
+        }
+      }
+    },
+    {
+      "id": "stock-combinado-sin-confirmacion",
+      "evidence": {
+        "physicalStock": 10,
+        "directRequestedQty": 6,
+        "comboRequestedQty": 6,
+        "totalRequestedQty": 12,
+        "displayedNegativeStockWarning": false,
+        "confirmationEnabled": false,
+        "requestAllowNegativeStock": false,
+        "backendStatus": 409,
+        "backendWithExplicitOverrideStatus": 200,
+        "comboId": "cmv2g7dj30012g85o4kogu97l"
+      }
+    },
+    {
+      "id": "metodo-pago-recreado-en-inicio",
+      "evidence": {
+        "removedId": "pm4",
+        "removedName": "QR",
+        "absentAfterDelete": true,
+        "restoredByApplicationInitializer": true,
+        "restoredEnabled": true
+      }
+    }
+  ],
+  "checks": [
+    "Base temporal nueva y vacía; no se cargaron fixtures en la base de trabajo",
+    "Proveedor: email, notas y fecha de última compra vacíos aceptados",
+    "Pantalla /: Dashboard",
+    "Pantalla /nueva-venta: Nueva venta",
+    "Pantalla /ventas: Ventas",
+    "Pantalla /productos: Productos",
+    "Pantalla /combos: Combos",
+    "Pantalla /stock: Stock",
+    "Pantalla /compras: Compras",
+    "Pantalla /proveedores: Proveedores",
+    "Pantalla /historial: Historial",
+    "Pantalla /reportes: Reportes",
+    "Pantalla /configuracion: Configuración",
+    "Apariencia: temas operativos; nombre del comprobante automático y sin campo adicional"
+  ],
+  "harnessErrors": [],
+  "browserErrors": [],
+  "actualDatabaseUnchanged": true,
+  "finishedAt": "2026-10-10T13:47:08.123Z",
+  "ok": true
+}
