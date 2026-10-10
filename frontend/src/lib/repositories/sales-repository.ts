@@ -7,6 +7,7 @@ import type {
   Sale,
   SaleQuote,
 } from "@/lib/contracts";
+import { formatDateInputAR } from "@/lib/formatters";
 import { amountCentsToPesos } from "@/lib/money";
 
 export type DeliveryFilter = "all" | "Pendiente" | "Entregado" | "Anulada";
@@ -290,7 +291,7 @@ export const salesRepository = {
         return false;
       }
       if (payment !== "all" && sale.payment !== payment) return false;
-      if (date && !sale.date.startsWith(date)) return false;
+      if (date && formatDateInputAR(sale.date) !== date) return false;
       if (!query) return true;
 
       const inNumber = sale.number.toLowerCase().includes(query);

@@ -36,6 +36,8 @@ La revisión comparó formularios, repositorios del frontend, validaciones y ser
 
 **Recomendación:** aplicar el filtro sobre el mismo día argentino que muestra la tabla. El problema afecta las ventas entre las 21:00 y las 23:59.
 
+**Corrección posterior a la auditoría:** aplicada el 10 de octubre de 2026. El filtro utiliza `formatDateInputAR` para comparar el día en `America/Argentina/Buenos_Aires`, igual que la fecha visible en la tabla. Ocho pruebas de regresión cubren ventas antes y después de las 21:00, ventas posteriores a las 22:00, medianoche argentina, cambios de mes y año y la consulta sin fecha seleccionada. Las pruebas del filtro y de los formateadores también pasaron con la zona horaria del proceso configurada en `Pacific/Honolulu`.
+
 ### A04 · Media · “Resumen del mes” suma todo el historial de compras
 
 **Reproducción:** con cuatro compras de octubre y una de septiembre, la tarjeta muestra $8.750,25 y cinco compras. El total de octubre con la misma regla de excluir únicamente anuladas sería $7.750,25. Además, ese total mezcla compras pendientes y registradas; las registradas de octubre suman $3.500.
@@ -106,6 +108,8 @@ Las diez reproducciones terminaron correctamente, sin errores de JavaScript en e
 
 **Verificación posterior de A02:** typecheck, lint, build y tests completos correctos. Pasaron las 202 pruebas del frontend (37 archivos) y las 220 del backend (32 suites): 422 en total. También pasaron las cuatro pruebas del runtime de Windows, incluida la conservación de la fecha original en el respaldo previo a la actualización y su corrección en la base actualizada. Las comprobaciones de Playwright sobre una base temporal y sobre la base de trabajo finalizaron sin errores de JavaScript. Las regresiones cubren límites de mes y año, fechas automáticas, creación, edición, registro, anulación, días inválidos, timestamps ISO y repetición del despliegue. La migración identifica las fechas antiguas por su codificación exacta a 00:00 UTC, que coincide con las tres fechas calendario revisadas en la base de trabajo. Evidencia adicional local: `.verification/fechas-compras/`.
 
+**Verificación posterior de A03:** typecheck, lint, build y tests completos correctos. Pasaron las 210 pruebas del frontend (37 archivos) y las 220 del backend (32 suites): 430 en total. Seis de los nuevos casos de regresión fallaron por el desfase de fecha antes de aplicar la corrección; después pasaron los ocho casos añadidos. Las 33 pruebas del filtro, búsqueda y formateadores también pasaron con `TZ=Pacific/Honolulu`. Logs locales de tests y build: `.verification/filtro-fecha-ventas/`.
+
 Evidencia estructurada: [reproducciones.json](evidencia/reproducciones.json). Script utilizado: `.verification/auditoria-0.1.4/verify.cjs`. Logs de las verificaciones: `.verification/auditoria-0.1.4/`.
 
 ## Orden recomendado de corrección
@@ -116,4 +120,4 @@ Evidencia estructurada: [reproducciones.json](evidencia/reproducciones.json). Sc
 4. Unificar disponibilidad de combos y estados del inventario.
 5. Respetar la eliminación de métodos de pago y alinear los formularios de configuración.
 
-Cada corrección debería incorporar una prueba que reproduzca su caso antes de cambiar el comportamiento. Las fechas de compras de A02 y el filtro mensual de A04 ya están corregidos; las demás recomendaciones están pendientes de implementación.
+Cada corrección debería incorporar una prueba que reproduzca su caso antes de cambiar el comportamiento. Las fechas de compras de A02, el filtro de fecha de ventas de A03 y el filtro mensual de A04 ya están corregidos; las demás recomendaciones están pendientes de implementación.

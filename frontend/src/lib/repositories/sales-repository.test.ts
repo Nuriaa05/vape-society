@@ -67,6 +67,76 @@ describe("sales repository customer details", () => {
   });
 });
 
+describe("sales repository date filter", () => {
+  const sale: Sale = {
+    id: "sale-date",
+    number: "000001",
+    date: "2026-10-11T00:30:00.000Z",
+    items: [],
+    total: 1000,
+    payment: "Transferencia",
+    delivery: "Pendiente",
+    status: "Confirmada",
+  };
+
+  it.each([
+    ["20:59", "2026-10-10T23:59:59.999Z"],
+    ["21:30", "2026-10-11T00:30:00.000Z"],
+    ["22:30", "2026-10-11T01:30:00.000Z"],
+    ["23:59", "2026-10-11T02:59:59.999Z"],
+  ])("keeps a sale at %s on its Argentine day", (_, date) => {
+    const datedSale = { ...sale, date };
+
+    expect(salesRepository.filter([datedSale], { date: "2026-10-10" })).toEqual(
+      [datedSale],
+    );
+    expect(salesRepository.filter([datedSale], { date: "2026-10-11" })).toEqual(
+      [],
+    );
+    expect(datedSale.date).toBe(date);
+  });
+
+  it.each([
+    [
+      "2026-10-10",
+      "2026-10-11",
+      "2026-10-11T02:59:59.999Z",
+      "2026-10-11T03:00:00.000Z",
+    ],
+    [
+      "2026-10-31",
+      "2026-11-01",
+      "2026-11-01T02:59:59.999Z",
+      "2026-11-01T03:00:00.000Z",
+    ],
+    [
+      "2026-12-31",
+      "2027-01-01",
+      "2027-01-01T02:59:59.999Z",
+      "2027-01-01T03:00:00.000Z",
+    ],
+  ])(
+    "changes the filtered day from %s to %s at Argentine midnight",
+    (previousDay, nextDay, beforeMidnight, midnight) => {
+      const previousSale = { ...sale, id: "previous", date: beforeMidnight };
+      const nextSale = { ...sale, id: "next", date: midnight };
+      const sales = [previousSale, nextSale];
+
+      expect(salesRepository.filter(sales, { date: previousDay })).toEqual([
+        previousSale,
+      ]);
+      expect(salesRepository.filter(sales, { date: nextDay })).toEqual([
+        nextSale,
+      ]);
+    },
+  );
+
+  it("returns all sales when no day is selected", () => {
+    expect(salesRepository.filter([sale], {})).toEqual([sale]);
+    expect(salesRepository.filter([sale], { date: "" })).toEqual([sale]);
+  });
+});
+
 describe("sales repository search", () => {
   const customerSale: Sale = {
     id: "sale-customer",
