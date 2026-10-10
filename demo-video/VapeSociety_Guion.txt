@@ -1,0 +1,112 @@
+VAPE SOCIETY — SISTEMA DE GESTIÓN COMERCIAL
+Guion de la presentación
+Versión del sistema: 0.1.3
+Duración: 00:04:48,800 · Full HD 1920×1080 · 16:9 · 30 fps
+Tratamiento: captura real, subtítulos integrados y música instrumental original. Sin locución.
+Edición: encuadre fijo, sin zooms, con fundidos suaves entre módulos.
+Todos los nombres, contactos y operaciones comerciales corresponden a datos ficticios.
+
+00:00 — INTRODUCCIÓN
+Visual: logo original sobre fondo oscuro con acento rojo y título de la presentación.
+Título: Vape Society — Sistema de Gestión Comercial
+Apoyo: Ventas, inventario y operaciones en un solo sistema
+
+00:00:07 — DASHBOARD
+Visual: Resumen diario y mensual; gráfico de unidades con cambio a mensual; acceso rápido a Claro y Oscuro exclusivo del Dashboard; ventas recientes y alertas.
+Subtítulos:
+[00:00:08,050 – 00:00:12,272] Desde el Dashboard, consultá las ventas del día y del mes, el valor del stock y las entregas pendientes.
+[00:00:12,402 – 00:00:17,272] Seguí la evolución de las unidades vendidas y compará el ritmo comercial de tu negocio.
+[00:00:17,402 – 00:00:21,269] El Dashboard conserva el acceso rápido al modo claro y oscuro.
+[00:00:21,399 – 00:00:26,850] Revisá las ventas recientes y atendé las alertas de stock.
+
+00:00:26 — NUEVA VENTA
+Visual: Búsqueda y agregado de Nova Air y Pulse Max; cambio de cantidad; datos de Lucía Benítez; tarjeta y efectivo; ingreso de $80.000; reserva; confirmación de $71.500 con $8.500 de vuelto y vista previa del ticket.
+Subtítulos:
+[00:00:27,450 – 00:00:29,383] Una venta, de principio a fin.
+[00:00:29,513 – 00:00:32,981] Buscá un pod por nombre o por código y agregalo al carrito.
+[00:00:33,111 – 00:00:38,388] Ajustá las cantidades. Los subtotales y el total se actualizan automáticamente.
+[00:00:38,518 – 00:00:42,885] Podés asociar el nombre y el celular del cliente para encontrar el pedido más tarde.
+[00:00:43,015 – 00:00:46,501] Elegí el medio de pago y sus recargos.
+[00:00:46,631 – 00:00:50,101] Ingresá el efectivo recibido: el vuelto se calcula automáticamente.
+[00:00:50,231 – 00:00:53,693] Si la entrega queda pendiente, los productos se reservan para ese pedido.
+[00:00:53,823 – 00:00:57,986] Confirmá la operación y obtené un comprobante con el detalle de la venta.
+[00:00:58,116 – 00:01:02,250] El comprobante conserva los productos, el pago, el total y el estado de entrega.
+
+00:01:02 — VENTAS
+Visual: Filtro de pendientes; búsqueda por cliente; apertura del comprobante; confirmación de entrega y consulta de entregadas.
+Subtítulos:
+[00:01:02,850 – 00:01:10,076] Consultá todas las ventas y filtrá por estado, fecha, medio de pago o cliente.
+[00:01:10,206 – 00:01:18,072] Abrí el comprobante para revisar los productos, las cantidades y el importe de la operación.
+[00:01:18,202 – 00:01:25,650] Cuando el cliente recibe el pedido, confirmá la entrega y actualizá su estado.
+
+00:01:25 — PRODUCTOS
+Visual: Alta de Luna Fresh 8K; categoría y proveedor; costo de $11.000 y precio de $18.900; stock inicial de 20 y mínimo de 5; guardado y edición posterior del precio a $19.900.
+Subtítulos:
+[00:01:26,250 – 00:01:29,852] Administrá el catálogo de pods, sus categorías, proveedores, precios y existencias.
+[00:01:29,982 – 00:01:35,980] Registrá un nuevo producto con su nombre, código de barras, categoría y proveedor.
+[00:01:36,110 – 00:01:40,361] Definí costo y precio: la ganancia se recalcula automáticamente.
+[00:01:40,491 – 00:01:46,560] Cargá el stock inicial y el mínimo para recibir alertas antes de quedarte sin unidades.
+[00:01:46,690 – 00:01:53,050] Podés editar el producto para mantener los precios y la información del catálogo al día.
+
+00:01:53 — COMBOS
+Visual: Alta de Dúo Nova Tropical; dos componentes; precio de $45.000; descuento de $4.500 y guardado.
+Subtítulos:
+[00:01:53,650 – 00:01:57,822] Creá combos con un precio final y stock calculado según sus componentes.
+[00:01:57,952 – 00:02:01,782] Creá una propuesta comercial: elegí un nombre y el precio del combo.
+[00:02:01,912 – 00:02:09,720] Seleccioná los pods que lo componen y la cantidad de cada uno.
+[00:02:09,850 – 00:02:14,450] Revisá el descuento y guardá el combo para incorporarlo a las ventas.
+
+00:02:14 — STOCK
+Visual: Consulta del inventario y alertas; egreso de una unidad de Aura Mini Peach Ice con nota de unidad dañada; registro del movimiento.
+Subtítulos:
+[00:02:15,050 – 00:02:20,084] Controlá el stock físico, reservado y disponible, junto con los mínimos y las alertas.
+[00:02:20,214 – 00:02:29,958] Los ajustes permiten registrar ingresos, egresos y conteos físicos con un motivo.
+[00:02:30,088 – 00:02:33,850] Cada movimiento conserva su origen, la cantidad y el motivo.
+
+00:02:33 — COMPRAS
+Visual: Reposición de 24 Aura Mini Peach Ice a Delta Pods, a $9.200 por unidad; registro de la compra por $220.800; consulta del stock actualizado a 26 unidades.
+Subtítulos:
+[00:02:34,450 – 00:02:39,403] Registrá las compras a proveedores para incorporar mercadería y actualizar el inventario.
+[00:02:39,533 – 00:02:48,011] Elegí el producto, la cantidad recibida y su costo unitario.
+[00:02:48,141 – 00:02:54,701] Revisá el total. Una compra puede quedar como borrador o registrarse cuando llega la mercadería.
+[00:02:54,831 – 00:02:59,250] Al registrarla, las unidades ingresan al stock: la reposición queda reflejada de inmediato.
+
+00:02:59 — PROVEEDORES
+Visual: Alta de Boreal Pods Mayorista con teléfono, email ficticio y condiciones de entrega.
+Subtítulos:
+[00:02:59,850 – 00:03:03,283] Centralizá contactos, condiciones y últimas compras de tus proveedores.
+[00:03:03,413 – 00:03:11,690] Agregá un proveedor y guardá sus condiciones de entrega o de pago en las notas.
+[00:03:11,820 – 00:03:15,650] El proveedor ya está disponible para productos y compras.
+
+00:03:15 — HISTORIAL
+Visual: Consulta de septiembre y octubre; filtro por ventas y compras; búsqueda por palabra clave.
+Subtítulos:
+[00:03:16,250 – 00:03:18,093] Revisá la actividad y los movimientos.
+[00:03:18,223 – 00:03:20,717] Elegí un mes para consultar operaciones anteriores.
+[00:03:20,847 – 00:03:27,059] Buscá por tipo de movimiento, día o palabra clave.
+[00:03:27,189 – 00:03:30,050] Consultá los importes y estados de cada operación.
+
+00:03:30 — REPORTES
+Visual: Cambio a los últimos 30 días; selección de una barra; ranking por ingresos; menú de exportación y descarga real de CSV.
+Subtítulos:
+[00:03:30,650 – 00:03:33,676] Analizá las ventas y compras con indicadores del negocio.
+[00:03:33,806 – 00:03:43,154] Compará períodos y seleccioná una barra para consultar el detalle de las ventas.
+[00:03:43,284 – 00:03:48,850] Identificá los productos y combos más vendidos, o los que generan mayores ingresos.
+[00:03:48,980 – 00:03:53,450] Exportá a CSV para analizar o compartir los datos. También podés imprimir los informes.
+
+00:03:53 — CONFIGURACIÓN
+Visual: Datos del local; sección Apariencia con los modos Claro y Oscuro, cambio real de tema y controles de tamaño; precios y medios de pago; categorías; encabezado y pie del ticket con vista previa; creación de un respaldo de la base de demostración.
+Subtítulos:
+[00:03:54,050 – 00:03:58,462] Personalizá los datos del local que aparecen en los comprobantes.
+[00:03:58,592 – 00:04:07,269] En Apariencia, elegí el modo claro u oscuro para toda la aplicación.
+[00:04:07,399 – 00:04:15,284] También podés ajustar el tamaño de los textos, botones y menús.
+[00:04:15,414 – 00:04:22,268] Configurá el margen, los medios de pago, los recargos y los cupones de descuento.
+[00:04:22,398 – 00:04:26,284] Organizá las categorías del catálogo para clasificar los productos de tu negocio.
+[00:04:26,414 – 00:04:34,277] Adaptá el encabezado y el pie del ticket, y revisá su vista previa.
+[00:04:34,407 – 00:04:40,850] Creá copias de seguridad y accedé a las opciones de exportación de datos.
+
+00:04:40 — CIERRE
+Visual: regreso al logo original, mensaje central y fundido a negro.
+Mensaje: Todo tu negocio, organizado en un solo lugar
+
+Nota de producción: todas las operaciones se realizaron en una base aislada, sin usar la base de trabajo ni datos de otros proyectos. Los comprobantes mostrados son internos.

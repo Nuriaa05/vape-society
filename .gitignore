@@ -14,3 +14,4 @@ backend/backups/
 **/.env
 .verification/
 release/
+demo-video/_production*/

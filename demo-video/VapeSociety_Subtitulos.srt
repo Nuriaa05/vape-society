@@ -1,0 +1,204 @@
+1
+00:00:08,050 --> 00:00:12,272
+Desde el Dashboard, consultá las ventas del día y del mes, el valor del stock y las
+entregas pendientes.
+
+2
+00:00:12,402 --> 00:00:17,272
+Seguí la evolución de las unidades vendidas y compará el ritmo comercial de tu negocio.
+
+3
+00:00:17,402 --> 00:00:21,269
+El Dashboard conserva el acceso rápido al modo claro y oscuro.
+
+4
+00:00:21,399 --> 00:00:26,850
+Revisá las ventas recientes y atendé las alertas de stock.
+
+5
+00:00:27,450 --> 00:00:29,383
+Una venta, de principio a fin.
+
+6
+00:00:29,513 --> 00:00:32,981
+Buscá un pod por nombre o por código y agregalo al carrito.
+
+7
+00:00:33,111 --> 00:00:38,388
+Ajustá las cantidades. Los subtotales y el total se actualizan automáticamente.
+
+8
+00:00:38,518 --> 00:00:42,885
+Podés asociar el nombre y el celular del cliente para encontrar el pedido más tarde.
+
+9
+00:00:43,015 --> 00:00:46,501
+Elegí el medio de pago y sus recargos.
+
+10
+00:00:46,631 --> 00:00:50,101
+Ingresá el efectivo recibido: el vuelto se calcula automáticamente.
+
+11
+00:00:50,231 --> 00:00:53,693
+Si la entrega queda pendiente, los productos se reservan para ese pedido.
+
+12
+00:00:53,823 --> 00:00:57,986
+Confirmá la operación y obtené un comprobante con el detalle de la venta.
+
+13
+00:00:58,116 --> 00:01:02,250
+El comprobante conserva los productos, el pago, el total y el estado de entrega.
+
+14
+00:01:02,850 --> 00:01:10,076
+Consultá todas las ventas y filtrá por estado, fecha, medio de pago o cliente.
+
+15
+00:01:10,206 --> 00:01:18,072
+Abrí el comprobante para revisar los productos, las cantidades y el importe de la
+operación.
+
+16
+00:01:18,202 --> 00:01:25,650
+Cuando el cliente recibe el pedido, confirmá la entrega y actualizá su estado.
+
+17
+00:01:26,250 --> 00:01:29,852
+Administrá el catálogo de pods, sus categorías, proveedores, precios y existencias.
+
+18
+00:01:29,982 --> 00:01:35,980
+Registrá un nuevo producto con su nombre, código de barras, categoría y proveedor.
+
+19
+00:01:36,110 --> 00:01:40,361
+Definí costo y precio: la ganancia se recalcula automáticamente.
+
+20
+00:01:40,491 --> 00:01:46,560
+Cargá el stock inicial y el mínimo para recibir alertas antes de quedarte sin unidades.
+
+21
+00:01:46,690 --> 00:01:53,050
+Podés editar el producto para mantener los precios y la información del catálogo al día.
+
+22
+00:01:53,650 --> 00:01:57,822
+Creá combos con un precio final y stock calculado según sus componentes.
+
+23
+00:01:57,952 --> 00:02:01,782
+Creá una propuesta comercial: elegí un nombre y el precio del combo.
+
+24
+00:02:01,912 --> 00:02:09,720
+Seleccioná los pods que lo componen y la cantidad de cada uno.
+
+25
+00:02:09,850 --> 00:02:14,450
+Revisá el descuento y guardá el combo para incorporarlo a las ventas.
+
+26
+00:02:15,050 --> 00:02:20,084
+Controlá el stock físico, reservado y disponible, junto con los mínimos y las alertas.
+
+27
+00:02:20,214 --> 00:02:29,958
+Los ajustes permiten registrar ingresos, egresos y conteos físicos con un motivo.
+
+28
+00:02:30,088 --> 00:02:33,850
+Cada movimiento conserva su origen, la cantidad y el motivo.
+
+29
+00:02:34,450 --> 00:02:39,403
+Registrá las compras a proveedores para incorporar mercadería y actualizar el
+inventario.
+
+30
+00:02:39,533 --> 00:02:48,011
+Elegí el producto, la cantidad recibida y su costo unitario.
+
+31
+00:02:48,141 --> 00:02:54,701
+Revisá el total. Una compra puede quedar como borrador o registrarse cuando llega la
+mercadería.
+
+32
+00:02:54,831 --> 00:02:59,250
+Al registrarla, las unidades ingresan al stock: la reposición queda reflejada de
+inmediato.
+
+33
+00:02:59,850 --> 00:03:03,283
+Centralizá contactos, condiciones y últimas compras de tus proveedores.
+
+34
+00:03:03,413 --> 00:03:11,690
+Agregá un proveedor y guardá sus condiciones de entrega o de pago en las notas.
+
+35
+00:03:11,820 --> 00:03:15,650
+El proveedor ya está disponible para productos y compras.
+
+36
+00:03:16,250 --> 00:03:18,093
+Revisá la actividad y los movimientos.
+
+37
+00:03:18,223 --> 00:03:20,717
+Elegí un mes para consultar operaciones anteriores.
+
+38
+00:03:20,847 --> 00:03:27,059
+Buscá por tipo de movimiento, día o palabra clave.
+
+39
+00:03:27,189 --> 00:03:30,050
+Consultá los importes y estados de cada operación.
+
+40
+00:03:30,650 --> 00:03:33,676
+Analizá las ventas y compras con indicadores del negocio.
+
+41
+00:03:33,806 --> 00:03:43,154
+Compará períodos y seleccioná una barra para consultar el detalle de las ventas.
+
+42
+00:03:43,284 --> 00:03:48,850
+Identificá los productos y combos más vendidos, o los que generan mayores ingresos.
+
+43
+00:03:48,980 --> 00:03:53,450
+Exportá a CSV para analizar o compartir los datos. También podés imprimir los informes.
+
+44
+00:03:54,050 --> 00:03:58,462
+Personalizá los datos del local que aparecen en los comprobantes.
+
+45
+00:03:58,592 --> 00:04:07,269
+En Apariencia, elegí el modo claro u oscuro para toda la aplicación.
+
+46
+00:04:07,399 --> 00:04:15,284
+También podés ajustar el tamaño de los textos, botones y menús.
+
+47
+00:04:15,414 --> 00:04:22,268
+Configurá el margen, los medios de pago, los recargos y los cupones de descuento.
+
+48
+00:04:22,398 --> 00:04:26,284
+Organizá las categorías del catálogo para clasificar los productos de tu negocio.
+
+49
+00:04:26,414 --> 00:04:34,277
+Adaptá el encabezado y el pie del ticket, y revisá su vista previa.
+
+50
+00:04:34,407 --> 00:04:40,850
+Creá copias de seguridad y accedé a las opciones de exportación de datos.
