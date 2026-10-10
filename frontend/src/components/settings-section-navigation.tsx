@@ -26,7 +26,7 @@ export function SettingsSectionNavigation({
     {
       id: "appearance",
       label: "Apariencia",
-      description: "Tamaño de la interfaz",
+      description: "Tema y tamaño de la interfaz",
     },
     { id: "sales", label: "Ventas", description: "Precios, pagos y cupones" },
     {

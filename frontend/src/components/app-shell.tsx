@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, type ReactNode } from "react";
-import { useAppearance } from "./appearance-context";
+import { AppearanceControl } from "./appearance-control";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -78,7 +78,6 @@ export function AppShell({
 }) {
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { appearance, setAppearance } = useAppearance();
   const [menuOpen, setMenuOpen] = useState(false);
 
   function logNavigationEvent({
@@ -263,33 +262,7 @@ export function AppShell({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3 print:hidden">
-            <div
-              role="group"
-              aria-label="Apariencia"
-              className="inline-flex h-9 shrink-0 items-center rounded-md border border-border bg-card p-0.5"
-            >
-              {(
-                [
-                  ["light", "Claro"],
-                  ["dark", "Oscuro"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={appearance === value}
-                  onClick={() => setAppearance(value)}
-                  className={cn(
-                    "h-full rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    appearance === value
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            {pathname === "/" ? <AppearanceControl /> : null}
             {actions && (
               <div className="flex flex-wrap items-center gap-2 [&>div]:flex-wrap">
                 {actions}

@@ -1,6 +1,7 @@
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { AppearanceControl } from "@/components/appearance-control";
 import { InterfaceScaleControl } from "@/components/interface-scale-control";
 import { DataExportControls } from "@/components/data-export-controls";
 import { DataImportControls } from "@/components/data-import-controls";
@@ -785,6 +786,17 @@ export function ConfigPage() {
             hidden={activeSection !== "appearance"}
             className="space-y-5"
           >
+            <SettingsCard
+              title="Tema de la interfaz"
+              description="Los cambios se aplican al instante y se guardan automáticamente en este navegador."
+            >
+              <SettingsRow
+                label="Modo de color"
+                description="Elegí el modo claro u oscuro para todo el sistema."
+              >
+                <AppearanceControl />
+              </SettingsRow>
+            </SettingsCard>
             <SettingsCard
               title="Tamaño de la interfaz"
               description="Los cambios se aplican al instante y se guardan automáticamente en este navegador."
