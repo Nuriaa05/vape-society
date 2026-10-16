@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 
 import { PrismaService } from "../../prisma/prisma.service";
 import { loadFinancialHistory } from "./finance-history";
+import { loadSupplierHistory } from "./supplier-history";
 
 export const HISTORY_EVENT_TYPES = [
   "sales",
@@ -70,6 +71,7 @@ export class HistoryService {
       coupons,
       backups,
       financialEvents,
+      supplierEvents,
     ] = await Promise.all([
       this.prisma.sale.findMany({ select: { date: true, cancelledAt: true } }),
       this.prisma.purchase.findMany({
@@ -89,6 +91,7 @@ export class HistoryService {
       this.prisma.coupon.findMany({ select: { createdAt: true } }),
       this.prisma.backupLog.findMany({ select: { createdAt: true } }),
       loadFinancialHistory(this.prisma),
+      loadSupplierHistory(this.prisma),
     ]);
     const dates = [
       ...sales.flatMap((item) =>
@@ -106,6 +109,7 @@ export class HistoryService {
       ...coupons.map((item) => item.createdAt),
       ...backups.map((item) => item.createdAt),
       ...financialEvents.map((event) => new Date(event.occurredAt)),
+      ...supplierEvents.map((event) => new Date(event.occurredAt)),
     ];
     const counts = new Map<string, { date: Date; count: number }>();
 
@@ -172,6 +176,7 @@ export class HistoryService {
       coupons,
       backups,
       financialEvents,
+      supplierEvents,
     ] = await Promise.all([
       this.prisma.sale.findMany({
         where: { OR: [{ date: dateFilter }, { cancelledAt: dateFilter }] },
@@ -205,8 +210,9 @@ export class HistoryService {
       this.prisma.coupon.findMany({ where: { createdAt: dateFilter } }),
       this.prisma.backupLog.findMany({ where: { createdAt: dateFilter } }),
       loadFinancialHistory(this.prisma, range),
+      loadSupplierHistory(this.prisma, range),
     ]);
-    const events: HistoryEvent[] = [...financialEvents];
+    const events: HistoryEvent[] = [...financialEvents, ...supplierEvents];
 
     for (const sale of sales) {
       if (isWithinRange(sale.date, range)) {
@@ -311,7 +317,9 @@ export class HistoryService {
         title:
           movement.type === "Reverso"
             ? "Reversión de stock"
-            : "Ajuste de stock",
+            : movement.type === "Clasificacion"
+              ? "Clasificación de stock"
+              : "Ajuste de stock",
         description: `${movement.product.name}${movement.note ? ` · ${movement.note}` : ""}`,
         entityId: movement.id,
         quantity: movement.physicalDelta,

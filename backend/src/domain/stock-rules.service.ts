@@ -14,7 +14,17 @@ export type StockProduct = Prisma.ProductGetPayload<{
   include: typeof stockProductInclude;
 }>;
 
-export type StockReadModel = {
+export type StockValuation = {
+  paidQty: number;
+  creditQty: number;
+  unclassifiedQty: number;
+  paidValueCents: number;
+  creditValueCents: number;
+  unclassifiedValueCents: number;
+  totalValueCents: number;
+};
+
+export type StockReadModel = StockValuation & {
   productId: string;
   barcode: string | null;
   productName: string;
@@ -106,15 +116,57 @@ export class StockRulesService {
       client,
     );
 
-    return products.map((product) =>
-      this.toStockReadModel(product, reservedByProduct.get(product.id) ?? 0),
-    );
+    const lots = await client.inventoryLot.findMany({
+      where: {
+        productId: { in: products.map((product) => product.id) },
+        remainingQty: { gt: 0 },
+      },
+      select: {
+        productId: true,
+        classification: true,
+        remainingQty: true,
+        unitCostAmountCents: true,
+      },
+    });
+    const valuations = new Map<string, StockValuation>();
+    for (const lot of lots) {
+      const value = valuations.get(lot.productId) ?? this.emptyValuation();
+      const amount = lot.remainingQty * lot.unitCostAmountCents;
+      if (lot.classification === "Pagada") {
+        value.paidQty += lot.remainingQty;
+        value.paidValueCents += amount;
+      } else if (lot.classification === "Credito") {
+        value.creditQty += lot.remainingQty;
+        value.creditValueCents += amount;
+      } else {
+        value.unclassifiedQty += lot.remainingQty;
+        value.unclassifiedValueCents += amount;
+      }
+      value.totalValueCents += amount;
+      valuations.set(lot.productId, value);
+    }
+    return products.map((product) => ({
+      ...this.toStockReadModel(product, reservedByProduct.get(product.id) ?? 0),
+      ...(valuations.get(product.id) ?? this.emptyValuation()),
+    }));
+  }
+
+  private emptyValuation(): StockValuation {
+    return {
+      paidQty: 0,
+      creditQty: 0,
+      unclassifiedQty: 0,
+      paidValueCents: 0,
+      creditValueCents: 0,
+      unclassifiedValueCents: 0,
+      totalValueCents: 0,
+    };
   }
 
   private toStockReadModel(
     product: StockProduct,
     reservedStock: number,
-  ): StockReadModel {
+  ): Omit<StockReadModel, keyof StockValuation> {
     return {
       productId: product.id,
       barcode: product.barcode,

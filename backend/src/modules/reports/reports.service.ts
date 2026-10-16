@@ -140,8 +140,8 @@ export class ReportsService {
       todayTotalAmountCents: sumSales(todaySales),
       monthlyTotalAmountCents: sumSales(monthlySales),
       confirmedSalesCount: todaySales.length,
-      stockValueAmountCents: products.reduce(
-        (sum, product) => sum + product.costAmountCents * product.physicalStock,
+      stockValueAmountCents: stockRows.reduce(
+        (sum, row) => sum + row.totalValueCents,
         0,
       ),
       productCount: products.length,

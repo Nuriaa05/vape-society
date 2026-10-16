@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { BadRequestException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { validateFinancialImport } from "./finance-import-validation";
+import { validateSupplierInventoryImport } from "./supplier-import-validation";
 
 const models = Prisma.dmmf.datamodel.models;
 const tableName = (model: (typeof models)[number]) =>
@@ -25,6 +26,10 @@ export type ImportCounts = {
   collections: number;
   cardSettlements: number;
   refunds: number;
+  supplierPayables: number;
+  supplierPayments: number;
+  supplierRefunds: number;
+  inventoryLots: number;
 };
 
 export function getImportProjectPaths() {
@@ -204,6 +209,7 @@ export function validateImportData(
       );
     }
     validateFinancialImport(mirror);
+    validateSupplierInventoryImport(mirror);
     const count = (table: string) =>
       Number(
         mirror.prepare(`SELECT COUNT(*) AS value FROM ${quote(table)}`).get()!
@@ -221,6 +227,10 @@ export function validateImportData(
       collections: count("Collection"),
       cardSettlements: count("CardSettlement"),
       refunds: count("Refund"),
+      supplierPayables: count("SupplierPayable"),
+      supplierPayments: count("SupplierPayment"),
+      supplierRefunds: count("SupplierRefund"),
+      inventoryLots: count("InventoryLot"),
     };
   } finally {
     mirror.close();

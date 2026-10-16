@@ -1,9 +1,11 @@
+import type { PurchaseFinance, SupplierPayable } from "@/lib/supplier-credit";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { Purchase, PurchaseStatus } from "@/lib/contracts";
 import { formatDateInputAR, TZ } from "@/lib/formatters";
 import { amountCentsToPesos, pesosToAmountCents } from "@/lib/money";
 
-type ApiPurchase = {
+type ApiPurchase = Partial<PurchaseFinance> & {
+  payable?: SupplierPayable | null;
   id: string;
   supplierId: string;
   supplier: {
@@ -26,7 +28,8 @@ type ApiPurchase = {
   cancelledAt: string | null;
 };
 
-export type SavePurchaseInput = {
+export type SavePurchaseInput = Partial<PurchaseFinance> & {
+  operationId?: string;
   id?: string;
   supplierId: string;
   date: string;
@@ -36,6 +39,9 @@ export type SavePurchaseInput = {
 
 function toPurchase(purchase: ApiPurchase): Purchase {
   return {
+    ...financePayload(purchase),
+    paymentCondition: purchase.paymentCondition,
+    payable: purchase.payable,
     id: purchase.id,
     supplierId: purchase.supplierId,
     date: formatDateInputAR(purchase.date),
@@ -51,8 +57,35 @@ function toPurchase(purchase: ApiPurchase): Purchase {
   };
 }
 
+function financePayload(purchase: Partial<PurchaseFinance>) {
+  if (
+    !purchase.paymentCondition ||
+    purchase.paymentCondition === "SinSeguimiento"
+  )
+    return {};
+  return {
+    paymentCondition: purchase.paymentCondition,
+    dueDate:
+      purchase.paymentCondition === "Credito" ? purchase.dueDate || null : null,
+    paymentDate:
+      purchase.paymentCondition === "Pagada"
+        ? purchase.paymentDate || null
+        : null,
+    paymentMethod:
+      purchase.paymentCondition === "Pagada"
+        ? purchase.paymentMethod || null
+        : null,
+    paymentReference:
+      purchase.paymentCondition === "Pagada"
+        ? purchase.paymentReference?.trim() || null
+        : null,
+  };
+}
+
 function toPayload(purchase: SavePurchaseInput) {
   return {
+    ...financePayload(purchase),
+    ...(purchase.operationId ? { operationId: purchase.operationId } : {}),
     supplierId: purchase.supplierId,
     date: purchase.date,
     status: purchase.status ?? "Pendiente",

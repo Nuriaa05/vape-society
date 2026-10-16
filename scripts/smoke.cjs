@@ -116,6 +116,17 @@ async function main() {
       if (response.url().includes("/api/") && response.status() >= 400)
         apiErrors.push(`${response.status()} ${response.url()}`);
     });
+    if (process.env.VAPE_SOCIETY_SMOKE_SUPPLIERS_ONLY === "1") {
+      mkdirSync(evidence, { recursive: true });
+      const category = await request("/api/settings/categories", "POST", {name: "Crédito"});
+      const supplier = await request("/api/suppliers", "POST", {name: "Distribuidor crédito",phone: "123", email: ""});
+      const result = await require("./supplier-credit-smoke.cjs")({page,url,request,prisma,category,supplier,evidence});
+      assert.deepEqual(pageErrors, []);
+      assert.deepEqual(apiErrors, []);
+      writeFileSync(join(evidence, "supplier-credit-smoke.json"), JSON.stringify(result,null,2)+"\n", "utf8");
+      console.log(JSON.stringify(result));
+      return;
+    }
     if (process.env.VAPE_SOCIETY_SMOKE_CLIENTS_ONLY === "1") {
       const category = await request("/api/settings/categories", "POST", {
         name: "Cuotas",

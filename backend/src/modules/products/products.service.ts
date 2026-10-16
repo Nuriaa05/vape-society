@@ -1,7 +1,9 @@
+import { InventoryLotsService } from "../../domain/inventory-lots.service";
 import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Optional,
   NotFoundException,
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
@@ -35,6 +37,8 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly barcodeService: BarcodeService,
+    @Optional()
+    private readonly inventoryLotsService: InventoryLotsService = new InventoryLotsService(),
   ) {}
 
   async findAll(options: FindProductsOptions = {}): Promise<ProductResponse[]> {
@@ -129,7 +133,7 @@ export class ProductsService {
         });
 
         if (dto.physicalStock !== 0) {
-          await tx.stockMovement.create({
+          const movement = await tx.stockMovement.create({
             data: {
               productId,
               type: "Ajuste",
@@ -139,6 +143,13 @@ export class ProductsService {
               note: "Stock inicial del producto",
             },
           });
+          if (dto.physicalStock > 0)
+            await this.inventoryLotsService.receive(tx, {
+              productId,
+              qty: dto.physicalStock,
+              unitCostAmountCents: dto.costAmountCents,
+              originMovementId: movement.id,
+            });
         }
 
         return product;
@@ -228,7 +239,9 @@ export class ProductsService {
     }
   }
 
-  private async assertSupplierExists(supplierId?: string | null): Promise<void> {
+  private async assertSupplierExists(
+    supplierId?: string | null,
+  ): Promise<void> {
     if (!supplierId) {
       return;
     }

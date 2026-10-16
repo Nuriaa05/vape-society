@@ -32,6 +32,10 @@ describe("purchase calendar dates", () => {
   });
 
   beforeEach(async () => {
+    await db.prisma.inventoryAllocation.deleteMany();
+    await db.prisma.inventoryLot.deleteMany({
+      where: { originMovementId: { not: null } },
+    });
     await db.prisma.stockMovement.deleteMany();
     await db.prisma.purchaseItem.deleteMany();
     await db.prisma.purchase.deleteMany();

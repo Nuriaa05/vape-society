@@ -3,11 +3,15 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 
 import { StockRulesService } from "../../domain/stock-rules.service";
+import { InventoryLotsService } from "../../domain/inventory-lots.service";
 import { PrismaService } from "../../prisma/prisma.service";
+import { SupplierPayablesService } from "../supplier-payables/supplier-payables.service";
+import { money, validateBusinessDate } from "../collections/finance-rules";
 import {
   CancelPurchaseDto,
   CreatePurchaseDto,
@@ -19,6 +23,7 @@ import { resolvePurchaseDate } from "./purchase-date";
 const purchaseInclude = {
   supplier: true,
   items: { orderBy: { productName: "asc" } },
+  payable: { include: { supplier: true, payments: true, refunds: true } },
 } satisfies Prisma.PurchaseInclude;
 
 type PurchaseWithRelations = Prisma.PurchaseGetPayload<{
@@ -59,6 +64,12 @@ export type PurchaseResponse = {
   totalAmountCents: number;
   cancelReason: string | null;
   cancelledAt: string | null;
+  paymentCondition: string;
+  dueDate: string | null;
+  paymentDate: string | null;
+  paymentMethod: string | null;
+  paymentReference: string | null;
+  payable: ReturnType<SupplierPayablesService["serialize"]> | null;
 };
 
 @Injectable()
@@ -66,6 +77,12 @@ export class PurchasesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stockRulesService: StockRulesService,
+    @Optional()
+    private readonly inventoryLotsService: InventoryLotsService = new InventoryLotsService(),
+    @Optional()
+    private readonly supplierPayablesService: SupplierPayablesService = new SupplierPayablesService(
+      prisma,
+    ),
   ) {}
 
   async findAll(): Promise<PurchaseResponse[]> {
@@ -92,6 +109,32 @@ export class PurchasesService {
 
   async create(dto: CreatePurchaseDto): Promise<PurchaseResponse> {
     return this.prisma.$transaction(async (tx) => {
+      const tracked = dto.paymentCondition !== undefined;
+      if (
+        !tracked &&
+        [
+          dto.dueDate,
+          dto.paymentDate,
+          dto.paymentMethod,
+          dto.paymentReference,
+        ].some((field) => field != null)
+      ) {
+        throw new BadRequestException(
+          "Indicá la condición de pago de la compra.",
+        );
+      }
+      if (tracked) {
+        const previous = await this.supplierPayablesService.previousOperation(
+          tx,
+          dto.operationId ?? "",
+          "SupplierPurchase",
+          dto,
+        );
+        if (previous)
+          return this.serializePurchase(
+            await this.loadPurchaseInTransaction(tx, previous.resultId),
+          );
+      }
       const items = this.aggregateItems(dto.items);
       await this.assertSupplierAvailable(tx, dto.supplierId);
       const products = await this.loadProductsForPurchase(tx, items);
@@ -103,6 +146,7 @@ export class PurchasesService {
           date: resolvePurchaseDate(dto.date),
           status: dto.status,
           totalAmountCents,
+          ...this.financeData(dto),
           items: {
             create: this.toPurchaseItemCreates(items, products),
           },
@@ -111,11 +155,21 @@ export class PurchasesService {
       });
 
       if (dto.status === "Registrada") {
-        await this.applyRegisteredStock(tx, purchase.id, items);
+        await this.createPurchasePayable(tx, purchase);
+        await this.applyRegisteredStock(tx, purchase);
         await this.refreshSupplierLastPurchase(tx, purchase.supplierId);
       }
-
-      return this.serializePurchase(purchase);
+      if (tracked)
+        await this.supplierPayablesService.saveOperation(
+          tx,
+          dto.operationId!,
+          "SupplierPurchase",
+          dto,
+          purchase.id,
+        );
+      return this.serializePurchase(
+        await this.loadPurchaseInTransaction(tx, purchase.id),
+      );
     });
   }
 
@@ -124,7 +178,23 @@ export class PurchasesService {
       const purchase = await this.loadPurchaseInTransaction(tx, id);
 
       if (purchase.status !== "Pendiente") {
-        throw new ConflictException("Solo se pueden editar compras pendientes.");
+        throw new ConflictException(
+          "Solo se pueden editar compras pendientes.",
+        );
+      }
+      if (
+        purchase.paymentCondition === "SinSeguimiento" &&
+        !dto.paymentCondition &&
+        [
+          dto.dueDate,
+          dto.paymentDate,
+          dto.paymentMethod,
+          dto.paymentReference,
+        ].some((field) => field != null)
+      ) {
+        throw new BadRequestException(
+          "Indicá la condición de pago de la compra.",
+        );
       }
 
       if (dto.supplierId) {
@@ -144,6 +214,7 @@ export class PurchasesService {
         where: { id },
         data: {
           supplierId: dto.supplierId,
+          ...this.financeData(dto),
           date: dto.date ? resolvePurchaseDate(dto.date) : undefined,
           totalAmountCents: items
             ? this.calculateTotalAmountCents(items)
@@ -175,8 +246,8 @@ export class PurchasesService {
         throw new ConflictException("La compra está anulada.");
       }
 
-      const items = this.aggregateItems(purchase.items);
-      await this.applyRegisteredStock(tx, purchase.id, items);
+      await this.createPurchasePayable(tx, purchase);
+      await this.applyRegisteredStock(tx, purchase);
 
       const updated = await tx.purchase.update({
         where: { id },
@@ -190,13 +261,12 @@ export class PurchasesService {
     });
   }
 
-  async cancel(
-    id: string,
-    dto: CancelPurchaseDto,
-  ): Promise<PurchaseResponse> {
+  async cancel(id: string, dto: CancelPurchaseDto): Promise<PurchaseResponse> {
     return this.prisma.$transaction(async (tx) => {
       const purchase = await this.loadPurchaseInTransaction(tx, id);
       const cancelReason = dto.reason?.trim() || null;
+      if (purchase.payable && !cancelReason)
+        throw new BadRequestException("Indicá el motivo de la anulación.");
 
       if (purchase.status === "Anulada") {
         throw new ConflictException("La compra ya está anulada.");
@@ -206,8 +276,18 @@ export class PurchasesService {
 
       if (purchase.status === "Registrada") {
         await this.assertCanReverseRegisteredPurchase(tx, items);
+        await this.inventoryLotsService.assertPurchaseReversible(
+          tx,
+          purchase.id,
+        );
         await this.reverseRegisteredStock(tx, purchase.id, items);
       }
+
+      if (purchase.payable)
+        await tx.supplierPayable.update({
+          where: { id: purchase.payable.id },
+          data: { status: "Anulada", cancelReason, cancelledAt: new Date() },
+        });
 
       const updated = await tx.purchase.update({
         where: { id },
@@ -237,13 +317,19 @@ export class PurchasesService {
 
       await tx.purchaseItem.deleteMany({ where: { purchaseId: id } });
       await tx.purchase.delete({ where: { id } });
+      await tx.financialOperation.updateMany({
+        where: { kind: "SupplierPurchase", resultId: id },
+        data: { kind: "SupplierPurchaseDeleted" },
+      });
 
       return { id, deleted: true };
     });
   }
 
   private aggregateItems(
-    items: Array<Pick<CreatePurchaseItemDto, "productId" | "qty" | "unitCostAmountCents">>,
+    items: Array<
+      Pick<CreatePurchaseItemDto, "productId" | "qty" | "unitCostAmountCents">
+    >,
   ): AggregatedPurchaseItem[] {
     const byProduct = new Map<string, AggregatedPurchaseItem>();
 
@@ -311,7 +397,9 @@ export class PurchasesService {
         archived: true,
       },
     });
-    const productsById = new Map(products.map((product) => [product.id, product]));
+    const productsById = new Map(
+      products.map((product) => [product.id, product]),
+    );
 
     for (const item of items) {
       const product = productsById.get(item.productId);
@@ -349,31 +437,120 @@ export class PurchasesService {
   }
 
   private calculateTotalAmountCents(items: AggregatedPurchaseItem[]): number {
-    return items.reduce(
-      (sum, item) => sum + item.qty * item.unitCostAmountCents,
-      0,
+    return money(
+      items.reduce((sum, item) => sum + item.qty * item.unitCostAmountCents, 0),
+      true,
     );
+  }
+
+  private financeData(dto: UpdatePurchaseDto) {
+    if (!dto.paymentCondition)
+      return {
+        dueDate: dto.dueDate,
+        paymentDate: dto.paymentDate,
+        paymentMethod: dto.paymentMethod,
+        paymentReference: dto.paymentReference,
+      };
+    return {
+      paymentCondition: dto.paymentCondition,
+      dueDate: dto.paymentCondition === "Credito" ? dto.dueDate : null,
+      paymentDate: dto.paymentCondition === "Pagada" ? dto.paymentDate : null,
+      paymentMethod:
+        dto.paymentCondition === "Pagada" ? dto.paymentMethod : null,
+      paymentReference:
+        dto.paymentCondition === "Pagada" ? dto.paymentReference : null,
+    };
+  }
+
+  private async createPurchasePayable(
+    tx: Prisma.TransactionClient,
+    purchase: PurchaseWithRelations,
+  ) {
+    if (purchase.paymentCondition === "SinSeguimiento") return;
+    if (!["Pagada", "Credito"].includes(purchase.paymentCondition))
+      throw new BadRequestException("La condición de pago no es válida.");
+    let payment:
+      | ReturnType<SupplierPayablesService["paymentFields"]>
+      | undefined;
+    if (purchase.paymentCondition === "Pagada") {
+      payment = purchase.paymentMethod
+        ? this.supplierPayablesService.paymentFields({
+            date: purchase.paymentDate ?? "",
+            method: purchase.paymentMethod,
+            reference: purchase.paymentReference ?? undefined,
+          })
+        : {
+            date: validateBusinessDate(purchase.paymentDate ?? "", true),
+            method: "Sin especificar",
+            reference: purchase.paymentReference?.trim() || null,
+          };
+    }
+    const dueDate =
+      purchase.paymentCondition === "Credito"
+        ? validateBusinessDate(purchase.dueDate ?? "")
+        : payment!.date;
+    await tx.supplierPayable.create({
+      data: {
+        supplierId: purchase.supplierId,
+        purchaseId: purchase.id,
+        title: `Compra del ${purchase.date.toISOString().slice(0, 10)}`,
+        amountCents: money(purchase.totalAmountCents, true),
+        dueDate,
+        ...(payment
+          ? {
+              payments: {
+                create: { ...payment, amountCents: purchase.totalAmountCents },
+              },
+            }
+          : {}),
+      },
+    });
   }
 
   private async applyRegisteredStock(
     tx: Prisma.TransactionClient,
-    purchaseId: string,
-    items: AggregatedPurchaseItem[],
+    purchase: PurchaseWithRelations,
   ): Promise<void> {
-    for (const item of items) {
-      await tx.product.update({
+    const payable = await tx.supplierPayable.findUnique({
+      where: { purchaseId: purchase.id },
+    });
+    for (const item of purchase.items) {
+      const updatedProduct = await tx.product.update({
         where: { id: item.productId },
         data: { physicalStock: { increment: item.qty } },
       });
-      await tx.stockMovement.create({
+      const movement = await tx.stockMovement.create({
         data: {
           productId: item.productId,
           type: "Compra",
           sourceType: "Purchase",
-          sourceId: purchaseId,
+          sourceId: purchase.id,
           physicalDelta: item.qty,
         },
       });
+      const lot = await this.inventoryLotsService.receive(tx, {
+        productId: item.productId,
+        qty: item.qty,
+        unitCostAmountCents: item.unitCostAmountCents,
+        purchaseItemId: item.id,
+        originMovementId: movement.id,
+        payableId: payable?.id,
+        classification:
+          purchase.paymentCondition === "Credito"
+            ? "Credito"
+            : purchase.paymentCondition === "Pagada"
+              ? "Pagada"
+              : "SinClasificar",
+      });
+      await this.inventoryLotsService.absorbLegacyDeficit(
+        tx,
+        lot.id,
+        movement.id,
+        Math.min(
+          item.qty,
+          Math.max(0, item.qty - updatedProduct.physicalStock),
+        ),
+      );
     }
   }
 
@@ -389,7 +566,9 @@ export class PurchasesService {
       }),
       this.stockRulesService.getReservedStockByProductIds(productIds, tx),
     ]);
-    const productsById = new Map(products.map((product) => [product.id, product]));
+    const productsById = new Map(
+      products.map((product) => [product.id, product]),
+    );
 
     for (const item of items) {
       const product = productsById.get(item.productId);
@@ -431,7 +610,7 @@ export class PurchasesService {
         where: { id: item.productId },
         data: { physicalStock: { decrement: item.qty } },
       });
-      await tx.stockMovement.create({
+      const movement = await tx.stockMovement.create({
         data: {
           productId: item.productId,
           type: "Reverso",
@@ -441,6 +620,24 @@ export class PurchasesService {
           reversalOfId: originalByProduct.get(item.productId),
         },
       });
+      const originalId = originalByProduct.get(item.productId);
+      if (originalId)
+        await this.inventoryLotsService.reverse(
+          tx,
+          originalId,
+          movement.id,
+          item.productId,
+          item.qty,
+          item.unitCostAmountCents,
+        );
+      else
+        await this.inventoryLotsService.consume(
+          tx,
+          movement.id,
+          item.productId,
+          item.qty,
+          { unclassifiedOnly: true },
+        );
     }
   }
 
@@ -499,6 +696,14 @@ export class PurchasesService {
         lineTotalAmountCents: item.lineTotalAmountCents,
       })),
       totalAmountCents: purchase.totalAmountCents,
+      paymentCondition: purchase.paymentCondition,
+      dueDate: purchase.dueDate,
+      paymentDate: purchase.paymentDate,
+      paymentMethod: purchase.paymentMethod,
+      paymentReference: purchase.paymentReference,
+      payable: purchase.payable
+        ? this.supplierPayablesService.serialize(purchase.payable)
+        : null,
       cancelReason: purchase.cancelReason,
       cancelledAt: purchase.cancelledAt?.toISOString() ?? null,
     };

@@ -26,7 +26,33 @@ export class CreatePurchaseItemDto {
   unitCostAmountCents!: number;
 }
 
-export class CreatePurchaseDto {
+export class PurchaseFinancingDto {
+  @IsOptional()
+  @IsString()
+  operationId?: string;
+
+  @IsOptional()
+  @IsIn(["Pagada", "Credito"])
+  paymentCondition?: "Pagada" | "Credito";
+
+  @IsOptional()
+  @IsString()
+  dueDate?: string | null;
+
+  @IsOptional()
+  @IsString()
+  paymentDate?: string | null;
+
+  @IsOptional()
+  @IsIn(["Efectivo", "Transferencia", "QR"])
+  paymentMethod?: string | null;
+
+  @IsOptional()
+  @IsString()
+  paymentReference?: string | null;
+}
+
+export class CreatePurchaseDto extends PurchaseFinancingDto {
   @IsString()
   @IsNotEmpty()
   supplierId!: string;
@@ -45,7 +71,7 @@ export class CreatePurchaseDto {
   items!: CreatePurchaseItemDto[];
 }
 
-export class UpdatePurchaseDto {
+export class UpdatePurchaseDto extends PurchaseFinancingDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()

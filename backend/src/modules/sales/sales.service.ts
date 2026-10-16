@@ -1,7 +1,9 @@
+import { InventoryLotsService } from "../../domain/inventory-lots.service";
 import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Optional,
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
@@ -201,6 +203,8 @@ export class SalesService {
     private readonly stockRulesService: StockRulesService,
     private readonly totalsService: TotalsService,
     private readonly couponsService: CouponsService,
+    @Optional()
+    private readonly inventoryLotsService: InventoryLotsService = new InventoryLotsService(),
   ) {}
 
   async findAll(
@@ -485,7 +489,9 @@ export class SalesService {
             surchargeBasisPoints:
               (pricingOnly
                 ? quoteOptions?.directSurchargeBasisPoints
-                : undefined) ?? dto.directPlan?.surchargeBasisPoints ?? 0,
+                : undefined) ??
+              dto.directPlan?.surchargeBasisPoints ??
+              0,
           }
         : await this.resolvePaymentMethod(tx, dto.paymentMethodId ?? "");
 
@@ -849,11 +855,11 @@ export class SalesService {
     requirements: StockRequirement[],
   ): Promise<void> {
     for (const requirement of requirements) {
-      await tx.product.update({
+      const updatedProduct = await tx.product.update({
         where: { id: requirement.productId },
         data: { physicalStock: { decrement: requirement.qty } },
       });
-      await tx.stockMovement.create({
+      const movement = await tx.stockMovement.create({
         data: {
           productId: requirement.productId,
           type: "Venta",
@@ -862,6 +868,18 @@ export class SalesService {
           physicalDelta: -requirement.qty,
         },
       });
+      const unallocatedQty = await this.inventoryLotsService.consume(
+        tx,
+        movement.id,
+        requirement.productId,
+        requirement.qty,
+        { allowShortfall: updatedProduct.physicalStock < 0 },
+      );
+      if (unallocatedQty)
+        await tx.stockMovement.update({
+          where: { id: movement.id },
+          data: { unallocatedQty },
+        });
     }
   }
 
@@ -887,7 +905,7 @@ export class SalesService {
         where: { id: requirement.productId },
         data: { physicalStock: { increment: requirement.qty } },
       });
-      await tx.stockMovement.create({
+      const reversal = await tx.stockMovement.create({
         data: {
           productId: requirement.productId,
           type: "Reverso",
@@ -897,6 +915,18 @@ export class SalesService {
           reversalOfId: originalByProduct.get(requirement.productId),
         },
       });
+      const product = await tx.product.findUniqueOrThrow({
+        where: { id: requirement.productId },
+        select: { costAmountCents: true },
+      });
+      await this.inventoryLotsService.reverse(
+        tx,
+        originalByProduct.get(requirement.productId) ?? "",
+        reversal.id,
+        requirement.productId,
+        -requirement.qty,
+        product.costAmountCents,
+      );
     }
   }
 

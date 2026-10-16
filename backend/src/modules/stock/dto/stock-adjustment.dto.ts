@@ -38,3 +38,33 @@ export class ReverseStockMovementDto {
   @IsNotEmpty()
   reason?: string;
 }
+
+export class ClassifyStockDto {
+  @IsString()
+  @IsNotEmpty()
+  operationId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  productId!: string;
+
+  @IsInt()
+  @Min(1)
+  qty!: number;
+
+  @IsIn(["Pagada", "Credito"])
+  classification!: "Pagada" | "Credito";
+
+  @IsInt()
+  @Min(0)
+  unitCostAmountCents!: number;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  payableId?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  reason!: string;
+}

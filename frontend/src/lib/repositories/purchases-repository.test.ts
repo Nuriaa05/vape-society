@@ -19,6 +19,29 @@ describe("purchase monthly summary", () => {
     vi.restoreAllMocks();
   });
 
+  it("keeps a legacy draft readable without sending its historical condition as a new financing choice", async () => {
+    const response = {
+      id: "draft",
+      supplierId: "supplier-1",
+      date: "2026-10-01T12:00:00Z",
+      status: "Pendiente",
+      items: [],
+      totalAmountCents: 0,
+      paymentCondition: "SinSeguimiento",
+    };
+    const patch = vi.spyOn(apiClient, "patch").mockResolvedValue(response);
+    const result = await purchasesRepository.update({
+      id: "draft",
+      supplierId: "supplier-1",
+      date: "2026-10-01",
+      status: "Pendiente",
+      items: [],
+      paymentCondition: "SinSeguimiento",
+    });
+    expect(result.paymentCondition).toBe("SinSeguimiento");
+    expect(patch.mock.calls[0][1]).not.toHaveProperty("paymentCondition");
+  });
+
   it.each([
     ["2026-10-01T03:00:00.000Z", "2026-10-01"],
     ["2026-10-01T02:30:00.000Z", "2026-09-30"],

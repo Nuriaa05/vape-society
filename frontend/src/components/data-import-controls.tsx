@@ -32,6 +32,10 @@ const countLabels: Record<keyof DatabaseImportPreview["counts"], string> = {
   collections: "Cobros",
   cardSettlements: "Acreditaciones previstas",
   refunds: "Devoluciones",
+  supplierPayables: "Deudas con proveedores",
+  supplierPayments: "Pagos a proveedores",
+  supplierRefunds: "Reintegros de proveedores",
+  inventoryLots: "Ingresos de mercadería por origen",
 };
 
 export function DataImportControls({

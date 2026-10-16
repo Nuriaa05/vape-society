@@ -1,3 +1,6 @@
+import { SupplierAccountDialog } from "@/components/supplier-account";
+import { supplierPayablesRepository } from "@/lib/repositories/supplier-payables-repository";
+import { money, today } from "@/lib/collections-form";
 import { Card, CardHeader } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell, StatusBadge } from "@/components/app-shell";
@@ -50,6 +53,42 @@ type Editing =
 
 export function ProveedoresPage() {
   const queryClient = useQueryClient();
+  const [accountSupplier, setAccountSupplier] = useState<Supplier | null>(null);
+  const currentMonth = today().slice(0, 7);
+  const [summaryMonth, setSummaryMonth] = useState(currentMonth);
+  const debtsQuery = useQuery({
+    queryKey: ["supplier-payables", "all"],
+    queryFn: () => supplierPayablesRepository.all(),
+  });
+  const summaryQuery = useQuery({
+    queryKey: ["supplier-payables", "summary", summaryMonth],
+    queryFn: () =>
+      supplierPayablesRepository.summary({ month: summaryMonth || undefined }),
+  });
+  const balances = useMemo(() => {
+    const values = new Map<
+      string,
+      { balance: number; overdue: number; nextDueDate: string | null }
+    >();
+    for (const debt of debtsQuery.data ?? []) {
+      const old = values.get(debt.supplierId) ?? {
+        balance: 0,
+        overdue: 0,
+        nextDueDate: null,
+      };
+      values.set(debt.supplierId, {
+        balance: old.balance + debt.balanceCents,
+        overdue:
+          old.overdue + (debt.status === "Vencida" ? debt.balanceCents : 0),
+        nextDueDate:
+          debt.balanceCents > 0 &&
+          (!old.nextDueDate || debt.dueDate < old.nextDueDate)
+            ? debt.dueDate
+            : old.nextDueDate,
+      });
+    }
+    return values;
+  }, [debtsQuery.data]);
   const suppliersQuery = useQuery({
     queryKey: ["suppliers"],
     queryFn: () => suppliersRepository.findAll(),
@@ -115,6 +154,61 @@ export function ProveedoresPage() {
         </Button>
       }
     >
+      <Card className="app-card-body space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-semibold">Cuenta de proveedores</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <Label htmlFor="supplier-summary-month">Mes del resumen</Label>
+            <Input
+              id="supplier-summary-month"
+              className="w-auto"
+              type="month"
+              value={summaryMonth}
+              onChange={(e) => setSummaryMonth(e.target.value || currentMonth)}
+            />
+            {summaryMonth !== currentMonth ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSummaryMonth(currentMonth)}
+              >
+                Mes actual
+              </Button>
+            ) : null}
+          </div>
+        </div>
+        {summaryQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Cargando saldos...</p>
+        ) : summaryQuery.error ? (
+          <p className="text-sm text-destructive">
+            No se pudieron cargar los saldos.
+          </p>
+        ) : summaryQuery.data ? (
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            {(
+              [
+                ["Deuda pendiente", summaryQuery.data.balanceCents],
+                ["Vencida", summaryQuery.data.overdueCents],
+                ["Vence en el mes", summaryQuery.data.dueThisMonthCents],
+                ["Pagado en el mes", summaryQuery.data.paidAmountCents],
+                [
+                  "Reintegros por recibir",
+                  summaryQuery.data.refundPendingCents,
+                ],
+              ] as const
+            ).map(([label, amount]) => (
+              <div key={label}>
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <p className="font-semibold tabular-nums">{money(amount)}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
+          La deuda y los reintegros incluyen todos los vencimientos. Los pagos
+          corresponden a su fecha efectiva dentro del mes seleccionado.
+        </p>
+      </Card>
       <Card className="overflow-hidden">
         <CardHeader title="Proveedores" />
         <div
@@ -131,6 +225,13 @@ export function ProveedoresPage() {
                 <th className="app-table-heading font-medium">Contacto</th>
                 <th className="app-table-heading font-medium">Última compra</th>
                 <th className="app-table-heading font-medium">Estado</th>
+                <th className="app-table-heading font-medium text-right">
+                  Deuda pendiente
+                </th>
+                <th className="app-table-heading font-medium">
+                  Próximo vencimiento
+                </th>
+                <th className="app-table-heading font-medium">Cuenta</th>
                 <th className="app-table-heading font-medium w-10"></th>
               </tr>
             </thead>
@@ -170,6 +271,40 @@ export function ProveedoresPage() {
                       <StatusBadge tone={s.active ? "success" : "muted"}>
                         {s.active ? "Activo" : "Inactivo"}
                       </StatusBadge>
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums">
+                      {debtsQuery.error ? (
+                        <span className="text-destructive">Sin datos</span>
+                      ) : debtsQuery.isLoading ? (
+                        "..."
+                      ) : (
+                        <>
+                          <div className="font-medium">
+                            {money(balances.get(s.id)?.balance ?? 0)}
+                          </div>
+                          {(balances.get(s.id)?.overdue ?? 0) > 0 ? (
+                            <div className="text-xs text-destructive">
+                              Vencida: {money(balances.get(s.id)?.overdue ?? 0)}
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">
+                      {debtsQuery.error
+                        ? "Sin datos"
+                        : debtsQuery.isLoading
+                          ? "..."
+                          : (balances.get(s.id)?.nextDueDate ?? "—")}
+                    </td>
+                    <td className="px-5 py-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setAccountSupplier(s)}
+                      >
+                        Cuenta
+                      </Button>
                     </td>
                     <td className="px-2 py-3">
                       <DropdownMenu>
@@ -264,6 +399,13 @@ export function ProveedoresPage() {
         )}
       </Card>
 
+      {accountSupplier ? (
+        <SupplierAccountDialog
+          key={accountSupplier.id}
+          supplier={accountSupplier}
+          close={() => setAccountSupplier(null)}
+        />
+      ) : null}
       <SupplierDialog
         editing={editing}
         onCancel={() => setEditing(null)}

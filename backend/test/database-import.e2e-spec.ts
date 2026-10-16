@@ -174,6 +174,90 @@ describe("Database import", () => {
     ).toBe(true);
   });
 
+  it("migrates legacy physical stock as unclassified without inventing supplier debts or changing the source", async () => {
+    const oldPath = join(backupDir, "legacy-stock.db");
+    createLegacyBackup(oldPath);
+    const old = new DatabaseSync(oldPath);
+    old.exec(`INSERT INTO Category (id,name,updatedAt) VALUES ('old-category','Anterior',CURRENT_TIMESTAMP);
+      INSERT INTO Supplier (id,name,phone,email,updatedAt) VALUES ('old-supplier','Anterior','','',CURRENT_TIMESTAMP);
+      INSERT INTO Product (id,name,categoryId,supplierId,costAmountCents,priceAmountCents,marginPct,physicalStock,minStock,updatedAt)
+      VALUES ('old-product','Stock anterior','old-category','old-supplier',123,250,100,7,0,CURRENT_TIMESTAMP)`);
+    old.close();
+    const sourceBytes = readFileSync(oldPath);
+    const preview = await upload(sourceBytes);
+    expect(preview.body.counts).toMatchObject({
+      inventoryLots: 1,
+      supplierPayables: 0,
+      supplierPayments: 0,
+    });
+    expect(readFileSync(oldPath)).toEqual(sourceBytes);
+    expect(
+      await db.prisma.product.findUnique({ where: { id: "p1" } }),
+    ).not.toBeNull();
+    await request(app.getHttpServer())
+      .post(`/api/backups/import/${preview.body.id}/confirm`)
+      .send({ confirmed: true })
+      .expect(201);
+    expect(
+      await db.prisma.inventoryLot.findFirst({
+        where: { productId: "old-product" },
+      }),
+    ).toMatchObject({
+      classification: "SinClasificar",
+      remainingQty: 7,
+      unitCostAmountCents: 123,
+    });
+    expect(await db.prisma.supplierPayable.count()).toBe(0);
+  });
+
+  it("round-trips financed purchases, FIFO allocations and supplier payments", async () => {
+    const server = app.getHttpServer();
+    const purchase = await request(server)
+      .post("/api/purchases")
+      .send({
+        operationId: "import-credit",
+        supplierId: "s1",
+        status: "Registrada",
+        paymentCondition: "Credito",
+        dueDate: "2026-12-31",
+        items: [{ productId: "p1", qty: 2, unitCostAmountCents: 123 }],
+      })
+      .expect(201);
+    await request(server)
+      .post(`/api/supplier-payables/${purchase.body.payable.id}/payments`)
+      .send({ operationId: "import-payment", date: "2026-01-01", method: "QR" })
+      .expect(201);
+    const snapshot = await app.get(BackupsService).createBackup();
+    const bytes = readFileSync(join(backupDir, snapshot.filename));
+    const preview = await upload(bytes);
+    expect(preview.body.counts).toMatchObject({
+      supplierPayables: 1,
+      supplierPayments: 1,
+    });
+    await request(server)
+      .post(`/api/backups/import/${preview.body.id}/confirm`)
+      .send({ confirmed: true })
+      .expect(201);
+    expect(
+      await db.prisma.supplierPayable.findUnique({
+        where: { id: purchase.body.payable.id },
+        include: { payments: true },
+      }),
+    ).toMatchObject({
+      amountCents: 246,
+      payments: [{ amountCents: 246, method: "QR" }],
+    });
+    expect(
+      await db.prisma.inventoryLot.findFirst({
+        where: { payableId: purchase.body.payable.id },
+      }),
+    ).toMatchObject({
+      classification: "Pagada",
+      remainingQty: 2,
+      unitCostAmountCents: 123,
+    });
+  });
+
   it("rejects a backup with invalid product references", async () => {
     const invalid = modifySource((sqlite) => {
       sqlite.exec("PRAGMA foreign_keys = OFF");

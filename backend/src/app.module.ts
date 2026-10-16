@@ -16,6 +16,7 @@ import { SalesModule } from "./modules/sales/sales.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { StockModule } from "./modules/stock/stock.module";
 import { SuppliersModule } from "./modules/suppliers/suppliers.module";
+import { SupplierPayablesModule } from "./modules/supplier-payables/supplier-payables.module";
 import { BaseDataService } from "./base-data.service";
 import { PrismaModule } from "./prisma/prisma.module";
 import { StartupChecksService } from "./startup-checks.service";
@@ -38,6 +39,7 @@ import { StartupChecksService } from "./startup-checks.service";
     ReportsModule,
     SalesModule,
     SuppliersModule,
+    SupplierPayablesModule,
     SettingsModule,
     StockModule,
   ],

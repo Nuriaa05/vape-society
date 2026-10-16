@@ -1,3 +1,11 @@
+import { PurchaseFinanceFields } from "@/components/purchase-finance-fields";
+import {
+  emptyPurchaseFinance,
+  purchaseFinanceError,
+  type PurchaseFinance,
+} from "@/lib/supplier-credit";
+import { createFinancialOperationResolver } from "@/lib/collections-form";
+import { invalidateInventoryQueries } from "@/lib/inventory-cache";
 import {
   Card,
   CardBody,
@@ -119,7 +127,8 @@ export function ComprasPage() {
   });
   const invalidateOperationalQueries = () => {
     void queryClient.invalidateQueries({ queryKey: ["purchases"] });
-    void queryClient.invalidateQueries({ queryKey: ["stock"] });
+    invalidateInventoryQueries(queryClient);
+    void queryClient.invalidateQueries({ queryKey: ["supplier-payables"] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
     void queryClient.invalidateQueries({ queryKey: ["reports"] });
   };
@@ -163,6 +172,11 @@ export function ComprasPage() {
   const [date, setDate] = useState(formatDateInputAR());
   const [items, setItems] = useState<Item[]>([]);
   const [clearOpen, setClearOpen] = useState(false);
+  const [finance, setFinance] = useState(emptyPurchaseFinance);
+  const [operationFor, setOperationFor] = useState(() =>
+    createFinancialOperationResolver(),
+  );
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // History interactions
   const [editing, setEditing] = useState<Purchase | null>(null);
@@ -188,6 +202,8 @@ export function ComprasPage() {
     setSupplier(draft.supplierId);
     setDate(formatDateInputAR());
     setItems(draft.items);
+    setFinance(emptyPurchaseFinance());
+    setOperationFor(() => createFinancialOperationResolver());
   };
 
   const discardDraft = () => {
@@ -195,38 +211,87 @@ export function ComprasPage() {
     setSupplier(draft.supplierId);
     setDate(formatDateInputAR());
     setItems(draft.items);
+    setFinance(emptyPurchaseFinance());
+    setOperationFor(() => createFinancialOperationResolver());
   };
 
   const savePurchase = async (status: PurchaseStatus) => {
-    if (items.length === 0 || !supplier) return;
-    await createPurchaseMutation.mutateAsync({
-      supplierId: supplier,
-      date,
-      items: items.map((it) => ({
-        productId: it.productId,
-        qty: it.qty,
-        cost: parseCostInput(it.cost),
-      })),
-      status,
-    });
-    resetDraft();
+    const error = purchaseFinanceError(finance, status === "Registrada");
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    if (
+      !supplier ||
+      !items.length ||
+      items.some(
+        (item) =>
+          !Number.isInteger(item.qty) || item.qty < 1 || !item.cost.trim(),
+      )
+    ) {
+      toast.error(
+        "Elegí proveedor y productos con cantidades enteras y costos válidos.",
+      );
+      return;
+    }
+    try {
+      const payload = {
+        supplierId: supplier,
+        date,
+        ...finance,
+        items: items.map((it) => ({
+          productId: it.productId,
+          qty: it.qty,
+          cost: amountCentsToPesos(parsePesosToAmountCents(it.cost)),
+        })),
+        status,
+      };
+      await createPurchaseMutation.mutateAsync({
+        ...payload,
+        operationId: operationFor(payload),
+      });
+      resetDraft();
+      toast.success(
+        status === "Registrada" ? "Compra registrada." : "Borrador guardado.",
+      );
+    } catch (error) {
+      toast.error(
+        getMutationErrorMessage(error, "No se pudo guardar la compra."),
+      );
+    }
   };
 
   const applyEdit = async (updated: Purchase) => {
-    await updatePurchaseMutation.mutateAsync({
-      id: updated.id,
-      supplierId: updated.supplierId,
-      date: updated.date,
-      items: updated.items.map((item) => ({
-        productId: item.productId,
-        qty: item.qty,
-        cost: item.cost,
-      })),
-    });
-    if (updated.status === "Registrada") {
-      await registerPurchaseMutation.mutateAsync(updated.id);
+    setSavingEdit(true);
+    try {
+      const error = purchaseFinanceError(
+        updated as PurchaseFinance,
+        updated.status === "Registrada",
+      );
+      if (error) throw new Error(error);
+      await updatePurchaseMutation.mutateAsync({
+        ...updated,
+        items: updated.items.map((item) => ({
+          productId: item.productId,
+          qty: item.qty,
+          cost: item.cost,
+        })),
+      });
+      if (updated.status === "Registrada")
+        await registerPurchaseMutation.mutateAsync(updated.id);
+      setEditing(null);
+      toast.success(
+        updated.status === "Registrada"
+          ? "Compra registrada."
+          : "Borrador actualizado.",
+      );
+    } catch (error) {
+      toast.error(
+        getMutationErrorMessage(error, "No se pudo guardar la compra."),
+      );
+    } finally {
+      setSavingEdit(false);
     }
-    setEditing(null);
   };
 
   const cancelPurchase = async (p: Purchase, reason: string) => {
@@ -317,6 +382,10 @@ export function ComprasPage() {
             </div>
           </CardBody>
 
+          <CardBody className="pt-0">
+            <PurchaseFinanceFields value={finance} onChange={setFinance} />
+          </CardBody>
+
           <CardBody className="pb-2 pt-0 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold">Productos</h3>
             <Button
@@ -359,13 +428,21 @@ export function ComprasPage() {
               </div>
               <Button
                 variant="outline"
-                disabled={items.length === 0}
+                disabled={
+                  items.length === 0 ||
+                  !supplier ||
+                  createPurchaseMutation.isPending
+                }
                 onClick={() => void savePurchase("Pendiente")}
               >
                 Guardar borrador
               </Button>
               <Button
-                disabled={items.length === 0}
+                disabled={
+                  items.length === 0 ||
+                  !supplier ||
+                  createPurchaseMutation.isPending
+                }
                 onClick={() => void savePurchase("Registrada")}
               >
                 Registrar compra
@@ -415,6 +492,9 @@ export function ComprasPage() {
                 <th className="app-table-heading font-medium">Proveedor</th>
                 <th className="app-table-heading font-medium">Productos</th>
                 <th className="app-table-heading font-medium">Estado</th>
+                <th className="app-table-heading font-medium">
+                  Pago / vencimiento
+                </th>
                 <th className="app-table-heading font-medium text-right">
                   Total
                 </th>
@@ -455,6 +535,39 @@ export function ComprasPage() {
                     <td className="px-5 py-3">
                       <StatusBadge tone={tone}>{status}</StatusBadge>
                     </td>
+                    <td className="px-5 py-3 text-xs">
+                      <div>
+                        {c.paymentCondition === "Credito"
+                          ? "A crédito"
+                          : c.paymentCondition === "Pagada"
+                            ? "Pagada"
+                            : "Sin seguimiento"}
+                      </div>
+                      {c.paymentCondition === "Credito" && (
+                        <div className="text-muted-foreground">
+                          Vence: {c.dueDate || "Sin completar"} ·{" "}
+                          {c.payable?.status ?? "Borrador"}
+                        </div>
+                      )}
+                      {c.paymentCondition === "Pagada" && (
+                        <div className="text-muted-foreground">
+                          {c.paymentDate}
+                          {c.paymentMethod ? ` · ${c.paymentMethod}` : ""}
+                          {c.paymentReference ? ` · ${c.paymentReference}` : ""}
+                        </div>
+                      )}
+                      {c.payable ? (
+                        <div className="text-xs text-muted-foreground">
+                          Cuenta: {c.payable.status}
+                          {c.payable.balanceCents > 0
+                            ? ` · Saldo ${formatARS(c.payable.balanceCents / 100)}`
+                            : ""}
+                          {c.payable.refundPendingCents > 0
+                            ? ` · Reintegro pendiente ${formatARS(c.payable.refundPendingCents / 100)}`
+                            : ""}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="px-5 py-3 text-right tabular-nums font-medium">
                       {formatARS(c.total)}
                     </td>
@@ -476,11 +589,7 @@ export function ComprasPage() {
                               <DropdownMenuItem onClick={() => setEditing(c)}>
                                 <Pencil /> Editar
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  void applyEdit({ ...c, status: "Registrada" })
-                                }
-                              >
+                              <DropdownMenuItem onClick={() => setEditing(c)}>
                                 <ArrowDown /> Registrar (ingresa stock)
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
@@ -586,6 +695,7 @@ export function ComprasPage() {
         suppliers={editSupplierOptions}
         onCancel={() => setEditing(null)}
         onSave={applyEdit}
+        saving={savingEdit}
       />
       <CancelPurchaseDialog
         purchase={cancelling}
@@ -748,20 +858,31 @@ function EditPurchaseDialog({
   suppliers,
   onCancel,
   onSave,
+  saving,
 }: {
   purchase: Purchase | null;
   products: Product[];
   suppliers: { id: string; name: string }[];
   onCancel: () => void;
   onSave: (p: Purchase) => Promise<void>;
+  saving: boolean;
 }) {
   const [supplierId, setSupplierId] = useState("");
   const [date, setDate] = useState("");
   const [items, setItems] = useState<Item[]>([]);
+  const [finance, setFinance] = useState(emptyPurchaseFinance);
 
   useEffect(() => {
     if (purchase) {
       setSupplierId(purchase.supplierId);
+      setFinance({
+        ...emptyPurchaseFinance(),
+        paymentCondition: purchase.paymentCondition ?? "SinSeguimiento",
+        dueDate: purchase.dueDate,
+        paymentDate: purchase.paymentDate,
+        paymentMethod: purchase.paymentMethod,
+        paymentReference: purchase.paymentReference,
+      });
       setDate(purchase.date);
       setItems(
         purchase.items.map((i) => ({
@@ -777,8 +898,30 @@ function EditPurchaseDialog({
   const total = items.reduce((s, i) => s + i.qty * parseCostInput(i.cost), 0);
 
   const save = (status: PurchaseStatus) => {
+    const error = purchaseFinanceError(finance, status === "Registrada");
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    if (
+      !supplierId ||
+      items.some(
+        (item) =>
+          !Number.isInteger(item.qty) || item.qty < 1 || !item.cost.trim(),
+      )
+    ) {
+      toast.error("Revisá proveedor, cantidades y costos.");
+      return;
+    }
+    try {
+      items.forEach((item) => parsePesosToAmountCents(item.cost));
+    } catch {
+      toast.error("Revisá los costos en pesos.");
+      return;
+    }
     void onSave({
       ...purchase,
+      ...finance,
       supplierId,
       date,
       items: items.map((it) => {
@@ -835,6 +978,7 @@ function EditPurchaseDialog({
             />
           </div>
         </div>
+        <PurchaseFinanceFields value={finance} onChange={setFinance} />
         <div className="border border-border rounded-md overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
             <span className="text-sm font-medium">Productos</span>
@@ -870,13 +1014,13 @@ function EditPurchaseDialog({
           </Button>
           <Button
             variant="outline"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || saving}
             onClick={() => save("Pendiente")}
           >
             Guardar cambios
           </Button>
           <Button
-            disabled={items.length === 0}
+            disabled={items.length === 0 || saving}
             onClick={() => save("Registrada")}
           >
             Guardar y registrar
@@ -922,13 +1066,18 @@ function CancelPurchaseDialog({
                 {suppliers.find((s) => s.id === purchase.supplierId)?.name}» (
                 {formatARS(purchase.total)}). El registro se conserva marcado
                 como anulado.
+                {purchase.payable?.payments.some(
+                  (payment) => !payment.reversedAt,
+                )
+                  ? " El pago se conserva y queda un reintegro pendiente en Proveedores → Cuenta hasta que recibas el dinero."
+                  : ""}
               </>
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-1.5 py-1">
           <Label className="text-xs text-muted-foreground">
-            Motivo (opcional)
+            {purchase?.payable ? "Motivo" : "Motivo (opcional)"}
           </Label>
           <Textarea
             rows={3}
@@ -941,7 +1090,7 @@ function CancelPurchaseDialog({
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
           <AlertDialogAction
-            disabled={saving}
+            disabled={saving || (!!purchase?.payable && !reason.trim())}
             onClick={(event) => {
               event.preventDefault();
               if (purchase) void onConfirm(purchase, reason.trim());

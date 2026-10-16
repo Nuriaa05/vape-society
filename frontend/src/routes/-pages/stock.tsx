@@ -1,3 +1,5 @@
+import { StockClassificationDialog } from "@/components/stock-classification-dialog";
+import { money } from "@/lib/collections-form";
 import { Card, CardHeader, CardToolbar } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell, StatusBadge } from "@/components/app-shell";
@@ -94,6 +96,11 @@ type AdjustType = (typeof ADJUST_TYPES)[number]["value"];
 export function StockPage() {
   const queryClient = useQueryClient();
   const [q, setQ] = useState("");
+  const [classifying, setClassifying] = useState<Product | null>(null);
+  const summaryQuery = useQuery({
+    queryKey: ["stock", "summary", q.trim()],
+    queryFn: () => stockRepository.summary(q.trim() || undefined),
+  });
   const [visibleStockCount, setVisibleStockCount] =
     useState(PAGE_LIST_INCREMENT);
   const [visibleMovementsCount, setVisibleMovementsCount] =
@@ -152,7 +159,11 @@ export function StockPage() {
 
   const list = useMemo(
     () =>
-      products.filter((p) => p.name.toLowerCase().includes(q.toLowerCase())),
+      products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q.trim().toLowerCase()) ||
+          p.barcode.toLowerCase().includes(q.trim().toLowerCase()),
+      ),
     [products, q],
   );
   const visibleStockProducts = useMemo(
@@ -210,7 +221,9 @@ export function StockPage() {
         id,
         minStock: Math.max(0, min),
       });
-      setProducts((arr) => arr.map((p) => (p.id === id ? saved : p)));
+      setProducts((arr) =>
+        arr.map((p) => (p.id === id ? { ...p, ...saved } : p)),
+      );
       setEditingMin(null);
       toast.success("Stock mínimo actualizado.");
     } catch (error) {
@@ -227,7 +240,11 @@ export function StockPage() {
     try {
       await reverseMutation.mutateAsync({ id: m.id, reason });
       setReverting(null);
-      toast.success("Ajuste manual revertido.");
+      toast.success(
+        m.sourceType === "StockClassification"
+          ? "Clasificación revertida."
+          : "Ajuste manual revertido.",
+      );
     } catch (error) {
       toast.error(
         getMutationErrorMessage(error, "No se pudo revertir el ajuste."),
@@ -243,7 +260,61 @@ export function StockPage() {
         reservado. Los ajustes manuales se registran como movimientos auditables
         y nunca pueden dejar stock disponible negativo.
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5">
+      <Card className="app-card-body space-y-3">
+        <h2 className="font-semibold">
+          Valor del inventario a costo de adquisición
+        </h2>
+        {summaryQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Cargando totales...</p>
+        ) : summaryQuery.error ? (
+          <p className="text-sm text-destructive">
+            No se pudieron cargar los totales.
+          </p>
+        ) : summaryQuery.data ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {(
+              [
+                [
+                  "Pagado",
+                  summaryQuery.data.paidQty,
+                  summaryQuery.data.paidValueCents,
+                ],
+                [
+                  "A crédito",
+                  summaryQuery.data.creditQty,
+                  summaryQuery.data.creditValueCents,
+                ],
+                [
+                  "Sin clasificar",
+                  summaryQuery.data.unclassifiedQty,
+                  summaryQuery.data.unclassifiedValueCents,
+                ],
+                [
+                  "Total físico",
+                  summaryQuery.data.physicalStock,
+                  summaryQuery.data.totalValueCents,
+                ],
+              ] as const
+            ).map(([label, qty, value]) => (
+              <div key={label}>
+                <p className="text-xs text-muted-foreground">
+                  {label} · {qty} unidades
+                </p>
+                <p className="font-semibold tabular-nums">{money(value)}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
+          {q.trim()
+            ? "Totales de todos los productos que coinciden con la búsqueda."
+            : "Totales de todo el inventario."}{" "}
+          Las unidades a crédito vendidas dejan de figurar en stock; la deuda
+          permanece en Proveedores hasta pagarla. Los ingresos manuales quedan
+          sin clasificar.
+        </p>
+      </Card>
+      <div className="grid grid-cols-1 gap-5">
         <Card>
           <CardHeader title="Inventario" />
           <CardToolbar className="flex flex-wrap items-center justify-between gap-3 pt-0">
@@ -261,7 +332,7 @@ export function StockPage() {
             </Button>
           </CardToolbar>
           <div className="max-h-[640px] overflow-auto">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[1080px] text-sm">
               <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
                 <tr>
                   <th className="app-table-heading font-medium">Producto</th>
@@ -273,6 +344,18 @@ export function StockPage() {
                   </th>
                   <th className="app-table-heading font-medium text-right">
                     Disponible
+                  </th>
+                  <th className="app-table-heading font-medium text-right">
+                    Pagado / valor
+                  </th>
+                  <th className="app-table-heading font-medium text-right">
+                    A crédito / valor
+                  </th>
+                  <th className="app-table-heading font-medium text-right">
+                    Sin clasificar / valor
+                  </th>
+                  <th className="app-table-heading font-medium text-right">
+                    Valor total
                   </th>
                   <th className="app-table-heading font-medium text-right">
                     Mínimo
@@ -315,6 +398,27 @@ export function StockPage() {
                       <td className="px-5 py-3 text-right tabular-nums font-semibold">
                         {available}
                       </td>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        <div>{p.paidQty ?? 0}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {money(p.paidValueCents ?? 0)}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        <div>{p.creditQty ?? 0}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {money(p.creditValueCents ?? 0)}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        <div>{p.unclassifiedQty ?? 0}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {money(p.unclassifiedValueCents ?? 0)}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums font-medium">
+                        {money(p.totalValueCents ?? 0)}
+                      </td>
                       <td className="px-5 py-3 text-right tabular-nums text-muted-foreground">
                         {p.minStock}
                       </td>
@@ -334,6 +438,12 @@ export function StockPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              disabled={(p.unclassifiedQty ?? 0) < 1}
+                              onClick={() => setClassifying(p)}
+                            >
+                              Clasificar stock existente
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openAdjust(p.id)}>
                               <Settings2 /> Ajustar stock
                             </DropdownMenuItem>
@@ -347,6 +457,46 @@ export function StockPage() {
                   );
                 })}
               </tbody>
+              {summaryQuery.data ? (
+                <tfoot className="border-t border-border bg-muted/40 font-semibold">
+                  <tr>
+                    <td className="px-5 py-3">
+                      Total{q.trim() ? " filtrado" : " general"}
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums">
+                      {summaryQuery.data.physicalStock}
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums">
+                      {summaryQuery.data.reservedStock}
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums">
+                      {summaryQuery.data.availableStock}
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums">
+                      <div>{summaryQuery.data.paidQty}</div>
+                      <div className="text-xs">
+                        {money(summaryQuery.data.paidValueCents)}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums">
+                      <div>{summaryQuery.data.creditQty}</div>
+                      <div className="text-xs">
+                        {money(summaryQuery.data.creditValueCents)}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums">
+                      <div>{summaryQuery.data.unclassifiedQty}</div>
+                      <div className="text-xs">
+                        {money(summaryQuery.data.unclassifiedValueCents)}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums">
+                      {money(summaryQuery.data.totalValueCents)}
+                    </td>
+                    <td colSpan={3}></td>
+                  </tr>
+                </tfoot>
+              ) : null}
             </table>
           </div>
           {(canShowMore(visibleStockCount, list.length) ||
@@ -400,10 +550,11 @@ export function StockPage() {
           <ul className="divide-y divide-border max-h-[640px] overflow-y-auto">
             {visibleMovements.map((m) => {
               const canRevert =
-                m.sourceType === "ManualAdjustment" &&
-                m.type === "Ajuste" &&
+                ((m.sourceType === "ManualAdjustment" && m.type === "Ajuste") ||
+                  m.sourceType === "StockClassification") &&
                 !m.reversed &&
-                !m.reversalOf;
+                !m.reversalOf &&
+                (m.canReverse ?? m.sourceType !== "StockClassification");
               return (
                 <li
                   key={m.id}
@@ -506,6 +657,13 @@ export function StockPage() {
         </Card>
       </div>
 
+      {classifying ? (
+        <StockClassificationDialog
+          key={classifying.id}
+          product={classifying}
+          close={() => setClassifying(null)}
+        />
+      ) : null}
       <AdjustStockDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -612,7 +770,8 @@ function ReverseMovementDialog({
   useEffect(() => {
     if (movement) setReason("");
   }, [movement]);
-  const canSave = true;
+  const classification = movement?.sourceType === "StockClassification";
+  const canSave = !classification || reason.trim().length >= 3;
   return (
     <AlertDialog
       open={movement !== null}
@@ -626,18 +785,23 @@ function ReverseMovementDialog({
           <AlertDialogDescription>
             {movement && (
               <>
-                Se revertira el ajuste manual de{" "}
+                {classification
+                  ? "Se revertirá la clasificación de "
+                  : "Se revertirá el ajuste manual de "}
                 <strong>{movement.productName}</strong> (
                 {movement.qty > 0 ? `+${movement.qty}` : movement.qty} unidades,
                 {movement.type.toLowerCase()} del {movement.date}). Se genera un
-                movimiento inverso y el original queda auditado.
+                movimiento inverso y el original queda auditado.{" "}
+                {classification
+                  ? "Las unidades vuelven a sin clasificar. Solo se puede revertir si el lote clasificado permanece intacto."
+                  : ""}
               </>
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-1.5 py-1">
           <Label className="text-xs text-muted-foreground">
-            Motivo (opcional)
+            {classification ? "Motivo (obligatorio)" : "Motivo (opcional)"}
           </Label>
           <Textarea
             rows={3}

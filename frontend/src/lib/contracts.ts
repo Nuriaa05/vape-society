@@ -1,3 +1,8 @@
+import type {
+  PurchaseFinance,
+  SupplierPayable,
+  InventoryValuation,
+} from "@/lib/supplier-credit";
 import type { PaymentTerms, SaleFinance } from "@/lib/collections";
 export type Category = string;
 
@@ -31,7 +36,7 @@ export interface SaleQuote {
   cashShortfall: number;
 }
 
-export interface Product {
+export interface Product extends Partial<InventoryValuation> {
   itemType: "Product";
   id: string;
   barcode: string;
@@ -125,7 +130,8 @@ export interface Sale {
 
 export type PurchaseStatus = "Pendiente" | "Registrada" | "Anulada";
 
-export interface Purchase {
+export interface Purchase extends Partial<PurchaseFinance> {
+  payable?: SupplierPayable | null;
   id: string;
   supplierId: string;
   date: string;
@@ -136,11 +142,12 @@ export interface Purchase {
 }
 
 export interface StockMovement {
+  canReverse?: boolean;
   id: string;
   date: string;
   productId: string;
   productName: string;
-  type: "Venta" | "Compra" | "Ajuste" | "Reverso";
+  type: "Venta" | "Compra" | "Ajuste" | "Reverso" | "Clasificacion";
   qty: number;
   sourceType?: string;
   sourceId?: string;

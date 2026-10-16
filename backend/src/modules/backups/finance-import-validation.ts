@@ -109,7 +109,8 @@ export function validateFinancialImport(database: DatabaseSync): void {
       OR (o.kind = 'Sale' AND NOT EXISTS (SELECT 1 FROM Sale s
         WHERE s.id = o.resultId AND s.operationId = o.operationId
           AND s.operationPayload = o.payload))
-      OR o.kind NOT IN ('OpeningBalance', 'Collection', 'Accreditation', 'Refund', 'Sale', 'CardSchedule') LIMIT 1`,
+      OR o.kind NOT IN ('OpeningBalance', 'Collection', 'Accreditation', 'Refund', 'Sale', 'CardSchedule',
+        'SupplierPurchase', 'SupplierPurchaseDeleted', 'SupplierOpening', 'SupplierPayment', 'SupplierRefund', 'InventoryClassification') LIMIT 1`,
   ];
   for (const [table, column] of [
     ["ReceivableInstallment", "dueDate"],

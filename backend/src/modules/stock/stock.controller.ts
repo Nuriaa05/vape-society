@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
 
 import {
+  ClassifyStockDto,
   CreateStockAdjustmentDto,
   ReverseStockMovementDto,
 } from "./dto/stock-adjustment.dto";
@@ -13,6 +14,16 @@ export class StockController {
   @Get()
   findAll() {
     return this.stockService.findAll();
+  }
+
+  @Get("summary")
+  summary(@Query("q") q?: string) {
+    return this.stockService.summary(q);
+  }
+
+  @Post("classifications")
+  classify(@Body() dto: ClassifyStockDto) {
+    return this.stockService.classify(dto);
   }
 
   @Get("movements")

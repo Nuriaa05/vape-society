@@ -17,6 +17,7 @@ model Supplier {
   notes        String?
   products     Product[]
   purchases    Purchase[]
+  payables     SupplierPayable[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -79,6 +80,7 @@ model Product {
   saleComponents   SaleItemComponent[]
   purchaseItems    PurchaseItem[]
   stockMovements   StockMovement[]
+  inventoryLots    InventoryLot[]
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
 
@@ -205,6 +207,12 @@ model Purchase {
   date             DateTime
   status           String
   totalAmountCents Int
+  paymentCondition String        @default("SinSeguimiento")
+  dueDate          String?
+  paymentDate      String?
+  paymentMethod    String?
+  paymentReference String?
+  payable          SupplierPayable?
   cancelReason     String?
   cancelledAt      DateTime?
   supplier         Supplier       @relation(fields: [supplierId], references: [id])
@@ -227,6 +235,7 @@ model PurchaseItem {
   lineTotalAmountCents Int
   purchase             Purchase @relation(fields: [purchaseId], references: [id])
   product              Product  @relation(fields: [productId], references: [id])
+  inventoryLot         InventoryLot?
 
   @@index([purchaseId])
   @@index([productId])
@@ -239,9 +248,12 @@ model StockMovement {
   sourceType    String
   sourceId      String
   physicalDelta Int
+  unallocatedQty Int @default(0)
   note          String?
   reversalOfId  String?
   product       Product  @relation(fields: [productId], references: [id])
+  inventoryLots InventoryLot[]
+  allocations   InventoryAllocation[]
   createdAt     DateTime @default(now())
 
   @@index([productId])
@@ -445,4 +457,92 @@ model FinancialOperation {
   payload     String
   resultId    String
   createdAt   DateTime @default(now())
+}
+
+model SupplierPayable {
+  id           String @id @default(cuid())
+  supplierId   String
+  purchaseId   String? @unique
+  title        String
+  amountCents  Int
+  dueDate      String
+  status       String @default("Activa")
+  cancelledAt  DateTime?
+  cancelReason String?
+  createdAt    DateTime @default(now())
+  supplier     Supplier @relation(fields: [supplierId], references: [id])
+  purchase     Purchase? @relation(fields: [purchaseId], references: [id])
+  payments     SupplierPayment[]
+  refunds      SupplierRefund[]
+  lots         InventoryLot[]
+
+  @@index([supplierId])
+  @@index([dueDate])
+}
+
+model SupplierPayment {
+  id             String @id @default(cuid())
+  payableId      String
+  date           String
+  method         String
+  reference      String?
+  amountCents    Int
+  reversedAt     DateTime?
+  reversalReason String?
+  createdAt      DateTime @default(now())
+  payable        SupplierPayable @relation(fields: [payableId], references: [id])
+
+  @@index([payableId])
+  @@index([date])
+}
+
+model SupplierRefund {
+  id             String @id @default(cuid())
+  payableId      String
+  date           String
+  method         String
+  reference      String?
+  amountCents    Int
+  reversedAt     DateTime?
+  reversalReason String?
+  createdAt      DateTime @default(now())
+  payable        SupplierPayable @relation(fields: [payableId], references: [id])
+
+  @@index([payableId])
+  @@index([date])
+}
+
+model InventoryLot {
+  id                  String @id @default(cuid())
+  productId           String
+  purchaseItemId      String? @unique
+  payableId           String?
+  originMovementId    String?
+  classification      String
+  unitCostAmountCents Int
+  receivedAt          DateTime
+  initialQty          Int
+  remainingQty        Int
+  createdAt           DateTime @default(now())
+  product             Product @relation(fields: [productId], references: [id])
+  purchaseItem        PurchaseItem? @relation(fields: [purchaseItemId], references: [id])
+  payable             SupplierPayable? @relation(fields: [payableId], references: [id])
+  originMovement      StockMovement? @relation(fields: [originMovementId], references: [id])
+  allocations         InventoryAllocation[]
+
+  @@index([productId, receivedAt])
+  @@index([payableId])
+  @@index([originMovementId])
+}
+
+model InventoryAllocation {
+  id              String @id @default(cuid())
+  lotId           String
+  stockMovementId String
+  qty             Int
+  lot             InventoryLot @relation(fields: [lotId], references: [id])
+  stockMovement   StockMovement @relation(fields: [stockMovementId], references: [id])
+
+  @@unique([lotId, stockMovementId])
+  @@index([stockMovementId])
 }

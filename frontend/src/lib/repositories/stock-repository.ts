@@ -1,9 +1,14 @@
+import type {
+  InventoryValuation,
+  StockSummary,
+  StockClassification,
+} from "@/lib/supplier-credit";
 import { apiClient } from "@/lib/api-client";
 import type { Category, Product, Sale, StockMovement } from "@/lib/contracts";
 import { formatDateTimeAR } from "@/lib/formatters";
 import { amountCentsToPesos } from "@/lib/money";
 
-type ApiStockRow = {
+type ApiStockRow = Partial<InventoryValuation> & {
   productId: string;
   barcode: string | null;
   productName: string;
@@ -20,6 +25,7 @@ type ApiStockRow = {
 };
 
 type ApiStockMovement = {
+  canReverse?: boolean;
   id: string;
   date: string;
   productId: string;
@@ -48,6 +54,15 @@ export type StockAdjustmentInput =
 
 function toProduct(row: ApiStockRow): Product {
   return {
+    paidQty: row.paidQty ?? 0,
+    creditQty: row.creditQty ?? 0,
+    unclassifiedQty: row.unclassifiedQty ?? row.physicalStock,
+    paidValueCents: row.paidValueCents ?? 0,
+    creditValueCents: row.creditValueCents ?? 0,
+    unclassifiedValueCents:
+      row.unclassifiedValueCents ?? row.physicalStock * row.costAmountCents,
+    totalValueCents:
+      row.totalValueCents ?? row.physicalStock * row.costAmountCents,
     itemType: "Product",
     id: row.productId,
     barcode: row.barcode ?? "",
@@ -74,7 +89,8 @@ function toMovement(
     movement.type === "Venta" ||
     movement.type === "Compra" ||
     movement.type === "Ajuste" ||
-    movement.type === "Reverso"
+    movement.type === "Reverso" ||
+    movement.type === "Clasificacion"
       ? movement.type
       : "Ajuste";
 
@@ -88,12 +104,16 @@ function toMovement(
     note: movement.note ?? undefined,
     sourceType: movement.sourceType,
     sourceId: movement.sourceId,
+    canReverse: movement.canReverse,
     reversed: reversedIds.has(movement.id),
     reversalOf: movement.reversalOf ?? undefined,
   };
 }
 
 export const stockRepository = {
+  summary: (q?: string) => apiClient.get<StockSummary>("/stock/summary", { q }),
+  classify: (data: StockClassification & { operationId: string }) =>
+    apiClient.post("/stock/classifications", data),
   async findAll(): Promise<StockMovement[]> {
     const movements =
       await apiClient.get<ApiStockMovement[]>("/stock/movements");
@@ -147,7 +167,11 @@ export const stockRepository = {
 
   getStockValue(products: Product[]): number {
     return products.reduce(
-      (sum, product) => sum + product.cost * product.stock,
+      (sum, product) =>
+        sum +
+        (product.totalValueCents !== undefined
+          ? product.totalValueCents / 100
+          : product.cost * product.stock),
       0,
     );
   },
