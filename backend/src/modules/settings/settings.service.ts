@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 
 import { PrismaService } from "../../prisma/prisma.service";
@@ -36,6 +40,8 @@ export type SettingsResponse = {
     enabled: boolean;
     surchargeBasisPoints: number;
     cashHandling: boolean;
+    supportsInstallments: boolean;
+    collectionEligible: boolean;
   }>;
 };
 
@@ -194,6 +200,8 @@ export class SettingsService {
         enabled: true,
         surchargeBasisPoints: true,
         cashHandling: true,
+        supportsInstallments: true,
+        collectionEligible: true,
       },
     });
   }
@@ -207,6 +215,8 @@ export class SettingsService {
           enabled: dto.enabled ?? true,
           surchargeBasisPoints: dto.surchargeBasisPoints ?? 0,
           cashHandling: dto.cashHandling ?? false,
+          supportsInstallments: dto.supportsInstallments ?? false,
+          collectionEligible: dto.collectionEligible ?? false,
         },
         select: {
           id: true,
@@ -214,10 +224,15 @@ export class SettingsService {
           enabled: true,
           surchargeBasisPoints: true,
           cashHandling: true,
+          supportsInstallments: true,
+          collectionEligible: true,
         },
       });
     } catch (error) {
-      this.handleUniqueError(error, "Ya existe un medio de pago con ese nombre.");
+      this.handleUniqueError(
+        error,
+        "Ya existe un medio de pago con ese nombre.",
+      );
       throw error;
     }
   }
@@ -235,24 +250,33 @@ export class SettingsService {
           enabled: true,
           surchargeBasisPoints: true,
           cashHandling: true,
+          supportsInstallments: true,
+          collectionEligible: true,
         },
       });
     } catch (error) {
-      this.handleUniqueError(error, "Ya existe un medio de pago con ese nombre.");
+      this.handleUniqueError(
+        error,
+        "Ya existe un medio de pago con ese nombre.",
+      );
       throw error;
     }
   }
 
-  async deletePaymentMethod(id: string): Promise<{ id: string; deleted: true }> {
+  async deletePaymentMethod(
+    id: string,
+  ): Promise<{ id: string; deleted: true }> {
     await this.assertPaymentMethodExists(id);
 
-    const salesCount = await this.prisma.sale.count({
-      where: { paymentMethodId: id },
-    });
+    const [salesCount, collectionsCount, refundsCount] = await Promise.all([
+      this.prisma.sale.count({ where: { paymentMethodId: id } }),
+      this.prisma.collection.count({ where: { paymentMethodId: id } }),
+      this.prisma.refund.count({ where: { paymentMethodId: id } }),
+    ]);
 
-    if (salesCount > 0) {
+    if (salesCount + collectionsCount + refundsCount > 0) {
       throw new ConflictException(
-        "No se puede eliminar el método de pago porque tiene ventas asociadas.",
+        "No se puede eliminar el método de pago porque tiene operaciones asociadas.",
       );
     }
 
@@ -292,7 +316,9 @@ export class SettingsService {
     }
   }
 
-  private toComboTicketMode(value: string): "ComboLine" | "ComboWithComponents" {
+  private toComboTicketMode(
+    value: string,
+  ): "ComboLine" | "ComboWithComponents" {
     return value === "ComboWithComponents" ? value : "ComboLine";
   }
 }

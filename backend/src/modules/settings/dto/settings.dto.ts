@@ -87,6 +87,14 @@ export class CreatePaymentMethodDto {
   @IsOptional()
   @IsBoolean()
   cashHandling?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  supportsInstallments?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  collectionEligible?: boolean;
 }
 
 export class UpdatePaymentMethodDto {
@@ -108,4 +116,12 @@ export class UpdatePaymentMethodDto {
   @IsOptional()
   @IsBoolean()
   cashHandling?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  supportsInstallments?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  collectionEligible?: boolean;
 }

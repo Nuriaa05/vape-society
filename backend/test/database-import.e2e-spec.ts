@@ -20,6 +20,7 @@ import { AppModule } from "../src/app.module";
 import { BackupsService } from "../src/modules/backups/backups.service";
 import { DatabaseImportService } from "../src/modules/backups/database-import.service";
 import { ProductsService } from "../src/modules/products/products.service";
+import { createLegacyBackup } from "./legacy-test-database";
 import {
   createSeededTestDatabase,
   type SeededTestDatabase,
@@ -156,12 +157,9 @@ describe("Database import", () => {
   });
 
   it("upgrades an older backup in its temporary copy before importing", async () => {
-    const older = modifySource((sqlite) => {
-      sqlite.exec('ALTER TABLE "AppSettings" DROP COLUMN "dailyBackupEnabled"');
-      sqlite.exec(
-        "DELETE FROM _prisma_migrations WHERE migration_name >= '20261006000000_daily_backups'",
-      );
-    });
+    const oldPath = join(backupDir, "legacy.db");
+    createLegacyBackup(oldPath);
+    const older = readFileSync(oldPath);
     const preview = await upload(older);
     await request(app.getHttpServer())
       .post(`/api/backups/import/${preview.body.id}/confirm`)

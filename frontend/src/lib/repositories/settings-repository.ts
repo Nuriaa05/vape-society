@@ -30,7 +30,12 @@ export type CategoryUpdateInput = Partial<Pick<CategorySetting, "name">> & {
 export type PaymentMethodUpdateInput = Partial<
   Pick<
     PaymentMethodSetting,
-    "name" | "enabled" | "surchargeBasisPoints" | "cashHandling"
+    | "name"
+    | "enabled"
+    | "surchargeBasisPoints"
+    | "cashHandling"
+    | "supportsInstallments"
+    | "collectionEligible"
   >
 >;
 
@@ -41,6 +46,8 @@ function toPaymentMethod(method: ApiPaymentMethod): PaymentMethodSetting {
     enabled: method.enabled,
     surchargeBasisPoints: method.surchargeBasisPoints ?? 0,
     cashHandling: method.cashHandling ?? false,
+    supportsInstallments: method.supportsInstallments ?? false,
+    collectionEligible: method.collectionEligible ?? false,
   };
 }
 

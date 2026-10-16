@@ -1,3 +1,8 @@
+import type {
+  PaymentTerms,
+  DirectPlanInput,
+  CardPlanInput,
+} from "@/lib/collections";
 import {
   createContext,
   useContext,
@@ -7,7 +12,13 @@ import {
 import type { DeliveryStatus } from "@/lib/contracts";
 import type { Line } from "@/lib/sale-cart";
 
-type SaleDraft = {
+export type SaleDraft = {
+  customerId: string;
+  paymentTerms: PaymentTerms;
+  directPlan: DirectPlanInput;
+  cardPlan: CardPlanInput;
+  operationId: string;
+  operationFingerprint: string;
   search: string;
   lines: Line[];
   activeLineProductId: string | null;
@@ -22,6 +33,17 @@ type SaleDraft = {
 
 export function createEmptySaleDraft(): SaleDraft {
   return {
+    customerId: "",
+    paymentTerms: "Immediate",
+    directPlan: {
+      installmentCount: 3,
+      firstDueDate: "",
+      surchargeBasisPoints: 0,
+      upfrontAmountCents: 0,
+    },
+    cardPlan: { installmentCount: 3, processor: "", settlements: [] },
+    operationId: crypto.randomUUID(),
+    operationFingerprint: "",
     search: "",
     lines: [],
     activeLineProductId: null,

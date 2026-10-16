@@ -162,21 +162,29 @@ describe("SettingsService", () => {
       name: "Pago local",
       surchargeBasisPoints: 175,
       cashHandling: true,
+      supportsInstallments: false,
+      collectionEligible: true,
     });
 
     expect(created).toMatchObject({
       surchargeBasisPoints: 175,
       cashHandling: true,
+      supportsInstallments: false,
+      collectionEligible: true,
     });
 
     await expect(
       service.updatePaymentMethod(created.id, {
         surchargeBasisPoints: 250,
         cashHandling: false,
+        supportsInstallments: true,
+        collectionEligible: false,
       }),
     ).resolves.toMatchObject({
       surchargeBasisPoints: 250,
       cashHandling: false,
+      supportsInstallments: true,
+      collectionEligible: false,
     });
   });
 });

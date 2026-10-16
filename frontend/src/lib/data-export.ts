@@ -144,6 +144,8 @@ const historyTypeLabels: Record<HistoryEventType, string> = {
   combos: "Combos",
   settings: "Configuración",
   backups: "Backups",
+  customers: "Clientes",
+  collections: "Cobranzas",
 };
 
 function calendarDate(value: string): string {

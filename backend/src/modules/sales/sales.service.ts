@@ -14,7 +14,13 @@ import {
   type CouponResponse,
   CouponsService,
 } from "../coupons/coupons.service";
-import { CancelSaleDto, CreateSaleDto } from "./dto/sale.dto";
+import { CancelSaleDto, CreateSaleDto, QuoteSaleDto } from "./dto/sale.dto";
+import { canonicalPayload } from "../collections/finance-rules";
+import {
+  persistSaleFinance,
+  prepareSaleFinance,
+  SaleFinance,
+} from "./sale-finance";
 
 const saleInclude = {
   paymentMethod: true,
@@ -93,9 +99,11 @@ type PaymentMethodForSale = {
   enabled: boolean;
   surchargeBasisPoints: number;
   cashHandling: boolean;
+  supportsInstallments: boolean;
 };
 
 type SalePricingContext = {
+  finance?: SaleFinance;
   preparedLines: PreparedSaleLine[];
   stockRequirements: StockRequirement[];
   payment: PaymentMethodForSale;
@@ -106,6 +114,7 @@ type SalePricingContext = {
 type CouponDiscountType = "Percentage" | "FixedAmount";
 
 export type SalePricingResponse = {
+  finance?: SaleFinance;
   couponId: string | null;
   couponCode: string | null;
   couponType: CouponDiscountType | null;
@@ -130,7 +139,9 @@ export type SaleResponse = SalePricingResponse & {
   customerPhone: string | null;
   deliveryStatus: string;
   status: string;
-  paymentMethodId: string;
+  paymentMethodId: string | null;
+  customerId: string | null;
+  paymentTerms: string | null;
   payment: string;
   items: Array<{
     id: string;
@@ -220,27 +231,59 @@ export class SalesService {
     return this.serializeSale(sale);
   }
 
-  async quote(dto: CreateSaleDto): Promise<SalePricingResponse> {
+  async quote(dto: QuoteSaleDto): Promise<SalePricingResponse> {
     return this.prisma.$transaction(async (tx) => {
-      const context = await this.preparePricingContext(tx, dto);
+      const context = await this.preparePricingContext(tx, dto, dto);
       return this.serializePricingContext(context);
     });
   }
 
   async create(dto: CreateSaleDto): Promise<SaleResponse> {
     return this.prisma.$transaction(async (tx) => {
+      if (dto.paymentTerms && !dto.operationId?.trim())
+        throw new BadRequestException("Falta el identificador de operación.");
+      if (dto.operationId) {
+        const previous = await tx.sale.findUnique({
+          where: { operationId: dto.operationId },
+          include: saleInclude,
+        });
+        if (previous) {
+          if (previous.operationPayload !== canonicalPayload(dto))
+            throw new ConflictException(
+              "El identificador de operación ya se utilizó con otros datos.",
+            );
+          return this.serializeSale(previous);
+        }
+        const financialOperation = await tx.financialOperation.findUnique({
+          where: { operationId: dto.operationId },
+        });
+        if (financialOperation)
+          throw new ConflictException(
+            "El identificador de operación ya está utilizado.",
+          );
+      }
       const context = await this.preparePricingContext(tx, dto);
       this.assertCashForCreation(context);
       const number = await this.receiptNumberService.nextSaleNumber(tx);
+      const customer = dto.customerId
+        ? await tx.customer.findUnique({ where: { id: dto.customerId } })
+        : null;
 
-      const sale = await tx.sale.create({
+      let sale = await tx.sale.create({
         data: {
           number,
-          customerName: dto.customerName?.trim() || null,
-          customerPhone: dto.customerPhone?.trim() || null,
+          customerId: customer?.id ?? null,
+          customerName: customer?.name ?? (dto.customerName?.trim() || null),
+          customerPhone: customer?.phone ?? (dto.customerPhone?.trim() || null),
+          paymentTerms: dto.paymentTerms ?? null,
+          operationId: dto.operationId ?? null,
+          operationPayload: dto.operationId ? canonicalPayload(dto) : null,
           deliveryStatus: dto.deliveryStatus,
           status: "Confirmada",
-          paymentMethodId: context.payment.id,
+          paymentMethodId:
+            dto.paymentTerms === "DirectInstallments"
+              ? null
+              : context.payment.id,
           paymentMethodName: context.payment.name,
           couponId: context.coupon?.id ?? null,
           couponCode: context.coupon?.code ?? null,
@@ -280,6 +323,23 @@ export class SalesService {
         },
         include: saleInclude,
       });
+
+      if (context.finance) {
+        await persistSaleFinance(tx, sale, dto, context.finance);
+        sale = await tx.sale.findUniqueOrThrow({
+          where: { id: sale.id },
+          include: saleInclude,
+        });
+      }
+      if (dto.operationId)
+        await tx.financialOperation.create({
+          data: {
+            operationId: dto.operationId,
+            kind: "Sale",
+            payload: canonicalPayload(dto),
+            resultId: sale.id,
+          },
+        });
 
       if (dto.deliveryStatus === "Entregado") {
         await this.applyDeliveredStock(tx, sale.id, context.stockRequirements);
@@ -341,6 +401,11 @@ export class SalesService {
         include: saleInclude,
       });
 
+      await tx.receivablePlan.updateMany({
+        where: { saleId: sale.id, status: "Activo" },
+        data: { status: "Anulado", cancelReason, cancelledAt: new Date() },
+      });
+
       return this.serializeSale(updated);
     });
   }
@@ -393,9 +458,46 @@ export class SalesService {
   private async preparePricingContext(
     tx: Prisma.TransactionClient,
     dto: CreateSaleDto,
+    quoteOptions?: Pick<
+      QuoteSaleDto,
+      "pricingOnly" | "directSurchargeBasisPoints"
+    >,
   ): Promise<SalePricingContext> {
+    const pricingOnly = quoteOptions?.pricingOnly === true;
     const requestedItems = this.aggregateRequestedItems(dto.items);
-    const payment = await this.resolvePaymentMethod(tx, dto.paymentMethodId);
+    if (!pricingOnly && dto.customerId) {
+      const customer = await tx.customer.findUnique({
+        where: { id: dto.customerId },
+      });
+      if (!customer?.active)
+        throw new BadRequestException(
+          "El cliente indicado no existe o está archivado.",
+        );
+    }
+    const payment: PaymentMethodForSale =
+      dto.paymentTerms === "DirectInstallments"
+        ? {
+            id: "",
+            name: "Cuotas directas",
+            enabled: true,
+            cashHandling: false,
+            supportsInstallments: false,
+            surchargeBasisPoints:
+              (pricingOnly
+                ? quoteOptions?.directSurchargeBasisPoints
+                : undefined) ?? dto.directPlan?.surchargeBasisPoints ?? 0,
+          }
+        : await this.resolvePaymentMethod(tx, dto.paymentMethodId ?? "");
+
+    if (
+      pricingOnly &&
+      dto.paymentTerms === "CardInstallments" &&
+      (!payment.supportsInstallments || payment.cashHandling)
+    ) {
+      throw new BadRequestException(
+        "Seleccione un medio de tarjeta habilitado para cuotas.",
+      );
+    }
 
     if (!payment.cashHandling && dto.cashReceivedAmountCents !== undefined) {
       throw new BadRequestException(
@@ -424,8 +526,12 @@ export class SalesService {
         ? dto.cashReceivedAmountCents
         : null,
     });
+    const finance = pricingOnly
+      ? undefined
+      : await prepareSaleFinance(tx, dto, totals.totalAmountCents);
 
     return {
+      finance,
       preparedLines,
       stockRequirements,
       payment,
@@ -495,6 +601,7 @@ export class SalesService {
         enabled: true,
         surchargeBasisPoints: true,
         cashHandling: true,
+        supportsInstallments: true,
       },
     });
 
@@ -813,6 +920,7 @@ export class SalesService {
     context: SalePricingContext,
   ): SalePricingResponse {
     return {
+      ...(context.finance ? { finance: context.finance } : {}),
       couponId: context.coupon?.id ?? null,
       couponCode: context.coupon?.code ?? null,
       couponType: context.coupon?.discountType ?? null,
@@ -837,10 +945,16 @@ export class SalesService {
       date: sale.date.toISOString(),
       customerName: sale.customerName,
       customerPhone: sale.customerPhone,
+      customerId: sale.customerId,
+      paymentTerms: sale.paymentTerms,
+      ...(sale.financeSnapshot
+        ? { finance: JSON.parse(sale.financeSnapshot) as SaleFinance }
+        : {}),
       deliveryStatus: sale.deliveryStatus,
       status: sale.status,
       paymentMethodId: sale.paymentMethodId,
-      payment: sale.paymentMethodName || sale.paymentMethod.name,
+      payment:
+        sale.paymentMethodName || sale.paymentMethod?.name || "Cuotas directas",
       items: sale.items.map((item) => ({
         id: item.id,
         itemType: item.itemType,

@@ -1,3 +1,4 @@
+import type { PaymentTerms, SaleFinance } from "@/lib/collections";
 export type Category = string;
 
 export type PaymentMethodName = string;
@@ -13,6 +14,7 @@ export interface CouponSetting {
 }
 
 export interface SaleQuote {
+  finance?: SaleFinance;
   subtotal: number;
   discount: number;
   net: number;
@@ -84,6 +86,9 @@ export type DeliveryStatus = "Pendiente" | "Entregado";
 export type SaleStatus = "Confirmada" | "Anulada";
 
 export interface Sale {
+  customerId?: string;
+  paymentTerms?: PaymentTerms | null;
+  finance?: SaleFinance;
   id: string;
   number: string;
   date: string;
@@ -162,6 +167,8 @@ export interface CategorySetting {
 }
 
 export interface PaymentMethodSetting {
+  supportsInstallments?: boolean;
+  collectionEligible?: boolean;
   id: string;
   name: string;
   enabled: boolean;

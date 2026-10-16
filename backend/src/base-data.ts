@@ -47,7 +47,14 @@ export async function ensureBaseData(prisma: PrismaClient): Promise<void> {
         existingNames.has(method.name.trim().toLowerCase())
       )
         continue;
-      await tx.paymentMethod.create({ data: { ...method, enabled: true } });
+      await tx.paymentMethod.create({
+        data: {
+          ...method,
+          enabled: true,
+          collectionEligible: ["pm1", "pm2", "pm4"].includes(method.id),
+          supportsInstallments: method.id === "pm7",
+        },
+      });
     }
     const legacyCard = existing.find((method) => method.id === "pm3");
     if (

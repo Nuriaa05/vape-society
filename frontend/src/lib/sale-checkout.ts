@@ -1,3 +1,8 @@
+import type {
+  PaymentTerms,
+  DirectPlanInput,
+  CardPlanInput,
+} from "@/lib/collections";
 import type { DeliveryStatus } from "@/lib/contracts";
 import { parsePesosToAmountCents } from "@/lib/money";
 
@@ -12,6 +17,10 @@ export function parseOptionalCashInput(input: string): number | undefined {
 }
 
 export function buildSaleQuoteKey(input: {
+  customerId?: string;
+  paymentTerms?: PaymentTerms;
+  directPlan?: DirectPlanInput;
+  cardPlan?: CardPlanInput;
   lines: SaleQuoteKeyLine[];
   paymentMethodId: string;
   couponCode: string;
@@ -35,6 +44,10 @@ export function buildSaleQuoteKey(input: {
     cashReceived,
     input.deliveryStatus,
     input.allowNegativeStock,
+    input.customerId ?? null,
+    input.paymentTerms ?? "Immediate",
+    input.directPlan ?? null,
+    input.cardPlan ?? null,
   ] as const;
 }
 
@@ -48,4 +61,15 @@ function normalizeCashForKey(input: string): number | string | null {
   } catch {
     return input.trim();
   }
+}
+
+export function resolveSaleOperationId(
+  previousFingerprint: string,
+  fingerprint: string,
+  operationId: string,
+  createId: () => string = () => crypto.randomUUID(),
+): string {
+  return previousFingerprint && previousFingerprint !== fingerprint
+    ? createId()
+    : operationId;
 }

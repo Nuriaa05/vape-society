@@ -1,3 +1,8 @@
+import {
+  SaleFinanceFields,
+  type FinanceDraft,
+} from "@/components/sale-finance-fields";
+import { SaleCustomerFields } from "@/components/sale-customer-fields";
 import { Card, CardToolbar } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
@@ -24,6 +29,7 @@ import {
   type Product,
   type Sale,
   type SaleCatalogItem,
+  type SaleQuote,
 } from "@/lib/contracts";
 import { formatARS, formatReceiptDateTimeAR } from "@/lib/formatters";
 import {
@@ -44,12 +50,19 @@ import {
   setLineQuantity,
   type Line,
 } from "@/lib/sale-cart";
-import { buildSaleQuoteKey, parseOptionalCashInput } from "@/lib/sale-checkout";
-import { basisPointsToPercentInput } from "@/lib/payment-pricing";
 import {
-  getAvailablePaymentMethods,
-  resolveSelectedPaymentMethodId,
-} from "@/lib/payment-methods";
+  buildSaleQuoteKey,
+  parseOptionalCashInput,
+  resolveSaleOperationId,
+} from "@/lib/sale-checkout";
+import { basisPointsToPercentInput } from "@/lib/payment-pricing";
+import { resolveSelectedPaymentMethodId } from "@/lib/payment-methods";
+import {
+  getSaleFinanceIssue,
+  getSalePaymentMethods,
+  nextMonthlyDueDate,
+} from "@/lib/sale-finance-validation";
+import type { CreateSaleInput } from "@/lib/repositories/sales-repository";
 import { getSaleableProducts } from "@/lib/product-visibility";
 import {
   productsRepository,
@@ -106,6 +119,8 @@ export function NuevaVenta() {
       void queryClient.invalidateQueries({ queryKey: ["stock"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       void queryClient.invalidateQueries({ queryKey: ["reports"] });
+      void queryClient.invalidateQueries({ queryKey: ["collections"] });
+      void queryClient.invalidateQueries({ queryKey: ["history"] });
     },
   });
   const cancelSaleMutation = useMutation({
@@ -116,6 +131,8 @@ export function NuevaVenta() {
       void queryClient.invalidateQueries({ queryKey: ["stock"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       void queryClient.invalidateQueries({ queryKey: ["reports"] });
+      void queryClient.invalidateQueries({ queryKey: ["collections"] });
+      void queryClient.invalidateQueries({ queryKey: ["history"] });
     },
   });
   const saleProducts = useMemo(() => {
@@ -168,6 +185,26 @@ export function NuevaVenta() {
   );
   const [customerName, setCustomerName] = useState(draft.customerName);
   const [customerPhone, setCustomerPhone] = useState(draft.customerPhone);
+  const [financeDraft, setFinanceDraft] = useState<FinanceDraft>(() => ({
+    customerId: draft.customerId,
+    paymentTerms: draft.paymentTerms,
+    directPlan: draft.directPlan,
+    cardPlan: { ...draft.cardPlan, settlements: [] },
+    operationId: draft.operationId,
+    operationFingerprint: draft.operationFingerprint,
+  }));
+  const [financeMoneyValid, setFinanceMoneyValid] = useState(true);
+  const directSale = financeDraft.paymentTerms === "DirectInstallments";
+  const financeInput = {
+    customerId: financeDraft.customerId || undefined,
+    paymentTerms: financeDraft.paymentTerms,
+    directPlan: directSale ? financeDraft.directPlan : undefined,
+    cardPlan:
+      financeDraft.paymentTerms === "CardInstallments"
+        ? financeDraft.cardPlan
+        : undefined,
+  };
+  const [financeFieldsKey, setFinanceFieldsKey] = useState(0);
   const [confirmed, setConfirmed] = useState(false);
   const [confirmedSale, setConfirmedSale] = useState<Sale | null>(null);
   const [cancelled, setCancelled] = useState<{ reason: string } | null>(null);
@@ -178,6 +215,7 @@ export function NuevaVenta() {
   const [cancelReason, setCancelReason] = useState("");
   const [saleError, setSaleError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const summaryRef = useRef<HTMLDivElement>(null);
   const receiptNumber = confirmedSale?.number ?? "000000";
 
   const locked = confirmed;
@@ -193,13 +231,19 @@ export function NuevaVenta() {
   );
   const comboDiscountTotal = Math.max(0, grossSubtotal - subtotal);
   const availablePaymentMethods = useMemo(
-    () => getAvailablePaymentMethods(settingsQuery.data?.paymentMethods ?? []),
-    [settingsQuery.data?.paymentMethods],
+    () =>
+      getSalePaymentMethods(
+        settingsQuery.data?.paymentMethods ?? [],
+        financeDraft.paymentTerms,
+      ),
+    [settingsQuery.data?.paymentMethods, financeDraft.paymentTerms],
   );
   const selectedPaymentMethod = availablePaymentMethods.find(
     (method) => method.id === paymentMethodId,
   );
-  const paymentLabel = selectedPaymentMethod?.name ?? "";
+  const paymentLabel = directSale
+    ? "Cuotas directas"
+    : (selectedPaymentMethod?.name ?? "");
   const negativeStockWarnings = useMemo(
     () => getNegativeStockWarnings(lines),
     [lines],
@@ -217,8 +261,55 @@ export function NuevaVenta() {
     [lines],
   );
   const quoteAllowsNegativeStock = negativeStockWarnings.length > 0;
+  let cashReceivedAmountCents: number | undefined;
+  let cashInputError: string | null = null;
+  if (!directSale && selectedPaymentMethod?.cashHandling) {
+    try {
+      cashReceivedAmountCents = parseOptionalCashInput(cashReceivedInput);
+    } catch {
+      cashInputError = "Ingresá un importe válido en dinero recibido.";
+    }
+  }
+  const priceInput = {
+    pricingOnly: true,
+    paymentTerms: financeDraft.paymentTerms,
+    directSurchargeBasisPoints: directSale
+      ? (financeDraft.directPlan.surchargeBasisPoints ?? 0)
+      : undefined,
+    items: quoteLines,
+    paymentMethodId: directSale ? undefined : paymentMethodId,
+    deliveryStatus: delivery,
+    allowNegativeStock: quoteAllowsNegativeStock,
+    couponCode: appliedCouponCode || undefined,
+  };
+  const priceQuery = useQuery({
+    queryKey: ["sale-price", priceInput],
+    queryFn: () => salesRepository.quote(priceInput),
+    enabled:
+      !locked &&
+      quoteLines.length > 0 &&
+      (directSale || Boolean(selectedPaymentMethod)) &&
+      Number.isInteger(priceInput.directSurchargeBasisPoints ?? 0) &&
+      (priceInput.directSurchargeBasisPoints ?? 0) >= 0 &&
+      (priceInput.directSurchargeBasisPoints ?? 0) <= 100000,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+  const totalAmountCents =
+    priceQuery.data && !priceQuery.isPlaceholderData
+      ? Math.round(priceQuery.data.total * 100)
+      : undefined;
+  const financeIssue = getSaleFinanceIssue({
+    ...financeDraft,
+    paymentMethodId,
+    methods: settingsQuery.data?.paymentMethods ?? [],
+    totalAmountCents,
+    moneyValid: financeMoneyValid,
+  });
+  const financeReady = financeIssue === null;
   const quoteQuery = useQuery({
     queryKey: buildSaleQuoteKey({
+      ...financeInput,
       lines: quoteLines,
       paymentMethodId,
       couponCode: appliedCouponCode,
@@ -228,20 +319,27 @@ export function NuevaVenta() {
     }),
     queryFn: () =>
       salesRepository.quote({
+        ...financeInput,
         items: quoteLines,
-        paymentMethodId,
+        paymentMethodId: directSale ? undefined : paymentMethodId,
         deliveryStatus: delivery,
         allowNegativeStock: quoteAllowsNegativeStock,
         couponCode: appliedCouponCode || undefined,
-        cashReceivedAmountCents: selectedPaymentMethod?.cashHandling
-          ? parseOptionalCashInput(cashReceivedInput)
-          : undefined,
+        cashReceivedAmountCents,
       }),
-    enabled: !locked && quoteLines.length > 0 && Boolean(paymentMethodId),
+    enabled:
+      !locked &&
+      quoteLines.length > 0 &&
+      financeReady &&
+      !cashInputError &&
+      totalAmountCents !== undefined &&
+      !priceQuery.isFetching &&
+      !priceQuery.error,
     retry: false,
   });
   const confirmedPricing = confirmedSale
     ? {
+        finance: confirmedSale.finance,
         subtotal: confirmedSale.subtotal ?? subtotal,
         discount: confirmedSale.discount ?? 0,
         net:
@@ -256,37 +354,53 @@ export function NuevaVenta() {
         cashShortfall: 0,
       }
     : null;
-  const pricing = confirmedPricing ?? quoteQuery.data;
+  const pricing: SaleQuote | null | undefined =
+    confirmedPricing ??
+    (lines.length > 0
+      ? ((financeReady ? quoteQuery.data : undefined) ?? priceQuery.data)
+      : undefined);
   const cashInputMissing =
+    !directSale &&
     selectedPaymentMethod?.cashHandling === true &&
     cashReceivedInput.trim().length === 0;
   const canSubmitQuotedSale = canConfirmQuotedSale({
     hasLines: lines.length > 0,
-    hasPaymentMethod: Boolean(paymentMethodId),
-    quotePending: quoteQuery.isFetching,
-    quoteError: Boolean(quoteQuery.error),
-    quoteAvailable: Boolean(quoteQuery.data) && !cashInputMissing,
+    hasPaymentMethod: financeReady && (directSale || Boolean(paymentMethodId)),
+    quotePending: quoteQuery.isFetching || priceQuery.isFetching,
+    quoteError: Boolean(quoteQuery.error || priceQuery.error || cashInputError),
+    quoteAvailable:
+      Boolean(quoteQuery.data) &&
+      !cashInputMissing &&
+      financeMoneyValid &&
+      financeReady &&
+      totalAmountCents !== undefined,
     cashShortfall: quoteQuery.data?.cashShortfall ?? 0,
   });
-  const quoteErrorMessage = quoteQuery.error
-    ? getSaleCreationErrorMessage(quoteQuery.error)
+  const quoteError = priceQuery.error ?? quoteQuery.error;
+  const quoteErrorMessage = quoteError
+    ? getSaleCreationErrorMessage(quoteError)
     : null;
-  const quoteBlockingMessage = quoteErrorMessage
-    ? quoteErrorMessage
-    : cashInputMissing
-      ? "Ingresá el dinero recibido para calcular el vuelto."
-      : (quoteQuery.data?.cashShortfall ?? 0) > 0
-        ? `Faltan ${formatARS(quoteQuery.data?.cashShortfall ?? 0)} para completar la venta.`
-        : quoteQuery.isFetching
-          ? "Calculando el total final..."
-          : !quoteQuery.data && lines.length > 0
-            ? "No se pudo obtener el total final de la venta."
-            : null;
+  const quoteBlockingMessage =
+    lines.length === 0
+      ? "Agregá al menos un producto para empezar."
+      : (financeIssue ??
+        cashInputError ??
+        (cashInputMissing
+          ? "Ingresá el dinero recibido para calcular el vuelto."
+          : (quoteErrorMessage ??
+            ((quoteQuery.data?.cashShortfall ?? 0) > 0
+              ? `Faltan ${formatARS(quoteQuery.data?.cashShortfall ?? 0)} para completar la venta.`
+              : quoteQuery.isFetching || priceQuery.isFetching
+                ? "Calculando el total y las condiciones de la venta..."
+                : !quoteQuery.data
+                  ? "No se pudo obtener el total final. Revisá los datos e intentá nuevamente."
+                  : null))));
 
   useEffect(() => {
     if (confirmed) return;
 
     setDraft({
+      ...financeDraft,
       search,
       lines,
       activeLineProductId,
@@ -299,6 +413,7 @@ export function NuevaVenta() {
       customerPhone,
     });
   }, [
+    financeDraft,
     search,
     lines,
     activeLineProductId,
@@ -314,17 +429,32 @@ export function NuevaVenta() {
   ]);
 
   useEffect(() => {
-    if (!settingsQuery.data?.paymentMethods) return;
-
+    if (locked || directSale) return;
     setPaymentMethodId((current) =>
-      resolveSelectedPaymentMethodId(
-        current,
-        settingsQuery.data?.paymentMethods ?? [],
-      ),
+      availablePaymentMethods.some((method) => method.id === current)
+        ? current
+        : (availablePaymentMethods[0]?.id ?? ""),
     );
-  }, [settingsQuery.data?.paymentMethods]);
+  }, [availablePaymentMethods, directSale, locked]);
+
+  const changePaymentTerms = (paymentTerms: FinanceDraft["paymentTerms"]) => {
+    setFinanceDraft((current) => ({
+      ...current,
+      paymentTerms,
+      directPlan:
+        paymentTerms === "DirectInstallments" &&
+        !current.directPlan.firstDueDate
+          ? { ...current.directPlan, firstDueDate: nextMonthlyDueDate() }
+          : current.directPlan,
+    }));
+    setCashReceivedInput("");
+    setSaleError(null);
+  };
 
   const resetSale = () => {
+    setFinanceDraft(createEmptySaleDraft());
+    setFinanceMoneyValid(true);
+    setFinanceFieldsKey((key) => key + 1);
     setLines([]);
     setActiveLineProductId(null);
     setConfirmed(false);
@@ -391,7 +521,14 @@ export function NuevaVenta() {
 
   useEffect(() => {
     const handleQuantityShortcut = (event: KeyboardEvent) => {
-      if (locked || !event.altKey || event.ctrlKey || event.metaKey) return;
+      if (
+        locked ||
+        createSaleMutation.isPending ||
+        !event.altKey ||
+        event.ctrlKey ||
+        event.metaKey
+      )
+        return;
 
       const key = event.key.toLowerCase();
       const code = event.code.toLowerCase();
@@ -420,7 +557,7 @@ export function NuevaVenta() {
 
     window.addEventListener("keydown", handleQuantityShortcut);
     return () => window.removeEventListener("keydown", handleQuantityShortcut);
-  }, [activeLineProductId, lines, locked]);
+  }, [activeLineProductId, lines, locked, createSaleMutation.isPending]);
 
   if (
     productsQuery.isLoading ||
@@ -560,7 +697,7 @@ export function NuevaVenta() {
 
   const submitSale = async (allowNegativeStock: boolean) => {
     if (lines.length === 0) return;
-    if (!paymentMethodId) {
+    if (!directSale && !paymentMethodId) {
       toast.error("No hay métodos de pago activos para completar la venta.");
       return;
     }
@@ -575,21 +712,31 @@ export function NuevaVenta() {
     setSaleError(null);
 
     try {
-      const sale = await createSaleMutation.mutateAsync({
+      const payload: CreateSaleInput = {
+        ...financeInput,
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
-        paymentMethodId,
+        paymentMethodId: directSale ? undefined : paymentMethodId,
         deliveryStatus: delivery,
-        items: lines.map((line) => ({
-          itemType: line.product.itemType === "Combo" ? "Combo" : "Product",
-          itemId: line.product.id,
-          qty: line.qty,
-        })),
+        items: quoteLines,
         allowNegativeStock,
         couponCode: appliedCouponCode || undefined,
-        cashReceivedAmountCents: selectedPaymentMethod?.cashHandling
-          ? parseOptionalCashInput(cashReceivedInput)
-          : undefined,
+        cashReceivedAmountCents,
+      };
+      const fingerprint = JSON.stringify(payload);
+      const operationId = resolveSaleOperationId(
+        financeDraft.operationFingerprint,
+        fingerprint,
+        financeDraft.operationId,
+      );
+      setFinanceDraft((current) => ({
+        ...current,
+        operationId,
+        operationFingerprint: fingerprint,
+      }));
+      const sale = await createSaleMutation.mutateAsync({
+        ...payload,
+        operationId,
       });
       setConfirmedSale(sale);
       setCustomerName(sale.customerName ?? "");
@@ -657,7 +804,10 @@ export function NuevaVenta() {
       title="Nueva venta"
       subtitle="Escaneá un código o buscá el producto"
     >
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5 items-start">
+      <fieldset
+        disabled={createSaleMutation.isPending}
+        className="grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5 items-start pb-20 xl:pb-0"
+      >
         <div className="flex min-w-0 flex-col gap-5">
           <Card>
             <form onSubmit={handleCatalogSearch} className="app-card-body">
@@ -890,7 +1040,12 @@ export function NuevaVenta() {
           </Card>
         </div>
 
-        <div className="flex min-w-0 flex-col gap-5">
+        <div
+          ref={summaryRef}
+          className="flex min-w-0 flex-col gap-5"
+          role="region"
+          aria-label="Resumen de venta"
+        >
           <Card className="app-card-body">
             <h2 className="font-semibold mb-3 app-card-title">
               Resumen de venta
@@ -928,14 +1083,41 @@ export function NuevaVenta() {
               <div className="border-t border-border my-3" />
               <div className="flex justify-between text-base">
                 <span className="font-semibold">Total</span>
-                <span className="font-semibold tabular-nums">
-                  {pricing
-                    ? formatARS(pricing.total)
-                    : quoteQuery.isFetching
-                      ? "Calculando..."
-                      : "Sin calcular"}
+                <span
+                  className="font-semibold tabular-nums"
+                  data-testid="sale-total"
+                >
+                  {formatARS(pricing?.total ?? subtotal)}
                 </span>
               </div>
+              {directSale && pricing ? (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <Row
+                    label="Anticipo"
+                    value={formatARS(
+                      (financeDraft.directPlan.upfrontAmountCents ?? 0) / 100,
+                    )}
+                  />
+                  <Row
+                    label="Saldo en cuotas"
+                    value={formatARS(
+                      pricing.total -
+                        (financeDraft.directPlan.upfrontAmountCents ?? 0) / 100,
+                    )}
+                  />
+                </div>
+              ) : null}
+              {pricing?.finance?.paymentTerms === "DirectInstallments" ? (
+                <p className="text-xs text-muted-foreground">
+                  {pricing.finance.installments.length} cuotas mensuales ·
+                  primer vencimiento {pricing.finance.installments[0]?.dueDate}
+                </p>
+              ) : pricing?.finance?.cardPlan ? (
+                <p className="text-xs text-muted-foreground">
+                  {pricing.finance.cardPlan.installmentCount} cuotas con tarjeta
+                  · {pricing.finance.cardPlan.processor}
+                </p>
+              ) : null}
               {pricing?.cashReceived != null && (
                 <Row
                   label="Dinero recibido"
@@ -947,63 +1129,182 @@ export function NuevaVenta() {
               )}
             </div>
 
-            <fieldset
-              className="mt-5 space-y-3 border-t border-border pt-4"
-              disabled={locked || createSaleMutation.isPending}
-            >
-              <legend className="text-sm font-medium">
-                Datos del cliente (opcional)
-              </legend>
-              <div className="space-y-1.5">
-                <Label htmlFor="sale-customer-name">Nombre del cliente</Label>
-                <Input
-                  id="sale-customer-name"
-                  name="customerName"
-                  autoComplete="name"
-                  maxLength={100}
-                  value={customerName}
-                  onChange={(event) => setCustomerName(event.target.value)}
-                  placeholder="Nombre y apellido"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="sale-customer-phone">Celular del cliente</Label>
-                <Input
-                  id="sale-customer-phone"
-                  name="customerPhone"
-                  type="tel"
-                  autoComplete="tel"
-                  maxLength={40}
-                  value={customerPhone}
-                  onChange={(event) => setCustomerPhone(event.target.value)}
-                  placeholder="Ej. +54 9 362 4123456"
-                />
-              </div>
-            </fieldset>
-
-            <div className="mt-5">
-              <div className="text-xs text-muted-foreground mb-2">
-                Método de pago
-              </div>
-              {availablePaymentMethods.length === 0 ? (
-                <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-muted-foreground">
-                  Activá al menos un método de pago en Configuración.
+            {!locked ? (
+              <section
+                className="mt-5 space-y-4 border-t border-border pt-4"
+                aria-labelledby="sale-payment-title"
+              >
+                <div>
+                  <h3 id="sale-payment-title" className="text-sm font-semibold">
+                    Cliente y forma de pago
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Elegí cómo se paga esta venta y completá los datos
+                    correspondientes.
+                  </p>
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {availablePaymentMethods.map((method) => (
-                    <PagoBtn
-                      key={method.id}
-                      icon={getPaymentMethodIcon(method.name)}
-                      label={method.name}
-                      active={paymentMethodId === method.id}
-                      onClick={() => !locked && setPaymentMethodId(method.id)}
-                      disabled={locked}
+                <fieldset
+                  disabled={createSaleMutation.isPending}
+                  className="min-w-0 space-y-4"
+                >
+                  <fieldset className="space-y-2">
+                    <legend className="mb-2 text-sm font-medium">
+                      Condición de pago
+                    </legend>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(
+                        [
+                          [
+                            "Immediate",
+                            "Contado",
+                            "Cobrás el total ahora",
+                            Banknote,
+                          ],
+                          [
+                            "DirectInstallments",
+                            "Cuotas directas",
+                            "El cliente te paga cada mes",
+                            Wallet,
+                          ],
+                          [
+                            "CardInstallments",
+                            "Cuotas con tarjeta",
+                            "El procesador te acredita",
+                            CreditCard,
+                          ],
+                        ] as const
+                      ).map(([term, label, description, Icon]) => (
+                        <label
+                          key={term}
+                          className={cn(
+                            "relative flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-md border px-2 py-3 text-center text-xs transition-colors focus-within:ring-2 focus-within:ring-ring",
+                            financeDraft.paymentTerms === term
+                              ? "border-accent bg-accent/5 ring-1 ring-accent"
+                              : "border-border hover:bg-muted/50",
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                            name="paymentTerms"
+                            value={term}
+                            checked={financeDraft.paymentTerms === term}
+                            onChange={() => changePaymentTerms(term)}
+                            aria-label={label}
+                          />
+                          <span className="flex flex-col items-center gap-1.5 font-medium">
+                            <Icon className="h-4 w-4 shrink-0" />
+                            {label}
+                          </span>
+                          <span className="sr-only">{description}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {directSale
+                        ? "El cliente te paga cada mes."
+                        : financeDraft.paymentTerms === "CardInstallments"
+                          ? "El procesador acredita el dinero al negocio."
+                          : "Cobrás el total de la venta ahora."}
+                    </p>
+                  </fieldset>
+                  <div className="border-t border-border pt-4">
+                    <SaleCustomerFields
+                      key={financeFieldsKey}
+                      customerId={financeDraft.customerId}
+                      name={customerName}
+                      phone={customerPhone}
+                      required={directSale}
+                      onSelect={(id, name, phone) => {
+                        setFinanceDraft((current) => ({
+                          ...current,
+                          customerId: id,
+                        }));
+                        setCustomerName(name);
+                        setCustomerPhone(phone);
+                      }}
+                      onDetailsChange={(name, phone) => {
+                        setCustomerName(name);
+                        setCustomerPhone(phone);
+                      }}
                     />
-                  ))}
-                </div>
-              )}
-            </div>
+                  </div>
+                  {!directSale ? (
+                    <div className="space-y-3 border-t border-border pt-4">
+                      <h3 className="text-sm font-medium">
+                        {financeDraft.paymentTerms === "CardInstallments"
+                          ? "Tarjeta / medio habilitado para cuotas"
+                          : "Medio de pago"}
+                      </h3>
+                      {availablePaymentMethods.length === 0 ? (
+                        <p className="rounded-md bg-warning/10 p-3 text-sm">
+                          {financeDraft.paymentTerms === "CardInstallments"
+                            ? "Habilitá un medio que admita cuotas en Configuración."
+                            : "Activá al menos un medio de pago en Configuración."}
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {availablePaymentMethods.map((method) => (
+                            <PagoBtn
+                              key={method.id}
+                              icon={getPaymentMethodIcon(method.name)}
+                              label={method.name}
+                              active={paymentMethodId === method.id}
+                              onClick={() => {
+                                if (paymentMethodId === method.id) return;
+                                setPaymentMethodId(method.id);
+                                setCashReceivedInput("");
+                                setSaleError(null);
+                              }}
+                              disabled={createSaleMutation.isPending}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {!directSale && selectedPaymentMethod?.cashHandling && (
+                        <div className="space-y-1.5 pt-2">
+                          <Label
+                            htmlFor="cash-received"
+                            className="text-xs text-muted-foreground"
+                          >
+                            Dinero recibido
+                          </Label>
+                          <Input
+                            id="cash-received"
+                            inputMode="decimal"
+                            value={cashReceivedInput}
+                            onChange={(event) => {
+                              setCashReceivedInput(event.target.value);
+                              setSaleError(null);
+                            }}
+                            placeholder="Ej. $10.000"
+                          />
+                          {cashInputMissing && lines.length > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Ingresá el importe para habilitar la confirmación.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                  <SaleFinanceFields
+                    key={`finance-${financeFieldsKey}`}
+                    value={financeDraft}
+                    onChange={setFinanceDraft}
+                    onValidityChange={setFinanceMoneyValid}
+                    methods={settingsQuery.data.paymentMethods}
+                    preview={
+                      financeReady &&
+                      !quoteQuery.isFetching &&
+                      !quoteQuery.error
+                        ? quoteQuery.data?.finance
+                        : undefined
+                    }
+                  />
+                </fieldset>
+              </section>
+            ) : null}
 
             {!locked && (
               <div className="mt-4 space-y-2 border-t border-border pt-4">
@@ -1038,9 +1339,9 @@ export function NuevaVenta() {
                 {appliedCouponCode && (
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-muted-foreground">
-                      {quoteQuery.isFetching
+                      {priceQuery.isFetching
                         ? `Validando ${appliedCouponCode}...`
-                        : quoteQuery.data?.couponCode === appliedCouponCode
+                        : priceQuery.data?.couponCode === appliedCouponCode
                           ? `Cupón aplicado: ${appliedCouponCode}`
                           : `Código ingresado: ${appliedCouponCode}`}
                     </span>
@@ -1053,32 +1354,6 @@ export function NuevaVenta() {
                     >
                       Quitar
                     </Button>
-                  </div>
-                )}
-
-                {selectedPaymentMethod?.cashHandling && (
-                  <div className="space-y-1.5 pt-2">
-                    <Label
-                      htmlFor="cash-received"
-                      className="text-xs text-muted-foreground"
-                    >
-                      Dinero recibido
-                    </Label>
-                    <Input
-                      id="cash-received"
-                      inputMode="decimal"
-                      value={cashReceivedInput}
-                      onChange={(event) => {
-                        setCashReceivedInput(event.target.value);
-                        setSaleError(null);
-                      }}
-                      placeholder="Ej. $10.000"
-                    />
-                    {cashInputMissing && lines.length > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Ingresá el importe para habilitar la confirmación.
-                      </p>
-                    )}
                   </div>
                 )}
               </div>
@@ -1116,32 +1391,21 @@ export function NuevaVenta() {
               </div>
             )}
 
-            {!locked && quoteQuery.isFetching && lines.length > 0 && (
-              <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+            {!locked && quoteBlockingMessage ? (
+              <div
+                id="sale-confirmation-issue"
+                role="status"
+                className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+              >
+                {quoteBlockingMessage}
+              </div>
+            ) : null}
+            {!locked && priceQuery.isFetching && lines.length > 0 ? (
+              <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                Calculando descuento, recargo y total...
-              </div>
-            )}
-
-            {!locked && quoteErrorMessage && (
-              <div
-                role="alert"
-                className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-              >
-                {quoteErrorMessage}
-              </div>
-            )}
-
-            {!locked && (quoteQuery.data?.cashShortfall ?? 0) > 0 && (
-              <div
-                role="alert"
-                className="mt-4 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-foreground"
-              >
-                Faltan {formatARS(quoteQuery.data?.cashShortfall ?? 0)} para
-                completar la venta.
-              </div>
-            )}
-
+                Actualizando total...
+              </p>
+            ) : null}
             {saleError && (
               <div
                 role="alert"
@@ -1155,12 +1419,17 @@ export function NuevaVenta() {
               {!locked && (
                 <Button
                   className="w-full"
+                  aria-describedby={
+                    quoteBlockingMessage ? "sale-confirmation-issue" : undefined
+                  }
                   onClick={() => void confirmSale()}
                   disabled={
                     !canSubmitQuotedSale || createSaleMutation.isPending
                   }
                 >
-                  {quoteQuery.isFetching ? "Calculando..." : "Confirmar venta"}
+                  {createSaleMutation.isPending
+                    ? "Confirmando..."
+                    : "Confirmar venta"}
                 </Button>
               )}
               {locked && !cancelled && (
@@ -1197,163 +1466,207 @@ export function NuevaVenta() {
                   <FilePlus2 /> Nueva venta
                 </Button>
               )}
-              {!locked && (
-                <Button variant="outline" className="w-full" disabled>
-                  <Printer /> Imprimir comprobante
-                </Button>
-              )}
             </div>
           </Card>
 
-          <Card className="app-card-body">
-            <h2 className="mb-3 app-card-title font-semibold">
-              Vista previa del comprobante
-            </h2>
-            <div
-              className={cn(
-                "receipt-preview bg-white border border-dashed border-border rounded-md p-4 font-mono text-[11px] text-foreground leading-5",
-                cancelled && "opacity-60",
-              )}
-            >
-              <div className="text-center font-semibold text-sm">
-                {receiptHeaderLines[0]}
-              </div>
-              {receiptHeaderLines.slice(1).map((line) => (
-                <div key={line} className="text-center text-muted-foreground">
-                  {line}
+          {locked ? (
+            <Card className="app-card-body">
+              <h2 className="mb-3 app-card-title font-semibold">
+                Comprobante de venta
+              </h2>
+              <div
+                className={cn(
+                  "receipt-preview bg-white border border-dashed border-border rounded-md p-4 font-mono text-[11px] text-foreground leading-5",
+                  cancelled && "opacity-60",
+                )}
+              >
+                <div className="text-center font-semibold text-sm">
+                  {receiptHeaderLines[0]}
                 </div>
-              ))}
-              <div className="border-t border-dashed border-border my-2" />
-              <div className="flex justify-between">
-                <span>Comp.</span>
-                <span>{receiptNumber}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Fecha</span>
-                <span>{formatReceiptDateTimeAR()}</span>
-              </div>
-              <div className="border-t border-dashed border-border my-2" />
-              {lines.map((l) => {
-                const product = l.product;
-                const showComboComponents =
-                  product.itemType === "Combo" &&
-                  settingsQuery.data?.comboTicketMode === "ComboWithComponents";
+                {receiptHeaderLines.slice(1).map((line) => (
+                  <div key={line} className="text-center text-muted-foreground">
+                    {line}
+                  </div>
+                ))}
+                <div className="border-t border-dashed border-border my-2" />
+                <div className="flex justify-between">
+                  <span>Comp.</span>
+                  <span>{receiptNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Fecha</span>
+                  <span>{formatReceiptDateTimeAR()}</span>
+                </div>
+                <div className="border-t border-dashed border-border my-2" />
+                {lines.map((l) => {
+                  const product = l.product;
+                  const showComboComponents =
+                    product.itemType === "Combo" &&
+                    settingsQuery.data?.comboTicketMode ===
+                      "ComboWithComponents";
 
-                return (
-                  <div key={getCartItemKey(l.product)} className="space-y-0.5">
-                    <div className="flex justify-between gap-2">
-                      <span className="truncate">
-                        {l.qty}x {l.product.name}
-                      </span>
+                  return (
+                    <div
+                      key={getCartItemKey(l.product)}
+                      className="space-y-0.5"
+                    >
+                      <div className="flex justify-between gap-2">
+                        <span className="truncate">
+                          {l.qty}x {l.product.name}
+                        </span>
+                        <span className="tabular-nums">
+                          {formatARS(l.product.price * l.qty)}
+                        </span>
+                      </div>
+                      {showComboComponents &&
+                        product.items.map((item) => (
+                          <div
+                            key={item.productId}
+                            className="pl-3 text-muted-foreground"
+                          >
+                            {item.qty * l.qty}x {item.productName}
+                          </div>
+                        ))}
+                    </div>
+                  );
+                })}
+                <div className="border-t border-dashed border-border my-2" />
+                {pricing &&
+                  ((pricing.discount ?? 0) > 0 ||
+                    (pricing.surcharge ?? 0) > 0) && (
+                    <div className="flex justify-between">
+                      <span>Subtotal</span>
                       <span className="tabular-nums">
-                        {formatARS(l.product.price * l.qty)}
+                        {formatARS(pricing.subtotal)}
                       </span>
                     </div>
-                    {showComboComponents &&
-                      product.items.map((item) => (
-                        <div
-                          key={item.productId}
-                          className="pl-3 text-muted-foreground"
-                        >
-                          {item.qty * l.qty}x {item.productName}
-                        </div>
-                      ))}
-                  </div>
-                );
-              })}
-              <div className="border-t border-dashed border-border my-2" />
-              {pricing &&
-                ((pricing.discount ?? 0) > 0 ||
-                  (pricing.surcharge ?? 0) > 0) && (
-                  <div className="flex justify-between">
-                    <span>Subtotal</span>
+                  )}
+                {(pricing?.discount ?? 0) > 0 && pricing?.couponCode && (
+                  <div className="flex justify-between gap-2">
+                    <span className="truncate">Cupón {pricing.couponCode}</span>
                     <span className="tabular-nums">
-                      {formatARS(pricing.subtotal)}
+                      -{formatARS(pricing.discount)}
                     </span>
                   </div>
                 )}
-              {(pricing?.discount ?? 0) > 0 && pricing?.couponCode && (
-                <div className="flex justify-between gap-2">
-                  <span className="truncate">Cupón {pricing.couponCode}</span>
+                {(pricing?.surcharge ?? 0) > 0 && (
+                  <div className="flex justify-between gap-2">
+                    <span className="truncate">
+                      Recargo{" "}
+                      {basisPointsToPercentInput(
+                        pricing?.surchargeBasisPoints ?? 0,
+                      )}
+                      %
+                    </span>
+                    <span className="tabular-nums">
+                      {formatARS(pricing?.surcharge ?? 0)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold">
+                  <span>TOTAL</span>
                   <span className="tabular-nums">
-                    -{formatARS(pricing.discount)}
+                    {pricing ? formatARS(pricing.total) : formatARS(subtotal)}
                   </span>
                 </div>
-              )}
-              {(pricing?.surcharge ?? 0) > 0 && (
-                <div className="flex justify-between gap-2">
-                  <span className="truncate">
-                    Recargo{" "}
-                    {basisPointsToPercentInput(
-                      pricing?.surchargeBasisPoints ?? 0,
-                    )}
-                    %
-                  </span>
-                  <span className="tabular-nums">
-                    {formatARS(pricing?.surcharge ?? 0)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between font-semibold">
-                <span>TOTAL</span>
-                <span className="tabular-nums">
-                  {pricing ? formatARS(pricing.total) : formatARS(subtotal)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Pago</span>
-                <span>{paymentLabel || "Sin método"}</span>
-              </div>
-              {pricing?.cashReceived != null && (
                 <div className="flex justify-between">
-                  <span>Recibido</span>
-                  <span>{formatARS(pricing.cashReceived)}</span>
+                  <span>Pago</span>
+                  <span>{paymentLabel || "Sin método"}</span>
                 </div>
-              )}
-              {pricing?.change != null && (
+                {pricing?.finance?.paymentTerms === "DirectInstallments" ? (
+                  <div className="my-2 border-y border-dashed border-border py-2">
+                    <div>
+                      Anticipo:{" "}
+                      {formatARS(pricing.finance.upfrontAmountCents / 100)}
+                    </div>
+                    <div>
+                      Saldo en cuotas:{" "}
+                      {formatARS(pricing.finance.financedAmountCents / 100)}
+                    </div>
+                    {pricing.finance.installments.map((item) => (
+                      <div key={item.number}>
+                        Cuota {item.number} · {item.dueDate} ·{" "}
+                        {formatARS(item.amountCents / 100)}
+                      </div>
+                    ))}
+                  </div>
+                ) : pricing?.finance?.cardPlan ? (
+                  <div className="my-2 border-y border-dashed border-border py-2">
+                    {pricing.finance.cardPlan.installmentCount} cuotas con
+                    tarjeta · {pricing.finance.cardPlan.processor}
+                  </div>
+                ) : null}
+                {pricing?.cashReceived != null && (
+                  <div className="flex justify-between">
+                    <span>Recibido</span>
+                    <span>{formatARS(pricing.cashReceived)}</span>
+                  </div>
+                )}
+                {pricing?.change != null && (
+                  <div className="flex justify-between">
+                    <span>Vuelto</span>
+                    <span>{formatARS(pricing.change)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
-                  <span>Vuelto</span>
-                  <span>{formatARS(pricing.change)}</span>
+                  <span>Entrega</span>
+                  <span>{delivery}</span>
+                </div>
+                {cancelled && (
+                  <div className="text-center mt-2 text-destructive font-semibold">
+                    ** VENTA ANULADA **
+                  </div>
+                )}
+                <div className="text-center mt-2 text-muted-foreground">
+                  {receiptFooter}
+                </div>
+                <div
+                  className="text-center mt-1 text-muted-foreground"
+                  aria-hidden="true"
+                >
+                  {RECEIPT_FINAL_RULE}
+                </div>
+              </div>
+              {confirmed && !cancelled && (
+                <div className="mt-3 text-xs text-success">
+                  ✓ Venta {receiptNumber} confirmada.{" "}
+                  {delivery === "Entregado"
+                    ? "Stock actualizado."
+                    : "Stock reservado hasta la entrega."}
                 </div>
               )}
-              <div className="flex justify-between">
-                <span>Entrega</span>
-                <span>{delivery}</span>
-              </div>
               {cancelled && (
-                <div className="text-center mt-2 text-destructive font-semibold">
-                  ** VENTA ANULADA **
+                <div className="mt-3 text-xs text-destructive">
+                  ✕ Venta {receiptNumber} anulada. Stock devuelto al inventario.
+                  <div className="text-muted-foreground mt-1">
+                    Motivo: {cancelled.reason}
+                  </div>
                 </div>
               )}
-              <div className="text-center mt-2 text-muted-foreground">
-                {receiptFooter}
-              </div>
-              <div
-                className="text-center mt-1 text-muted-foreground"
-                aria-hidden="true"
-              >
-                {RECEIPT_FINAL_RULE}
-              </div>
-            </div>
-            {confirmed && !cancelled && (
-              <div className="mt-3 text-xs text-success">
-                ✓ Venta {receiptNumber} confirmada.{" "}
-                {delivery === "Entregado"
-                  ? "Stock actualizado."
-                  : "Stock reservado hasta la entrega."}
-              </div>
-            )}
-            {cancelled && (
-              <div className="mt-3 text-xs text-destructive">
-                ✕ Venta {receiptNumber} anulada. Stock devuelto al inventario.
-                <div className="text-muted-foreground mt-1">
-                  Motivo: {cancelled.reason}
-                </div>
-              </div>
-            )}
-          </Card>
+            </Card>
+          ) : null}
         </div>
-      </div>
+      </fieldset>
+
+      {!locked ? (
+        <div className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-between gap-3 border-t border-border bg-background/95 px-6 py-3 backdrop-blur xl:hidden">
+          <div className="text-sm">
+            <span className="text-muted-foreground">Total de la venta</span>
+            <div className="text-lg font-semibold tabular-nums">
+              {formatARS(pricing?.total ?? subtotal)}
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              summaryRef.current?.scrollIntoView({ block: "start" })
+            }
+          >
+            Ver resumen
+          </Button>
+        </div>
+      ) : null}
 
       <AlertDialog
         open={confirmNegativeStock}
@@ -1542,6 +1855,7 @@ function PagoBtn({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-pressed={active}
       className={cn(
         "flex flex-col items-center justify-center gap-1 py-3 rounded-md border text-xs font-medium transition-colors",
         active

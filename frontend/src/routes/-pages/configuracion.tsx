@@ -936,6 +936,31 @@ export function ConfigPage() {
                         />
                         Calcula vuelto
                       </label>
+                      {(
+                        [
+                          ["supportsInstallments", "Admite cuotas con tarjeta"],
+                          ["collectionEligible", "Admite cobranzas directas"],
+                        ] as const
+                      ).map(([flag, label]) => (
+                        <label
+                          key={flag}
+                          className="flex min-h-10 items-center gap-2 text-xs text-muted-foreground"
+                        >
+                          <Switch
+                            checked={p[flag] === true}
+                            disabled={updatePaymentMethodMutation.isPending}
+                            onCheckedChange={(value) =>
+                              void persistPaymentMethod(
+                                p.id,
+                                { [flag]: value },
+                                p,
+                              )
+                            }
+                            aria-label={`${label}: ${p.name}`}
+                          />
+                          {label}
+                        </label>
+                      ))}
                       <div className="ml-auto flex items-center gap-3">
                         <Button
                           type="button"

@@ -20,6 +20,11 @@ export type DatabaseImportPreview = {
     purchases: number;
     suppliers: number;
     movements: number;
+    customers?: number;
+    receivablePlans?: number;
+    collections?: number;
+    cardSettlements?: number;
+    refunds?: number;
   };
 };
 

@@ -28,6 +28,42 @@ describe("HistoryService", () => {
     await db.cleanup();
   });
 
+  it("keeps a collection on its actual business date and records its reversal separately", async () => {
+    await db.prisma.collection.create({
+      data: {
+        customerName: "Cliente finanzas",
+        date: "2026-05-02",
+        kind: "Immediate",
+        paymentMethodId: "pm1",
+        paymentMethodName: "Efectivo",
+        amountCents: 12500,
+        createdAt: new Date("2026-05-04T12:00:00Z"),
+        reversedAt: new Date("2026-06-03T12:00:00Z"),
+        reversalReason: "Carga duplicada",
+      },
+    });
+    const may = await service.findAll({
+      month: "2026-05",
+      day: "2026-05-02",
+      query: "finanzas",
+    });
+    expect(may.items).toEqual([
+      expect.objectContaining({
+        type: "collections",
+        amountCents: 12500,
+        title: "Cobro registrado",
+      }),
+    ]);
+    const june = await service.findAll({ month: "2026-06", query: "finanzas" });
+    expect(june.items).toEqual([
+      expect.objectContaining({
+        type: "collections",
+        title: "Cobro revertido",
+        status: "Revertido",
+      }),
+    ]);
+  });
+
   it("lists only months that contain persisted activity", async () => {
     const months = await service.getMonths();
     const may = months.find((month) => month.month === "2026-05");

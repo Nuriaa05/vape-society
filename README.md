@@ -59,6 +59,12 @@ Abrir `http://127.0.0.1:3002`. No usa los puertos ni las carpetas de datos del r
 
 Primero completar los datos del negocio y crear categorías desde Configuración; después cargar proveedores y productos. Por ahora cada presentación o variante que tenga stock, precio o código propio se registra como un producto independiente. El modelo de variantes definitivo se debe decidir al adaptar el negocio.
 
+## Clientes y cobranzas
+
+El menú **Clientes y cobranzas** permite registrar clientes, saldos anteriores, cuotas mensuales directas, acreditaciones manuales de tarjetas y devoluciones. **Nueva venta** distingue pago inmediato, cuotas directas y cuotas con tarjeta. Los cobros se registran por su fecha efectiva y no duplican las ventas. La actualización conserva las ventas anteriores sin inferir cobros ni deudas.
+
+El uso y las reglas están en [Clientes y cobranzas](docs/clientes-y-cobranzas.md). La mercadería a crédito y las deudas con proveedores se implementan por separado.
+
 ## Backups automáticos
 
 El backup diario está activado de forma predeterminada. Con el sistema en ejecución, se crea una copia cuando han pasado 24 horas desde el último backup exitoso; las copias manuales también cuentan. Si el sistema estaba cerrado, la copia pendiente se genera al volver a abrirlo. Los intentos fallidos se reintentan sin impedir el uso del sistema.

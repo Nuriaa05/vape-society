@@ -258,3 +258,21 @@ function mockJsonResponse(payload: unknown): Response {
     json: () => Promise.resolve(payload),
   } as Response;
 }
+
+it("prints original fixed installments and upfront without treating debt as cash paid", async () => {
+  const { renderFinanceReceiptLines } = await import("./desktop-printer");
+  const lines = renderFinanceReceiptLines({
+    paymentTerms: "DirectInstallments",
+    upfrontAmountCents: 10000,
+    financedAmountCents: 20001,
+    installments: [
+      { number: 1, dueDate: "2026-11-30", amountCents: 10000 },
+      { number: 2, dueDate: "2026-12-31", amountCents: 10001 },
+    ],
+  }).join(" ");
+  expect(lines).toContain("Anticipo");
+  expect(lines).toContain("Financiado");
+  expect(lines).toContain("2026-11-30");
+  expect(lines).toContain("2026-12-31");
+  expect(lines).not.toContain("Vuelto");
+});

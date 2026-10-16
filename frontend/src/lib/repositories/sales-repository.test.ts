@@ -47,6 +47,44 @@ describe("sales repository customer details", () => {
     expect(JSON.parse(String(options?.body))).toMatchObject(customer);
   });
 
+  it("keeps direct financing cents and operation id without inventing a payment method", async () => {
+    const finance = {
+      paymentTerms: "DirectInstallments" as const,
+      upfrontAmountCents: 1000,
+      financedAmountCents: 99000,
+      installments: [{ number: 1, dueDate: "2026-11-30", amountCents: 99000 }],
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      Response.json({
+        ...apiSale,
+        paymentMethodId: null,
+        payment: null,
+        paymentTerms: "DirectInstallments",
+        customerId: "c1",
+        finance,
+      }),
+    );
+    const sale = await salesRepository.create({
+      customerId: "c1",
+      operationId: "stable-attempt",
+      paymentTerms: "DirectInstallments",
+      directPlan: {
+        installmentCount: 1,
+        firstDueDate: "2026-11-30",
+        upfrontAmountCents: 1000,
+        upfrontPaymentMethodId: "cash",
+      },
+      deliveryStatus: "Entregado",
+      items: [{ productId: "p", qty: 1 }],
+    });
+    const payload = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
+    expect(payload.operationId).toBe("stable-attempt");
+    expect(payload).not.toHaveProperty("paymentMethodId");
+    expect(payload.directPlan.upfrontAmountCents).toBe(1000);
+    expect(sale.payment).toBe("Cuotas directas");
+    expect(sale.finance).toEqual(finance);
+  });
+
   it("reloads customer details while accepting older sales without them", async () => {
     const customer = {
       customerName: "María López",

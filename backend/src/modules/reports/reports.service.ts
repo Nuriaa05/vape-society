@@ -1,7 +1,10 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 
-import { StockRulesService, type StockReadModel } from "../../domain/stock-rules.service";
+import {
+  StockRulesService,
+  type StockReadModel,
+} from "../../domain/stock-rules.service";
 import { PrismaService } from "../../prisma/prisma.service";
 
 export type ReportsPeriod = "hour" | "month" | "90d" | "year";
@@ -58,7 +61,7 @@ export type ReportSaleResponse = {
   date: string;
   deliveryStatus: string;
   status: string;
-  paymentMethodId: string;
+  paymentMethodId: string | null;
   payment: string;
   items: Array<{
     id: string;
@@ -341,30 +344,28 @@ export class ReportsService {
         item.itemType === "Combo"
           ? `Combo:${item.comboId ?? item.productName}`
           : `Product:${item.productId ?? item.productName}`;
-      const current =
-        byVisibleItem.get(key) ??
-        {
-          productId: item.productId,
-          comboId: item.comboId,
-          itemType: item.itemType,
-          name: item.productName,
-          qty: 0,
-          totalAmountCents: 0,
-          components: new Map(),
-        };
+      const current = byVisibleItem.get(key) ?? {
+        productId: item.productId,
+        comboId: item.comboId,
+        itemType: item.itemType,
+        name: item.productName,
+        qty: 0,
+        totalAmountCents: 0,
+        components: new Map(),
+      };
 
       current.qty += item.qty;
       current.totalAmountCents += item.lineTotalAmountCents;
 
       for (const component of item.components) {
-        const componentCurrent =
-          current.components.get(component.productId) ??
-          {
-            productId: component.productId,
-            name: component.productName,
-            barcode: component.barcode,
-            qty: 0,
-          };
+        const componentCurrent = current.components.get(
+          component.productId,
+        ) ?? {
+          productId: component.productId,
+          name: component.productName,
+          barcode: component.barcode,
+          qty: 0,
+        };
         componentCurrent.qty += component.totalQty;
         current.components.set(component.productId, componentCurrent);
       }
@@ -506,11 +507,12 @@ export class ReportsService {
     for (const sale of groupedSales) {
       const label =
         sale.paymentMethodName ||
-        currentNameById.get(sale.paymentMethodId) ||
-        sale.paymentMethodId;
+        currentNameById.get(sale.paymentMethodId ?? "") ||
+        sale.paymentMethodId ||
+        "Cuotas directas";
       const key = `${sale.paymentMethodId}:${label}`;
       const current = rowsByHistoricalLabel.get(key) ?? {
-        paymentMethodId: sale.paymentMethodId,
+        paymentMethodId: sale.paymentMethodId ?? "direct-installments",
         label,
         totalAmountCents: 0,
         salesCount: 0,
@@ -548,9 +550,7 @@ export class ReportsService {
       ...row,
       pct:
         grandTotalAmountCents > 0
-          ? Math.round(
-              (row.totalAmountCents / grandTotalAmountCents) * 100,
-            )
+          ? Math.round((row.totalAmountCents / grandTotalAmountCents) * 100)
           : 0,
     }));
   }
@@ -638,9 +638,7 @@ export class ReportsService {
 
   private getStockAlerts(stockRows: StockReadModel[]) {
     return stockRows
-      .filter(
-        (row) => !row.archived && row.availableStock <= row.minStock,
-      )
+      .filter((row) => !row.archived && row.availableStock <= row.minStock)
       .sort((a, b) => a.availableStock - b.availableStock)
       .slice(0, 5)
       .map((row) => ({
@@ -694,7 +692,8 @@ export class ReportsService {
       deliveryStatus: sale.deliveryStatus,
       status: sale.status,
       paymentMethodId: sale.paymentMethodId,
-      payment: sale.paymentMethodName || sale.paymentMethod.name,
+      payment:
+        sale.paymentMethodName || sale.paymentMethod?.name || "Cuotas directas",
       items: sale.items.map((item) => ({
         id: item.id,
         productId: item.productId,

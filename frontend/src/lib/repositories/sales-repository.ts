@@ -1,3 +1,9 @@
+import type {
+  PaymentTerms,
+  SaleFinance,
+  DirectPlanInput,
+  CardPlanInput,
+} from "@/lib/collections";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type {
   ComboItem,
@@ -20,6 +26,7 @@ export interface SalesFilters {
 }
 
 type ApiSalePricing = {
+  finance?: SaleFinance;
   couponId: string | null;
   couponCode: string | null;
   couponType: CouponDiscountType | null;
@@ -40,11 +47,13 @@ type ApiSale = Partial<ApiSalePricing> & {
   id: string;
   number: string;
   date: string;
+  customerId?: string | null;
+  paymentTerms?: PaymentTerms | null;
   customerName?: string | null;
   customerPhone?: string | null;
   deliveryStatus: DeliveryStatus;
   status: Sale["status"];
-  paymentMethodId: string;
+  paymentMethodId: string | null;
   payment: string;
   items: Array<{
     id: string;
@@ -73,6 +82,11 @@ type ApiSale = Partial<ApiSalePricing> & {
 };
 
 export type CreateSaleInput = {
+  customerId?: string;
+  paymentTerms?: PaymentTerms;
+  operationId?: string;
+  directPlan?: DirectPlanInput;
+  cardPlan?: CardPlanInput;
   customerName?: string;
   customerPhone?: string;
   items: Array<{
@@ -81,11 +95,16 @@ export type CreateSaleInput = {
     productId?: string;
     qty: number;
   }>;
-  paymentMethodId: string;
+  paymentMethodId?: string;
   deliveryStatus: DeliveryStatus;
   allowNegativeStock?: boolean;
   couponCode?: string;
   cashReceivedAmountCents?: number;
+};
+
+export type QuoteSaleInput = CreateSaleInput & {
+  pricingOnly?: boolean;
+  directSurchargeBasisPoints?: number;
 };
 
 function toSaleComponent(
@@ -106,6 +125,9 @@ function toSale(sale: ApiSale): Sale {
     sale.netAmountCents ?? subtotalAmountCents - discountAmountCents;
 
   return {
+    customerId: sale.customerId ?? undefined,
+    paymentTerms: sale.paymentTerms,
+    finance: sale.finance,
     id: sale.id,
     number: sale.number,
     date: sale.date,
@@ -143,7 +165,10 @@ function toSale(sale: ApiSale): Sale {
       sale.changeAmountCents == null
         ? undefined
         : amountCentsToPesos(sale.changeAmountCents),
-    payment: sale.payment as PaymentMethodName,
+    payment:
+      sale.paymentTerms === "DirectInstallments"
+        ? "Cuotas directas"
+        : (sale.payment as PaymentMethodName),
     delivery: sale.deliveryStatus,
     status: sale.status,
     cancelReason: sale.cancelReason ?? undefined,
@@ -152,6 +177,7 @@ function toSale(sale: ApiSale): Sale {
 
 function toSaleQuote(quote: ApiSalePricing): SaleQuote {
   return {
+    finance: quote.finance,
     subtotal: amountCentsToPesos(quote.subtotalAmountCents),
     discount: amountCentsToPesos(quote.discountAmountCents),
     net: amountCentsToPesos(quote.netAmountCents),
@@ -190,7 +216,7 @@ function toApiSaleInput(input: CreateSaleInput) {
 }
 
 export const salesRepository = {
-  async quote(input: CreateSaleInput): Promise<SaleQuote> {
+  async quote(input: QuoteSaleInput): Promise<SaleQuote> {
     return toSaleQuote(
       await apiClient.post<ApiSalePricing>(
         "/sales/quote",

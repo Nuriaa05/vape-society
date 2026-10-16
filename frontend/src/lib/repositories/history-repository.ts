@@ -9,7 +9,9 @@ export type HistoryEventType =
   | "suppliers"
   | "combos"
   | "settings"
-  | "backups";
+  | "backups"
+  | "customers"
+  | "collections";
 
 export type HistoryMonth = {
   month: string;

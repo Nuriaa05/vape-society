@@ -1,3 +1,4 @@
+import type { SaleFinance, PaymentTerms } from "@/lib/collections";
 import { getApiBaseUrl } from "@/lib/api-client";
 import { basisPointsToPercentInput } from "@/lib/payment-pricing";
 import {
@@ -71,6 +72,10 @@ export type SaleReceiptResponse = {
     date: string;
     deliveryStatus: string;
     payment: string;
+    customerName?: string | null;
+    customerPhone?: string | null;
+    paymentTerms?: PaymentTerms | null;
+    finance?: SaleFinance;
     couponCode: string | null;
     surchargeBasisPoints: number;
   };
@@ -86,6 +91,29 @@ export type SaleReceiptResponse = {
   };
   legend: string;
 };
+
+export function renderFinanceReceiptLines(finance?: SaleFinance): string[] {
+  if (!finance || finance.paymentTerms === "Immediate") return [];
+  return [
+    row("Anticipo", formatAmountCentsAsARS(finance.upfrontAmountCents)),
+    row("Financiado", formatAmountCentsAsARS(finance.financedAmountCents)),
+    ...finance.installments.map((item) =>
+      row(
+        `Cuota ${item.number} · ${item.dueDate}`,
+        formatAmountCentsAsARS(item.amountCents),
+      ),
+    ),
+    ...(finance.cardPlan
+      ? [
+          row("Cuotas tarjeta", String(finance.cardPlan.installmentCount)),
+          row("Procesador", finance.cardPlan.processor),
+          ...(finance.cardPlan.reference
+            ? [row("Referencia", finance.cardPlan.reference)]
+            : []),
+        ]
+      : []),
+  ];
+}
 
 type ApiSettingsResponse = {
   comboTicketMode?: "ComboLine" | "ComboWithComponents";
@@ -220,7 +248,13 @@ export function buildBrowserReceiptHtml(
       formatAmountCentsAsARS(receipt.totals.totalAmountCents),
       "strong",
     ),
-    row("Pago", receipt.sale.payment),
+    row(
+      "Pago",
+      receipt.sale.paymentTerms === "DirectInstallments"
+        ? "Cuotas directas"
+        : receipt.sale.payment,
+    ),
+    ...renderFinanceReceiptLines(receipt.sale.finance),
     ...renderCashLines(receipt),
     `<div class="center footer">${escapeHtml(receipt.receipt.footer)}</div>`,
     `<div class="center legend">${escapeHtml(receipt.legend)}</div>`,

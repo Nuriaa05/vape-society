@@ -11,6 +11,7 @@ import {
   Settings,
   Truck,
   Users,
+  Wallet,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -39,6 +40,18 @@ const eventTypes: Array<{
   icon: LucideIcon;
   iconClassName: string;
 }> = [
+  {
+    id: "customers",
+    label: "Clientes",
+    icon: Users,
+    iconClassName: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+  },
+  {
+    id: "collections",
+    label: "Cobranzas",
+    icon: Wallet,
+    iconClassName: "bg-success/10 text-success",
+  },
   {
     id: "sales",
     label: "Ventas",

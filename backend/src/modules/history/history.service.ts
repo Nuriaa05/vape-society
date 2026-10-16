@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 
 import { PrismaService } from "../../prisma/prisma.service";
+import { loadFinancialHistory } from "./finance-history";
 
 export const HISTORY_EVENT_TYPES = [
   "sales",
@@ -11,6 +12,8 @@ export const HISTORY_EVENT_TYPES = [
   "combos",
   "settings",
   "backups",
+  "customers",
+  "collections",
 ] as const;
 
 export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
@@ -66,6 +69,7 @@ export class HistoryService {
       paymentMethods,
       coupons,
       backups,
+      financialEvents,
     ] = await Promise.all([
       this.prisma.sale.findMany({ select: { date: true, cancelledAt: true } }),
       this.prisma.purchase.findMany({
@@ -84,6 +88,7 @@ export class HistoryService {
       this.prisma.paymentMethod.findMany({ select: { createdAt: true } }),
       this.prisma.coupon.findMany({ select: { createdAt: true } }),
       this.prisma.backupLog.findMany({ select: { createdAt: true } }),
+      loadFinancialHistory(this.prisma),
     ]);
     const dates = [
       ...sales.flatMap((item) =>
@@ -100,6 +105,7 @@ export class HistoryService {
       ...paymentMethods.map((item) => item.createdAt),
       ...coupons.map((item) => item.createdAt),
       ...backups.map((item) => item.createdAt),
+      ...financialEvents.map((event) => new Date(event.occurredAt)),
     ];
     const counts = new Map<string, { date: Date; count: number }>();
 
@@ -165,6 +171,7 @@ export class HistoryService {
       paymentMethods,
       coupons,
       backups,
+      financialEvents,
     ] = await Promise.all([
       this.prisma.sale.findMany({
         where: { OR: [{ date: dateFilter }, { cancelledAt: dateFilter }] },
@@ -197,8 +204,9 @@ export class HistoryService {
       this.prisma.paymentMethod.findMany({ where: { createdAt: dateFilter } }),
       this.prisma.coupon.findMany({ where: { createdAt: dateFilter } }),
       this.prisma.backupLog.findMany({ where: { createdAt: dateFilter } }),
+      loadFinancialHistory(this.prisma, range),
     ]);
-    const events: HistoryEvent[] = [];
+    const events: HistoryEvent[] = [...financialEvents];
 
     for (const sale of sales) {
       if (isWithinRange(sale.date, range)) {

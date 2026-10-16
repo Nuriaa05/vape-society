@@ -38,6 +38,8 @@ model PaymentMethod {
   enabled              Boolean  @default(true)
   surchargeBasisPoints Int      @default(0)
   cashHandling         Boolean  @default(false)
+  collectionEligible   Boolean  @default(false)
+  supportsInstallments Boolean  @default(false)
   sales                Sale[]
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -113,34 +115,44 @@ model ComboItem {
 }
 
 model Sale {
-  id                      String        @id @default(cuid())
-  number                  String        @unique
-  date                    DateTime      @default(now())
+  id                      String           @id @default(cuid())
+  number                  String           @unique
+  date                    DateTime         @default(now())
   customerName            String?
   customerPhone           String?
   deliveryStatus          String
   status                  String
-  paymentMethodId         String
+  paymentMethodId         String?
+  customerId              String?
+  paymentTerms            String?
+  financeSnapshot         String?
+  operationId             String?          @unique
+  operationPayload        String?
   couponId                String?
   couponCode              String?
   couponType              String?
   couponBasisPoints       Int?
   couponValueAmountCents  Int?
-  discountAmountCents     Int           @default(0)
-  paymentMethodName       String        @default("")
-  surchargeBasisPoints    Int           @default(0)
-  surchargeAmountCents    Int           @default(0)
+  discountAmountCents     Int              @default(0)
+  paymentMethodName       String           @default("")
+  surchargeBasisPoints    Int              @default(0)
+  surchargeAmountCents    Int              @default(0)
   cashReceivedAmountCents Int?
   changeAmountCents       Int?
   subtotalAmountCents     Int
   totalAmountCents        Int
   cancelReason            String?
   cancelledAt             DateTime?
-  paymentMethod           PaymentMethod @relation(fields: [paymentMethodId], references: [id])
-  coupon                  Coupon?       @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  paymentMethod           PaymentMethod?   @relation(fields: [paymentMethodId], references: [id])
+  customer                Customer?        @relation(fields: [customerId], references: [id])
+  receivablePlan          ReceivablePlan?
+  cardSettlements         CardSettlement[]
+  collections             Collection[]
+  refunds                 Refund[]
+  coupon                  Coupon?          @relation(fields: [couponId], references: [id], onDelete: Restrict)
   items                   SaleItem[]
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
 
   @@index([date])
   @@index([deliveryStatus])
@@ -277,4 +289,160 @@ model BackupLog {
   sizeBytes Int
   status    String
   createdAt DateTime @default(now())
+}
+
+model Customer {
+  id          String           @id @default(cuid())
+  name        String
+  phone       String?
+  notes       String?
+  active      Boolean          @default(true)
+  sales       Sale[]
+  plans       ReceivablePlan[]
+  collections Collection[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([name])
+}
+
+model ReceivablePlan {
+  id               String                  @id @default(cuid())
+  customerId       String
+  saleId           String?                 @unique
+  title            String
+  totalAmountCents Int
+  status           String                  @default("Activo")
+  cancelReason     String?
+  cancelledAt      DateTime?
+  customer         Customer                @relation(fields: [customerId], references: [id])
+  sale             Sale?                   @relation(fields: [saleId], references: [id])
+  installments     ReceivableInstallment[]
+  refunds          Refund[]
+  createdAt        DateTime                @default(now())
+
+  @@index([customerId])
+}
+
+model ReceivableInstallment {
+  id          String                 @id @default(cuid())
+  planId      String
+  number      Int
+  dueDate     String
+  amountCents Int
+  plan        ReceivablePlan         @relation(fields: [planId], references: [id])
+  allocations CollectionAllocation[]
+
+  @@unique([planId, number])
+  @@index([dueDate])
+}
+
+model Collection {
+  id                      String                 @id @default(cuid())
+  customerId              String?
+  customerName            String?
+  saleId                  String?
+  date                    String
+  kind                    String                 @default("Direct")
+  paymentMethodId         String
+  paymentMethodName       String
+  amountCents             Int
+  cashReceivedAmountCents Int?
+  changeAmountCents       Int?
+  reversedAt              DateTime?
+  reversalReason          String?
+  customer                Customer?              @relation(fields: [customerId], references: [id])
+  sale                    Sale?                  @relation(fields: [saleId], references: [id])
+  allocations             CollectionAllocation[]
+  createdAt               DateTime               @default(now())
+
+  @@index([date])
+  @@index([customerId])
+  @@index([saleId])
+}
+
+model CollectionAllocation {
+  id            String                @id @default(cuid())
+  collectionId  String
+  installmentId String
+  amountCents   Int
+  collection    Collection            @relation(fields: [collectionId], references: [id])
+  installment   ReceivableInstallment @relation(fields: [installmentId], references: [id])
+
+  @@unique([collectionId, installmentId])
+  @@index([installmentId])
+}
+
+model CardSettlement {
+  id               String               @id @default(cuid())
+  saleId           String
+  processor        String
+  reference        String?
+  number           Int
+  dueDate          String
+  grossAmountCents Int
+  feeAmountCents   Int
+  sale             Sale                 @relation(fields: [saleId], references: [id])
+  accreditations   CardAccreditation[]
+  cancellations    RefundCancellation[]
+
+  @@unique([saleId, number])
+  @@index([dueDate])
+}
+
+model CardAccreditation {
+  id               String         @id @default(cuid())
+  settlementId     String
+  date             String
+  grossAmountCents Int
+  feeAmountCents   Int
+  reference        String?
+  reversedAt       DateTime?
+  reversalReason   String?
+  settlement       CardSettlement @relation(fields: [settlementId], references: [id])
+  createdAt        DateTime       @default(now())
+
+  @@index([date])
+}
+
+model Refund {
+  id                 String               @id @default(cuid())
+  saleId             String?
+  planId             String?
+  customerId         String?
+  customerName       String?
+  date               String
+  amountCents        Int
+  cashOutAmountCents Int
+  paymentMethodId    String?
+  paymentMethodName  String
+  reason             String
+  reversedAt         DateTime?
+  reversalReason     String?
+  sale               Sale?                @relation(fields: [saleId], references: [id])
+  plan               ReceivablePlan?      @relation(fields: [planId], references: [id])
+  cancellations      RefundCancellation[]
+  createdAt          DateTime             @default(now())
+
+  @@index([date])
+  @@index([customerId])
+}
+
+model RefundCancellation {
+  id               String         @id @default(cuid())
+  refundId         String
+  settlementId     String
+  grossAmountCents Int
+  refund           Refund         @relation(fields: [refundId], references: [id])
+  settlement       CardSettlement @relation(fields: [settlementId], references: [id])
+
+  @@unique([refundId, settlementId])
+}
+
+model FinancialOperation {
+  operationId String   @id
+  kind        String
+  payload     String
+  resultId    String
+  createdAt   DateTime @default(now())
 }

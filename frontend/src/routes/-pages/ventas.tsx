@@ -611,6 +611,33 @@ export function VentasPage() {
                       <span>Pago</span>
                       <span>{viewing.payment}</span>
                     </div>
+                    {viewing.finance ? (
+                      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                        <p>
+                          Anticipo:{" "}
+                          {formatARS(viewing.finance.upfrontAmountCents / 100)}{" "}
+                          · Financiado:{" "}
+                          {formatARS(viewing.finance.financedAmountCents / 100)}
+                        </p>
+                        {viewing.finance.installments.map((item) => (
+                          <p key={item.number}>
+                            Cuota {item.number} · {item.dueDate} ·{" "}
+                            {formatARS(item.amountCents / 100)}
+                          </p>
+                        ))}
+                        {viewing.finance.cardPlan ? (
+                          <p>
+                            {viewing.finance.cardPlan.installmentCount} cuotas
+                            con tarjeta · {viewing.finance.cardPlan.processor}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Sin seguimiento financiero
+                      </p>
+                    )}
+
                     {viewing.cashReceived !== undefined &&
                       viewing.change !== undefined && (
                         <>

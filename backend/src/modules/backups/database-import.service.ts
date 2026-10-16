@@ -112,6 +112,9 @@ export class DatabaseImportService implements OnModuleDestroy {
           },
         );
       }
+      // Older backups acquire the new tables only in this temporary copy.
+      // After migration, enforce the complete current schema as well.
+      checkImportFile(path);
       const counts = validateImportData(path, await this.getCurrentPath());
       const id = randomUUID();
       const timer = setTimeout(() => {

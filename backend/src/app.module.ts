@@ -6,6 +6,7 @@ import { HealthController } from "./health.controller";
 import { BackupsModule } from "./modules/backups/backups.module";
 import { CatalogModule } from "./modules/catalog/catalog.module";
 import { CombosModule } from "./modules/combos/combos.module";
+import { CollectionsModule } from "./modules/collections/collections.module";
 import { CouponsModule } from "./modules/coupons/coupons.module";
 import { HistoryModule } from "./modules/history/history.module";
 import { ProductsModule } from "./modules/products/products.module";
@@ -28,6 +29,7 @@ import { StartupChecksService } from "./startup-checks.service";
     BackupsModule,
     CatalogModule,
     CombosModule,
+    CollectionsModule,
     CouponsModule,
     HistoryModule,
     PrismaModule,

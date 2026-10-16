@@ -19,6 +19,7 @@ import { Route as HistorialRouteImport } from './routes/historial'
 import { Route as ConfiguracionRouteImport } from './routes/configuracion'
 import { Route as ComprasRouteImport } from './routes/compras'
 import { Route as CombosRouteImport } from './routes/combos'
+import { Route as ClientesCobranzasRouteImport } from './routes/clientes-cobranzas'
 import { Route as IndexRouteImport } from './routes/index'
 
 const VentasRoute = VentasRouteImport.update({
@@ -71,6 +72,11 @@ const CombosRoute = CombosRouteImport.update({
   path: '/combos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientesCobranzasRoute = ClientesCobranzasRouteImport.update({
+  id: '/clientes-cobranzas',
+  path: '/clientes-cobranzas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -79,6 +85,7 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/clientes-cobranzas': typeof ClientesCobranzasRoute
   '/combos': typeof CombosRoute
   '/compras': typeof ComprasRoute
   '/configuracion': typeof ConfiguracionRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/clientes-cobranzas': typeof ClientesCobranzasRoute
   '/combos': typeof CombosRoute
   '/compras': typeof ComprasRoute
   '/configuracion': typeof ConfiguracionRoute
@@ -106,6 +114,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/clientes-cobranzas': typeof ClientesCobranzasRoute
   '/combos': typeof CombosRoute
   '/compras': typeof ComprasRoute
   '/configuracion': typeof ConfiguracionRoute
@@ -121,6 +130,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/clientes-cobranzas'
     | '/combos'
     | '/compras'
     | '/configuracion'
@@ -134,6 +144,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/clientes-cobranzas'
     | '/combos'
     | '/compras'
     | '/configuracion'
@@ -147,6 +158,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/clientes-cobranzas'
     | '/combos'
     | '/compras'
     | '/configuracion'
@@ -161,6 +173,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ClientesCobranzasRoute: typeof ClientesCobranzasRoute
   CombosRoute: typeof CombosRoute
   ComprasRoute: typeof ComprasRoute
   ConfiguracionRoute: typeof ConfiguracionRoute
@@ -245,6 +258,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CombosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/clientes-cobranzas': {
+      id: '/clientes-cobranzas'
+      path: '/clientes-cobranzas'
+      fullPath: '/clientes-cobranzas'
+      preLoaderRoute: typeof ClientesCobranzasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -257,6 +277,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ClientesCobranzasRoute: ClientesCobranzasRoute,
   CombosRoute: CombosRoute,
   ComprasRoute: ComprasRoute,
   ConfiguracionRoute: ConfiguracionRoute,

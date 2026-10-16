@@ -9,7 +9,12 @@ import {
   Query,
 } from "@nestjs/common";
 
-import { CancelSaleDto, CreateSaleDto, ListSalesQueryDto } from "./dto/sale.dto";
+import {
+  CancelSaleDto,
+  CreateSaleDto,
+  ListSalesQueryDto,
+  QuoteSaleDto,
+} from "./dto/sale.dto";
 import { SalesService } from "./sales.service";
 
 @Controller("api/sales")
@@ -28,7 +33,7 @@ export class SalesController {
 
   @Post("quote")
   @HttpCode(200)
-  quote(@Body() dto: CreateSaleDto) {
+  quote(@Body() dto: QuoteSaleDto) {
     return this.salesService.quote(dto);
   }
 

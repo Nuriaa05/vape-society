@@ -1,12 +1,19 @@
 const assert = require("node:assert/strict");
 const { execFileSync } = require("node:child_process");
-const { mkdtempSync, writeFileSync, mkdirSync, rmSync } = require("node:fs");
+const {
+  existsSync,
+  mkdtempSync,
+  writeFileSync,
+  mkdirSync,
+  rmSync,
+} = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join, resolve, sep } = require("node:path");
 
 const root = resolve(__dirname, "..");
 const backend = join(root, "backend");
-const evidence = join(root, ".verification");
+const evidence =
+  process.env.VAPE_SOCIETY_SMOKE_EVIDENCE_DIR || join(root, ".verification");
 const testDirectory = mkdtempSync(join(tmpdir(), "lozano-core-smoke-"));
 const database = join(testDirectory, "smoke.db");
 const databaseUrl = `file:${database.replaceAll("\\", "/")}`;
@@ -21,6 +28,7 @@ async function main() {
   let app;
   let browser;
   let prisma;
+  let page;
   try {
     writeFileSync(database, "");
     const env = {
@@ -94,8 +102,11 @@ async function main() {
     assert(!tables.some((table) => /Ingredient|Recipe/.test(table.name)));
     assert.equal((await fetch(url + "/api/costs/ingredients")).status, 404);
 
-    browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage({
+    browser = await chromium.launch({
+      headless: true,
+      ...(existsSync(chromium.executablePath()) ? {} : { channel: "chrome" }),
+    });
+    page = await browser.newPage({
       viewport: { width: 1280, height: 800 },
     });
     const pageErrors = [];
@@ -105,12 +116,41 @@ async function main() {
       if (response.url().includes("/api/") && response.status() >= 400)
         apiErrors.push(`${response.status()} ${response.url()}`);
     });
+    if (process.env.VAPE_SOCIETY_SMOKE_CLIENTS_ONLY === "1") {
+      const category = await request("/api/settings/categories", "POST", {
+        name: "Cuotas",
+      });
+      const supplier = await request("/api/suppliers", "POST", {
+        name: "Proveedor cuotas",
+        phone: "123",
+        email: "",
+      });
+      const result = await require("./clients-smoke.cjs")({
+        page,
+        url,
+        request,
+        prisma,
+        category,
+        supplier,
+        evidence,
+      });
+      assert.deepEqual(pageErrors, []);
+      assert.deepEqual(apiErrors, []);
+      writeFileSync(
+        join(evidence, "clients-smoke.json"),
+        JSON.stringify(result, null, 2) + "\n",
+        "utf8",
+      );
+      console.log(JSON.stringify(result));
+      return;
+    }
     const routes = [
       "/",
       "/productos",
       "/combos",
       "/nueva-venta",
       "/ventas",
+      "/clientes-cobranzas",
       "/compras",
       "/stock",
       "/proveedores",
@@ -190,12 +230,7 @@ async function main() {
 
     await page.goto(url + "/configuracion");
     await page.waitForLoadState("networkidle");
-    const paymentToggle = page.getByRole("button", {
-      name: "Mostrar",
-      exact: true,
-    });
-    assert.equal(await paymentToggle.getAttribute("aria-expanded"), "false");
-    await paymentToggle.click();
+    await page.locator("#settings-nav-sales").click();
     assert.equal(
       await page.locator("#payment-surcharge-pm5").inputValue(),
       "2,5",
@@ -203,8 +238,8 @@ async function main() {
     await page
       .getByRole("button", { name: "Nuevo cupón", exact: true })
       .click();
-    await page.getByPlaceholder("Ej. VERANO10").fill("core10");
-    await page.getByPlaceholder("Ej. 10", { exact: true }).fill("10");
+    await page.getByLabel("Código", { exact: true }).fill("core10");
+    await page.locator("#coupon-discount-value").fill("10");
     await Promise.all([
       page.waitForResponse(
         (response) =>
@@ -220,7 +255,9 @@ async function main() {
       await page.goto(url + "/nueva-venta");
       await page.waitForLoadState("networkidle");
       await page
-        .getByPlaceholder("Buscar producto o combo por nombre...")
+        .getByRole("textbox", {
+          name: "Buscar producto o combo por nombre o código",
+        })
         .fill(product.name);
       await page
         .getByRole("button", { name: new RegExp(product.name) })
@@ -298,16 +335,13 @@ async function main() {
       .getByRole("group", { name: "Unidades por día", exact: true })
       .getByRole("button");
     assert.equal(await dailyBars.count(), 7);
-    assert(
-      (await dailyBars.last().getAttribute("aria-label")).endsWith(
-        ": 2 unidades",
-      ),
-    );
-    assert.equal(await dailyBars.last().getAttribute("aria-pressed"), "true");
+    const activeDay = unitsChart.getByRole("button", { name: /: 2 unidades$/ });
+    assert.equal(await activeDay.count(), 1);
+    assert.equal(await activeDay.getAttribute("aria-pressed"), "true");
     await dailyBars.first().focus();
     assert.equal(await dailyBars.first().getAttribute("aria-pressed"), "true");
-    await dailyBars.last().click();
-    assert.equal(await dailyBars.last().getAttribute("aria-pressed"), "true");
+    await activeDay.click();
+    assert.equal(await activeDay.getAttribute("aria-pressed"), "true");
     await unitsChart
       .getByRole("button", { name: "Mensual", exact: true })
       .click();
@@ -315,10 +349,9 @@ async function main() {
       .getByRole("group", { name: "Unidades por mes", exact: true })
       .getByRole("button");
     await monthlyBars.last().waitFor();
-    assert(
-      (await monthlyBars.last().getAttribute("aria-label")).endsWith(
-        ": 2 unidades",
-      ),
+    assert.equal(
+      await unitsChart.getByRole("button", { name: /: 2 unidades$/ }).count(),
+      1,
     );
     await page.screenshot({
       path: join(evidence, "dashboard-units-smoke.png"),
@@ -356,6 +389,7 @@ async function main() {
     await page
       .getByText(`Venta ${cardSale.number} anulada`, { exact: true })
       .waitFor();
+    await page.getByText(`Venta ${cardSale.number}`, { exact: true }).waitFor();
     assert.equal(
       await page.getByText(`Venta ${cardSale.number}`, { exact: true }).count(),
       1,
@@ -488,6 +522,15 @@ async function main() {
       .scrollIntoViewIfNeeded();
     assert(await dialog.evaluate((element) => element.scrollTop > 0));
     await page.keyboard.press("Escape");
+    const financeResult = await require("./clients-smoke.cjs")({
+      page,
+      url,
+      request,
+      prisma,
+      category,
+      supplier,
+      evidence,
+    });
     assert.deepEqual(pageErrors, []);
     assert.deepEqual(apiErrors, []);
     mkdirSync(evidence, { recursive: true });
@@ -504,6 +547,7 @@ async function main() {
       sidebarDimensions,
       selectDimensions,
       dialogDimensions,
+      clientsAndCollections: financeResult,
       pageErrors,
       apiErrors,
     };
@@ -513,6 +557,22 @@ async function main() {
       "utf8",
     );
     console.log(JSON.stringify(result));
+  } catch (error) {
+    if (page && !page.isClosed()) {
+      mkdirSync(evidence, { recursive: true });
+      await page
+        .screenshot({
+          path: join(evidence, "smoke-failure.png"),
+          fullPage: true,
+        })
+        .catch(() => undefined);
+      writeFileSync(
+        join(evidence, "smoke-failure.html"),
+        await page.content(),
+        "utf8",
+      );
+    }
+    throw error;
   } finally {
     await browser?.close();
     await app?.close();

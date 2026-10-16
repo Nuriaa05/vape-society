@@ -85,12 +85,25 @@ describe("BaseDataService", () => {
     await expect(db.prisma.paymentMethod.findMany()).resolves.toHaveLength(6);
     await expect(
       db.prisma.paymentMethod.findUnique({ where: { id: "pm1" } }),
-    ).resolves.toMatchObject({ cashHandling: true, surchargeBasisPoints: 0 });
+    ).resolves.toMatchObject({
+      cashHandling: true,
+      surchargeBasisPoints: 0,
+      collectionEligible: true,
+      supportsInstallments: false,
+    });
     await expect(
       db.prisma.paymentMethod.findUnique({ where: { id: "pm5" } }),
     ).resolves.toMatchObject({
       cashHandling: false,
       surchargeBasisPoints: 250,
+      collectionEligible: false,
+      supportsInstallments: false,
+    });
+    await expect(
+      db.prisma.paymentMethod.findUnique({ where: { id: "pm7" } }),
+    ).resolves.toMatchObject({
+      supportsInstallments: true,
+      collectionEligible: false,
     });
     await expect(
       db.prisma.businessSettings.findUnique({

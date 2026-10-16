@@ -39,6 +39,7 @@ type SidebarRoute =
   | "/ventas"
   | "/compras"
   | "/stock"
+  | "/clientes-cobranzas"
   | "/proveedores"
   | "/reportes"
   | "/historial"
@@ -57,6 +58,7 @@ const navItems: {
   { to: "/combos", label: "Combos", icon: PackagePlus },
   { to: "/stock", label: "Stock", icon: Boxes },
   { to: "/compras", label: "Compras", icon: Truck },
+  { to: "/clientes-cobranzas", label: "Clientes y cobranzas", icon: Users },
   { to: "/proveedores", label: "Proveedores", icon: Users },
   { to: "/historial", label: "Historial", icon: History },
   { to: "/reportes", label: "Reportes", icon: BarChart3 },

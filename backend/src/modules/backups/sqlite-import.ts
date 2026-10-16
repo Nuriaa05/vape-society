@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { BadRequestException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { validateFinancialImport } from "./finance-import-validation";
 
 const models = Prisma.dmmf.datamodel.models;
 const tableName = (model: (typeof models)[number]) =>
@@ -19,6 +20,11 @@ export type ImportCounts = {
   purchases: number;
   suppliers: number;
   movements: number;
+  customers: number;
+  receivablePlans: number;
+  collections: number;
+  cardSettlements: number;
+  refunds: number;
 };
 
 export function getImportProjectPaths() {
@@ -53,10 +59,7 @@ export function checkImportFile(path: string): boolean {
         "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
       )
       .all();
-    if (
-      tables.length !== allowedTables.size ||
-      tables.some((row) => !allowedTables.has(String(row.name)))
-    ) {
+    if (tables.some((row) => !allowedTables.has(String(row.name)))) {
       throw new BadRequestException(
         "La base de datos no corresponde a este sistema.",
       );
@@ -114,7 +117,13 @@ export function checkImportFile(path: string): boolean {
         );
       }
     }
-    return applied.length < expected.length;
+    const needsMigration = applied.length < expected.length;
+    if (!needsMigration && tables.length !== allowedTables.size) {
+      throw new BadRequestException(
+        "La base de datos no corresponde a este sistema.",
+      );
+    }
+    return needsMigration;
   } finally {
     source.close();
   }
@@ -194,6 +203,7 @@ export function validateImportData(
         "El contador de comprobantes del respaldo no es válido.",
       );
     }
+    validateFinancialImport(mirror);
     const count = (table: string) =>
       Number(
         mirror.prepare(`SELECT COUNT(*) AS value FROM ${quote(table)}`).get()!
@@ -206,6 +216,11 @@ export function validateImportData(
       purchases: count("Purchase"),
       suppliers: count("Supplier"),
       movements: count("StockMovement"),
+      customers: count("Customer"),
+      receivablePlans: count("ReceivablePlan"),
+      collections: count("Collection"),
+      cardSettlements: count("CardSettlement"),
+      refunds: count("Refund"),
     };
   } finally {
     mirror.close();
