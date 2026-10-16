@@ -2,7 +2,6 @@ import {
   money,
   today,
   readMoney,
-  allocationAmounts,
   createFinancialOperationResolver,
 } from "@/lib/collections-form";
 import { useState } from "react";
@@ -85,7 +84,7 @@ export function OpeningForm({
         e.preventDefault();
         submit(() => {
           const payload = {
-            title: title.trim(),
+            title: title.trim() || "Deuda anterior",
             totalAmountCents: readMoney(amount),
             installmentCount: Number(count),
             firstDueDate: date,
@@ -98,17 +97,27 @@ export function OpeningForm({
       }}
     >
       <p className="text-sm text-muted-foreground">
-        Saldo previo sin venta ni movimiento de stock. Cuotas mensuales fijas,
-        sin interés por mora.
+        Usá esta opción si el cliente ya te debía dinero antes de usar el
+        sistema. Para una compra nueva sin pagar, registrá una venta con Cuotas
+        directas. Esta carga no agrega otra venta ni cambia el stock.
       </p>
-      <Field label="Concepto">
+      <Field label="Concepto (opcional)">
         <Input
-          required
+          placeholder="Deuda anterior"
+          maxLength={200}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
       </Field>
-      <Amount label="Deuda inicial" value={amount} onChange={setAmount} />
+      <p className="text-sm text-muted-foreground">
+        Podés describir de dónde viene la deuda. Si lo dejás vacío, se guardará
+        como Deuda anterior.
+      </p>
+      <Amount
+        label="Importe que ya debía"
+        value={amount}
+        onChange={setAmount}
+      />
       <Field label="Cantidad de cuotas">
         <Input
           required
@@ -127,7 +136,7 @@ export function OpeningForm({
           onChange={(e) => setDate(e.target.value)}
         />
       </Field>
-      <Button disabled={pending}>Registrar deuda inicial</Button>
+      <Button disabled={pending}>Guardar deuda anterior</Button>
     </form>
   );
 }
@@ -160,113 +169,6 @@ function Method({
           ))}
       </select>
     </Field>
-  );
-}
-export function CollectionForm({
-  customerId,
-  submit,
-  pending,
-}: {
-  customerId: string;
-  submit: Submit;
-  pending: boolean;
-}) {
-  const settings = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => settingsRepository.getSettings(),
-  });
-  const query = useQuery({
-    queryKey: ["collections", "account", customerId],
-    queryFn: () => repo.account(customerId),
-  });
-  const [operationFor] = useState(() => createFinancialOperationResolver());
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [method, setMethod] = useState("");
-  const [date, setDate] = useState(today());
-  const [cash, setCash] = useState("");
-  const isCash =
-    settings.data?.paymentMethods.find((item) => item.id === method)
-      ?.cashHandling ?? false;
-  const rows = (query.data?.installments ?? []).filter(
-    (row) => row.remainingAmountCents > 0 && row.status !== "Anulada",
-  );
-  let total = 0;
-  try {
-    total = allocationAmounts(rows, values).reduce(
-      (sum, row) => sum + row.amountCents,
-      0,
-    );
-  } catch {
-    /* Validation is shown on submit. */
-  }
-  return (
-    <form
-      className="flex flex-col gap-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit(async () => {
-          const allocations = allocationAmounts(rows, values);
-          const amountCents = allocations.reduce(
-            (sum, row) => sum + row.amountCents,
-            0,
-          );
-          if (!amountCents)
-            throw new Error("Ingresá un importe en al menos una cuota.");
-          const payload = {
-            customerId,
-            date,
-            paymentMethodId: method,
-            amountCents,
-            allocations,
-            ...(isCash ? { cashReceivedAmountCents: readMoney(cash) } : {}),
-          };
-          return repo.collect({
-            ...payload,
-            operationId: operationFor(payload),
-          });
-        });
-      }}
-    >
-      <p className="text-sm text-muted-foreground">
-        Elegí explícitamente las cuotas y el importe para cada una. Se permiten
-        pagos parciales y anticipados de distintos planes del cliente.
-      </p>
-      {query.isPending ? (
-        <p>Cargando cuotas…</p>
-      ) : query.error ? (
-        <p role="alert">No se pudieron cargar las cuotas.</p>
-      ) : rows.length === 0 ? (
-        <p>No hay cuotas pendientes.</p>
-      ) : (
-        rows.map((row) => (
-          <div
-            key={row.id}
-            className="grid items-center gap-2 border-b border-border pb-3 sm:grid-cols-2"
-          >
-            <div className="text-sm">
-              {row.saleId ? "" : "Saldo anterior · "}
-              {row.title} · Cuota {row.number}
-              <br />
-              {row.dueDate} · Saldo {money(row.remainingAmountCents)}
-            </div>
-            <Amount
-              label={`Importe cuota ${row.number} de ${row.title}`}
-              value={values[row.id] ?? ""}
-              onChange={(value) =>
-                setValues((previous) => ({ ...previous, [row.id]: value }))
-              }
-            />
-          </div>
-        ))
-      )}
-      <strong>Total a cobrar: {money(total)}</strong>
-      <DateField value={date} onChange={setDate} />
-      <Method value={method} onChange={setMethod} />
-      {isCash ? (
-        <Amount label="Efectivo recibido" value={cash} onChange={setCash} />
-      ) : null}
-      <Button disabled={pending || !rows.length}>Registrar cobro</Button>
-    </form>
   );
 }
 export function AccreditationForm({
