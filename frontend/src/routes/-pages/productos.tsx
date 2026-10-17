@@ -1,3 +1,4 @@
+import { PriceListsEditor } from "@/components/price-lists-editor";
 import {
   Card,
   CardHeader,
@@ -141,6 +142,7 @@ export function ProductosPage() {
       void queryClient.invalidateQueries({ queryKey: ["suppliers"] });
     },
   });
+  const [tab, setTab] = useState<"catalog" | "lists">("catalog");
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("Todas");
   const [showArchived, setShowArchived] = useState(false);
@@ -275,193 +277,241 @@ export function ProductosPage() {
         </div>
       }
     >
-      <Card>
-        <CardHeader title="Catálogo de productos" />
-        <CardToolbar className="flex flex-col items-stretch md:flex-row md:items-center gap-3 pt-0">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar por nombre o código de barras"
-              className="pl-9"
-            />
-          </div>
-          <Select value={cat} onValueChange={setCat}>
-            <SelectTrigger className="md:w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <label className="flex items-center gap-2 text-sm text-muted-foreground px-2">
-            <Switch checked={showArchived} onCheckedChange={setShowArchived} />
-            Mostrar archivados
-          </label>
-        </CardToolbar>
+      <div
+        role="tablist"
+        aria-label="Secciones de productos"
+        className="flex gap-2"
+      >
+        <Button
+          role="tab"
+          id="catalog-tab"
+          aria-controls="catalog-panel"
+          aria-selected={tab === "catalog"}
+          variant={tab === "catalog" ? "default" : "outline"}
+          onClick={() => setTab("catalog")}
+        >
+          Productos
+        </Button>
+        <Button
+          role="tab"
+          id="lists-tab"
+          aria-controls="lists-panel"
+          aria-selected={tab === "lists"}
+          variant={tab === "lists" ? "default" : "outline"}
+          onClick={() => setTab("lists")}
+        >
+          Listas de precios
+        </Button>
+      </div>
+      {tab === "lists" ? (
+        <div
+          id="lists-panel"
+          role="tabpanel"
+          aria-labelledby="lists-tab"
+          className="min-w-0"
+        >
+          <PriceListsEditor />
+        </div>
+      ) : null}
+      <div
+        id="catalog-panel"
+        role="tabpanel"
+        aria-labelledby="catalog-tab"
+        hidden={tab !== "catalog"}
+      >
+        <Card>
+          <CardHeader title="Catálogo de productos" />
+          <CardToolbar className="flex flex-col items-stretch md:flex-row md:items-center gap-3 pt-0">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Buscar por nombre o código de barras"
+                className="pl-9"
+              />
+            </div>
+            <Select value={cat} onValueChange={setCat}>
+              <SelectTrigger className="md:w-56">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground px-2">
+              <Switch
+                checked={showArchived}
+                onCheckedChange={setShowArchived}
+              />
+              Mostrar archivados
+            </label>
+          </CardToolbar>
 
-        <div className="max-h-[640px] overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
-              <tr>
-                <th className="app-table-heading font-medium">
-                  Código de barras
-                </th>
-                <th className="app-table-heading font-medium">Producto</th>
-                <th className="app-table-heading font-medium">Categoría</th>
-                <th className="app-table-heading font-medium text-right">
-                  Stock
-                </th>
-                <th className="app-table-heading font-medium text-right">
-                  Precio costo
-                </th>
-                <th className="app-table-heading font-medium text-right">
-                  Margen
-                </th>
-                <th className="app-table-heading font-medium text-right">
-                  Precio venta
-                </th>
-                <th className="app-table-heading font-medium">Estado</th>
-                <th className="app-table-heading font-medium w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleProducts.map((p) => {
-                const st = stockRepository.getStatus(p);
-                return (
-                  <tr
-                    key={p.id}
-                    className={cn(
-                      "border-b border-border/60 last:border-0 hover:bg-muted/30",
-                      p.archived && "opacity-60",
-                    )}
-                  >
-                    <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
-                      {p.barcode}
-                    </td>
-                    <td className="px-5 py-3 font-medium text-foreground">
-                      {p.name}
-                      {p.archived && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          (archivado)
-                        </span>
+          <div className="max-h-[640px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
+                <tr>
+                  <th className="app-table-heading font-medium">
+                    Código de barras
+                  </th>
+                  <th className="app-table-heading font-medium">Producto</th>
+                  <th className="app-table-heading font-medium">Categoría</th>
+                  <th className="app-table-heading font-medium text-right">
+                    Stock
+                  </th>
+                  <th className="app-table-heading font-medium text-right">
+                    Precio costo
+                  </th>
+                  <th className="app-table-heading font-medium text-right">
+                    Margen
+                  </th>
+                  <th className="app-table-heading font-medium text-right">
+                    Precio venta
+                  </th>
+                  <th className="app-table-heading font-medium">Estado</th>
+                  <th className="app-table-heading font-medium w-10"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleProducts.map((p) => {
+                  const st = stockRepository.getStatus(p);
+                  return (
+                    <tr
+                      key={p.id}
+                      className={cn(
+                        "border-b border-border/60 last:border-0 hover:bg-muted/30",
+                        p.archived && "opacity-60",
                       )}
-                    </td>
-                    <td className="px-5 py-3 text-muted-foreground">
-                      {p.category}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums">
-                      {p.stock}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-muted-foreground">
-                      {formatARS(p.cost)}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums">
-                      {p.marginPct}%
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums font-medium">
-                      {formatARS(p.price)}
-                    </td>
-                    <td className="px-5 py-3">
-                      <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
-                    </td>
-                    <td className="px-2 py-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            aria-label="Acciones"
-                          >
-                            <MoreHorizontal />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() =>
-                              setEditing({ mode: "edit", product: p })
-                            }
-                          >
-                            <Pencil /> Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {p.archived ? (
-                            <DropdownMenuItem onClick={() => toggleArchive(p)}>
-                              <ArchiveRestore /> Restaurar
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => setArchiving(p)}
+                    >
+                      <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
+                        {p.barcode}
+                      </td>
+                      <td className="px-5 py-3 font-medium text-foreground">
+                        {p.name}
+                        {p.archived && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            (archivado)
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-muted-foreground">
+                        {p.category}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        {p.stock}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-muted-foreground">
+                        {formatARS(p.cost)}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        {p.marginPct}%
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums font-medium">
+                        {formatARS(p.price)}
+                      </td>
+                      <td className="px-5 py-3">
+                        <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
+                      </td>
+                      <td className="px-2 py-3">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label="Acciones"
                             >
-                              <Archive /> Archivar
+                              <MoreHorizontal />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setEditing({ mode: "edit", product: p })
+                              }
+                            >
+                              <Pencil /> Editar
                             </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <DropdownMenuSeparator />
+                            {p.archived ? (
+                              <DropdownMenuItem
+                                onClick={() => toggleArchive(p)}
+                              >
+                                <ArchiveRestore /> Restaurar
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => setArchiving(p)}
+                              >
+                                <Archive /> Archivar
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={9}
+                      className="px-5 py-10 text-center text-sm text-muted-foreground"
+                    >
+                      Sin productos para mostrar
                     </td>
                   </tr>
-                );
-              })}
-              {filtered.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={9}
-                    className="px-5 py-10 text-center text-sm text-muted-foreground"
-                  >
-                    Sin productos para mostrar
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <CardFooter className="grid grid-cols-1 items-center gap-3 text-xs text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-          <span className="text-center sm:text-left">
-            Mostrando {visibleProducts.length} de {filtered.length} productos
-          </span>
-          <div className="flex items-center justify-center gap-2">
-            {canShowMore(visibleProductsCount, filtered.length) && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setVisibleProductsCount((current) =>
-                    getNextVisibleCount(
-                      current,
-                      PAGE_LIST_INCREMENT,
-                      filtered.length,
-                    ),
-                  )
-                }
-              >
-                Ver m&aacute;s
-              </Button>
-            )}
-            {canShowLess(
-              visibleProductsCount,
-              PAGE_LIST_INCREMENT,
-              filtered.length,
-            ) && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setVisibleProductsCount(PAGE_LIST_INCREMENT)}
-              >
-                Ver menos
-              </Button>
-            )}
+                )}
+              </tbody>
+            </table>
           </div>
-        </CardFooter>
-      </Card>
+          <CardFooter className="grid grid-cols-1 items-center gap-3 text-xs text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+            <span className="text-center sm:text-left">
+              Mostrando {visibleProducts.length} de {filtered.length} productos
+            </span>
+            <div className="flex items-center justify-center gap-2">
+              {canShowMore(visibleProductsCount, filtered.length) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setVisibleProductsCount((current) =>
+                      getNextVisibleCount(
+                        current,
+                        PAGE_LIST_INCREMENT,
+                        filtered.length,
+                      ),
+                    )
+                  }
+                >
+                  Ver m&aacute;s
+                </Button>
+              )}
+              {canShowLess(
+                visibleProductsCount,
+                PAGE_LIST_INCREMENT,
+                filtered.length,
+              ) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setVisibleProductsCount(PAGE_LIST_INCREMENT)}
+                >
+                  Ver menos
+                </Button>
+              )}
+            </div>
+          </CardFooter>
+        </Card>
+      </div>
 
       <Dialog
         open={editing !== null}

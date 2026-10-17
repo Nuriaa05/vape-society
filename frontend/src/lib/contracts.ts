@@ -1,3 +1,4 @@
+import type { PricingSnapshot } from "@/lib/price-lists";
 import type {
   PurchaseFinance,
   SupplierPayable,
@@ -19,6 +20,7 @@ export interface CouponSetting {
 }
 
 export interface SaleQuote {
+  pricing?: PricingSnapshot;
   finance?: SaleFinance;
   subtotal: number;
   discount: number;
@@ -91,6 +93,7 @@ export type DeliveryStatus = "Pendiente" | "Entregado";
 export type SaleStatus = "Confirmada" | "Anulada";
 
 export interface Sale {
+  pricingSnapshot?: PricingSnapshot | null;
   customerId?: string;
   paymentTerms?: PaymentTerms | null;
   finance?: SaleFinance;

@@ -1,3 +1,4 @@
+import type { PricingSnapshot } from "@/lib/price-lists";
 import { apiClient } from "@/lib/api-client";
 import type { Category, Product, Sale } from "@/lib/contracts";
 import { amountCentsToPesos } from "@/lib/money";
@@ -58,6 +59,7 @@ export interface ReportProductConsumptionItem {
 }
 
 type ApiSale = {
+  pricingSnapshot?: PricingSnapshot | null;
   id: string;
   number: string;
   date: string;
@@ -177,6 +179,7 @@ const VISIBLE_HOURLY_REPORT_END = 22;
 
 function toSale(sale: ApiSale): Sale {
   return {
+    pricingSnapshot: sale.pricingSnapshot ?? null,
     id: sale.id,
     number: sale.number,
     date: sale.date,

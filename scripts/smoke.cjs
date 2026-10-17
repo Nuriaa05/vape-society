@@ -116,6 +116,15 @@ async function main() {
       if (response.url().includes("/api/") && response.status() >= 400)
         apiErrors.push(`${response.status()} ${response.url()}`);
     });
+    if (process.env.VAPE_SOCIETY_SMOKE_WHOLESALE_ONLY === "1") {
+      mkdirSync(evidence, { recursive: true });
+      const result = await require("./wholesale-pricing-smoke.cjs")({ page, url, request, prisma, evidence });
+      assert.deepEqual(pageErrors, []);
+      assert.deepEqual(apiErrors, result.expectedApiErrors ?? []);
+      writeFileSync(join(evidence, "wholesale-smoke.json"), JSON.stringify(result, null, 2) + "\n", "utf8");
+      console.log(JSON.stringify(result));
+      return;
+    }
     if (process.env.VAPE_SOCIETY_SMOKE_SUPPLIERS_ONLY === "1") {
       mkdirSync(evidence, { recursive: true });
       const category = await request("/api/settings/categories", "POST", {name: "Crédito"});

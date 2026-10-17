@@ -1,3 +1,13 @@
+import { SaleAttemptRecovery } from "@/components/sale-attempt-recovery";
+import { ApiError } from "@/lib/api-client";
+import {
+  getPersistedWholesaleSaleAttempt,
+  resolveWholesaleSaleAttempt,
+  releaseWholesaleSaleAttempt,
+} from "@/lib/sale-wholesale-attempt";
+import { priceListsRepository } from "@/lib/repositories/price-lists-repository";
+import { pricingContextLabel } from "@/lib/price-lists";
+import { getResolvedItemPrice, hasCurrentPricing } from "@/lib/sale-wholesale";
 import {
   SaleFinanceFields,
   type FinanceDraft,
@@ -47,14 +57,11 @@ import {
   getCartItemKey,
   getNegativeStockWarnings,
   getSaleCreationErrorMessage,
+  isSalePriceChanged,
   setLineQuantity,
   type Line,
 } from "@/lib/sale-cart";
-import {
-  buildSaleQuoteKey,
-  parseOptionalCashInput,
-  resolveSaleOperationId,
-} from "@/lib/sale-checkout";
+import { buildSaleQuoteKey, parseOptionalCashInput } from "@/lib/sale-checkout";
 import { basisPointsToPercentInput } from "@/lib/payment-pricing";
 import { resolveSelectedPaymentMethodId } from "@/lib/payment-methods";
 import {
@@ -214,22 +221,19 @@ export function NuevaVenta() {
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [saleError, setSaleError] = useState<string | null>(null);
+  const [pricingRevision, setPricingRevision] = useState(0);
+  const [uncertainAttempt, setUncertainAttempt] = useState(
+    Boolean(draft.operationFingerprint),
+  );
+  const pendingRecovery = uncertainAttempt
+    ? getPersistedWholesaleSaleAttempt(financeDraft)
+    : null;
   const inputRef = useRef<HTMLInputElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
   const receiptNumber = confirmedSale?.number ?? "000000";
 
   const locked = confirmed;
   const subtotal = lines.reduce((s, l) => s + l.product.price * l.qty, 0);
-  const grossSubtotal = lines.reduce(
-    (s, l) =>
-      s +
-      (l.product.itemType === "Combo"
-        ? l.product.productsTotal
-        : l.product.price) *
-        l.qty,
-    0,
-  );
-  const comboDiscountTotal = Math.max(0, grossSubtotal - subtotal);
   const availablePaymentMethods = useMemo(
     () =>
       getSalePaymentMethods(
@@ -260,6 +264,26 @@ export function NuevaVenta() {
       })),
     [lines],
   );
+  const previewInput = {
+    customerId: financeDraft.customerId || undefined,
+    items: quoteLines,
+    catalogItems: saleCatalogItems.map((item) => ({
+      itemType: item.itemType,
+      itemId: item.id,
+    })),
+  };
+  const previewQuery = useQuery({
+    queryKey: ["price-preview", previewInput],
+    queryFn: () => priceListsRepository.preview(previewInput),
+    enabled:
+      !locked &&
+      !pendingRecovery &&
+      productsQuery.isSuccess &&
+      combosQuery.isSuccess,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+  const previewReady = hasCurrentPricing(previewQuery);
   const quoteAllowsNegativeStock = negativeStockWarnings.length > 0;
   let cashReceivedAmountCents: number | undefined;
   let cashInputError: string | null = null;
@@ -271,6 +295,7 @@ export function NuevaVenta() {
     }
   }
   const priceInput = {
+    customerId: financeDraft.customerId || undefined,
     pricingOnly: true,
     paymentTerms: financeDraft.paymentTerms,
     directSurchargeBasisPoints: directSale
@@ -283,10 +308,17 @@ export function NuevaVenta() {
     couponCode: appliedCouponCode || undefined,
   };
   const priceQuery = useQuery({
-    queryKey: ["sale-price", priceInput],
+    queryKey: [
+      "sale-price",
+      priceInput,
+      previewQuery.data?.fingerprint,
+      pricingRevision,
+    ],
     queryFn: () => salesRepository.quote(priceInput),
     enabled:
       !locked &&
+      !pendingRecovery &&
+      previewReady &&
       quoteLines.length > 0 &&
       (directSale || Boolean(selectedPaymentMethod)) &&
       Number.isInteger(priceInput.directSurchargeBasisPoints ?? 0) &&
@@ -308,15 +340,19 @@ export function NuevaVenta() {
   });
   const financeReady = financeIssue === null;
   const quoteQuery = useQuery({
-    queryKey: buildSaleQuoteKey({
-      ...financeInput,
-      lines: quoteLines,
-      paymentMethodId,
-      couponCode: appliedCouponCode,
-      cashReceivedInput,
-      deliveryStatus: delivery,
-      allowNegativeStock: quoteAllowsNegativeStock,
-    }),
+    queryKey: [
+      ...buildSaleQuoteKey({
+        ...financeInput,
+        lines: quoteLines,
+        paymentMethodId,
+        couponCode: appliedCouponCode,
+        cashReceivedInput,
+        deliveryStatus: delivery,
+        allowNegativeStock: quoteAllowsNegativeStock,
+      }),
+      previewQuery.data?.fingerprint,
+      pricingRevision,
+    ],
     queryFn: () =>
       salesRepository.quote({
         ...financeInput,
@@ -329,16 +365,57 @@ export function NuevaVenta() {
       }),
     enabled:
       !locked &&
+      !pendingRecovery &&
+      previewReady &&
       quoteLines.length > 0 &&
       financeReady &&
       !cashInputError &&
       totalAmountCents !== undefined &&
       !priceQuery.isFetching &&
       !priceQuery.error,
+    placeholderData: (previous) => previous,
     retry: false,
   });
+  const resolvedSnapshot = confirmedSale
+    ? confirmedSale.pricingSnapshot
+    : (quoteQuery.data?.pricing ?? previewQuery.data);
+  const displayLines = lines.map((line) => {
+    const confirmedItem = confirmedSale?.items.find(
+      (item) =>
+        (item.itemType ?? "Product") === line.product.itemType &&
+        (item.comboId ?? item.productId) === line.product.id,
+    );
+    const resolved = getResolvedItemPrice(
+      resolvedSnapshot?.lines,
+      line.product.itemType,
+      line.product.id,
+    );
+    const product = {
+      ...line.product,
+      name: confirmedItem?.name ?? line.product.name,
+      price: confirmedItem?.price ?? resolved?.price ?? line.product.price,
+    };
+    if (product.itemType === "Combo" && confirmedItem?.components)
+      product.items = confirmedItem.components.map((item) => ({
+        ...item,
+        qty: item.qty / confirmedItem.qty,
+      }));
+    return {
+      ...line,
+      qty: confirmedItem?.qty ?? line.qty,
+      product,
+      habitualPrice: resolved?.habitualPrice ?? line.product.price,
+    };
+  });
+  const effectivePrice = (item: SaleCatalogItem) =>
+    getResolvedItemPrice(
+      previewQuery.data?.catalogPrices,
+      item.itemType,
+      item.id,
+    );
   const confirmedPricing = confirmedSale
     ? {
+        pricing: confirmedSale.pricingSnapshot ?? undefined,
         finance: confirmedSale.finance,
         subtotal: confirmedSale.subtotal ?? subtotal,
         discount: confirmedSale.discount ?? 0,
@@ -366,17 +443,26 @@ export function NuevaVenta() {
   const canSubmitQuotedSale = canConfirmQuotedSale({
     hasLines: lines.length > 0,
     hasPaymentMethod: financeReady && (directSale || Boolean(paymentMethodId)),
-    quotePending: quoteQuery.isFetching || priceQuery.isFetching,
-    quoteError: Boolean(quoteQuery.error || priceQuery.error || cashInputError),
+    quotePending:
+      quoteQuery.isFetching || priceQuery.isFetching || !previewReady,
+    quoteError: Boolean(
+      quoteQuery.error ||
+      priceQuery.error ||
+      previewQuery.error ||
+      cashInputError,
+    ),
     quoteAvailable:
-      Boolean(quoteQuery.data) &&
+      Boolean(quoteQuery.data?.pricing?.fingerprint) &&
+      !quoteQuery.isPlaceholderData &&
+      !priceQuery.isPlaceholderData &&
+      previewReady &&
       !cashInputMissing &&
       financeMoneyValid &&
       financeReady &&
       totalAmountCents !== undefined,
     cashShortfall: quoteQuery.data?.cashShortfall ?? 0,
   });
-  const quoteError = priceQuery.error ?? quoteQuery.error;
+  const quoteError = previewQuery.error ?? priceQuery.error ?? quoteQuery.error;
   const quoteErrorMessage = quoteError
     ? getSaleCreationErrorMessage(quoteError)
     : null;
@@ -390,7 +476,7 @@ export function NuevaVenta() {
           : (quoteErrorMessage ??
             ((quoteQuery.data?.cashShortfall ?? 0) > 0
               ? `Faltan ${formatARS(quoteQuery.data?.cashShortfall ?? 0)} para completar la venta.`
-              : quoteQuery.isFetching || priceQuery.isFetching
+              : quoteQuery.isFetching || priceQuery.isFetching || !previewReady
                 ? "Calculando el total y las condiciones de la venta..."
                 : !quoteQuery.data
                   ? "No se pudo obtener el total final. Revisá los datos e intentá nuevamente."
@@ -429,13 +515,13 @@ export function NuevaVenta() {
   ]);
 
   useEffect(() => {
-    if (locked || directSale) return;
+    if (locked || pendingRecovery || directSale) return;
     setPaymentMethodId((current) =>
       availablePaymentMethods.some((method) => method.id === current)
         ? current
         : (availablePaymentMethods[0]?.id ?? ""),
     );
-  }, [availablePaymentMethods, directSale, locked]);
+  }, [availablePaymentMethods, directSale, locked, pendingRecovery]);
 
   const changePaymentTerms = (paymentTerms: FinanceDraft["paymentTerms"]) => {
     setFinanceDraft((current) => ({
@@ -461,6 +547,7 @@ export function NuevaVenta() {
     setConfirmedSale(null);
     setCancelled(null);
     setSaleError(null);
+    setUncertainAttempt(false);
     setIsPrintingReceipt(false);
     setConfirmNegativeStock(false);
     setCouponInput("");
@@ -515,14 +602,29 @@ export function NuevaVenta() {
   };
 
   const filtered = useMemo(
-    () => filterSaleCatalogItems(saleCatalogItems, search),
-    [saleCatalogItems, search],
+    () =>
+      filterSaleCatalogItems(
+        saleCatalogItems.filter(
+          (item) =>
+            previewReady &&
+            Boolean(
+              getResolvedItemPrice(
+                previewQuery.data?.catalogPrices,
+                item.itemType,
+                item.id,
+              ),
+            ),
+        ),
+        search,
+      ),
+    [saleCatalogItems, search, previewReady, previewQuery.data],
   );
 
   useEffect(() => {
     const handleQuantityShortcut = (event: KeyboardEvent) => {
       if (
         locked ||
+        pendingRecovery ||
         createSaleMutation.isPending ||
         !event.altKey ||
         event.ctrlKey ||
@@ -557,13 +659,91 @@ export function NuevaVenta() {
 
     window.addEventListener("keydown", handleQuantityShortcut);
     return () => window.removeEventListener("keydown", handleQuantityShortcut);
-  }, [activeLineProductId, lines, locked, createSaleMutation.isPending]);
+  }, [
+    activeLineProductId,
+    lines,
+    locked,
+    pendingRecovery,
+    createSaleMutation.isPending,
+  ]);
+
+  const acceptConfirmedSale = (sale: Sale) => {
+    setUncertainAttempt(false);
+    setConfirmedSale(sale);
+    setFinanceDraft((current) => ({
+      ...current,
+      customerId: sale.customerId ?? current.customerId,
+    }));
+    setCustomerName(sale.customerName ?? "");
+    setCustomerPhone(sale.customerPhone ?? "");
+    setConfirmed(true);
+    setConfirmNegativeStock(false);
+    setCouponInput("");
+    setAppliedCouponCode("");
+    setCashReceivedInput("");
+    toast.success(`Venta ${sale.number} confirmada.`);
+  };
+  const handleSaleFailure = (error: unknown) => {
+    const definitiveRejection =
+      error instanceof ApiError && error.status >= 400 && error.status < 500;
+    if (definitiveRejection) {
+      setFinanceDraft((current) => ({
+        ...current,
+        ...releaseWholesaleSaleAttempt(),
+      }));
+      setUncertainAttempt(false);
+      if (isSalePriceChanged(error)) {
+        setPricingRevision((revision) => revision + 1);
+        void previewQuery.refetch();
+      }
+    } else {
+      setUncertainAttempt(true);
+    }
+    const message = getSaleCreationErrorMessage(error);
+    setSaleError(message);
+    toast.error(message);
+    inputRef.current?.focus();
+  };
+  const recoverSale = async (payload: CreateSaleInput) => {
+    setSaleError(null);
+    try {
+      const sale = await createSaleMutation.mutateAsync(payload);
+      acceptConfirmedSale(sale);
+      return sale;
+    } catch (error) {
+      handleSaleFailure(error);
+    }
+  };
+  if (pendingRecovery && !locked) {
+    return (
+      <AppShell
+        title="Nueva venta"
+        subtitle="Comprobá el resultado de la venta anterior"
+      >
+        <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <div
+            className="min-w-0 xl:col-start-2"
+            role="region"
+            aria-label="Resumen de venta"
+          >
+            <SaleAttemptRecovery
+              payload={pendingRecovery}
+              pending={createSaleMutation.isPending}
+              error={saleError}
+              onRecover={recoverSale}
+            />
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
 
   if (
-    productsQuery.isLoading ||
-    combosQuery.isLoading ||
-    settingsQuery.isLoading ||
-    stockQuery.isLoading
+    !locked &&
+    (productsQuery.isLoading ||
+      combosQuery.isLoading ||
+      settingsQuery.isLoading ||
+      stockQuery.isLoading)
   ) {
     return (
       <AppShell
@@ -578,10 +758,11 @@ export function NuevaVenta() {
   }
 
   if (
-    productsQuery.error ||
-    combosQuery.error ||
-    settingsQuery.error ||
-    stockQuery.error
+    !locked &&
+    (productsQuery.error ||
+      combosQuery.error ||
+      settingsQuery.error ||
+      stockQuery.error)
   ) {
     return (
       <AppShell
@@ -595,7 +776,7 @@ export function NuevaVenta() {
     );
   }
 
-  if (!settingsQuery.data) {
+  if (!locked && !settingsQuery.data) {
     return (
       <AppShell
         title="Nueva venta"
@@ -608,11 +789,19 @@ export function NuevaVenta() {
     );
   }
 
-  const receiptHeaderLines = buildReceiptHeaderLines(settingsQuery.data);
-  const receiptFooter = getReceiptFooter(settingsQuery.data.receipt);
+  const receiptHeaderLines = settingsQuery.data
+    ? buildReceiptHeaderLines(settingsQuery.data)
+    : ["Comprobante de venta"];
+  const receiptFooter = getReceiptFooter(
+    settingsQuery.data?.receipt ?? { header: "", footer: "" },
+  );
 
   const addProduct = (p: SaleCatalogItem) => {
     if (locked) return;
+    if (!previewReady || !effectivePrice(p)) {
+      toast.error("El producto o combo no está disponible para esta venta.");
+      return;
+    }
     setLines((curr) => {
       const next = addOrIncrementLine(curr, p);
       const activeLine = next.find(
@@ -714,6 +903,7 @@ export function NuevaVenta() {
     try {
       const payload: CreateSaleInput = {
         ...financeInput,
+        expectedPricingFingerprint: quoteQuery.data?.pricing?.fingerprint,
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         paymentMethodId: directSale ? undefined : paymentMethodId,
@@ -723,35 +913,16 @@ export function NuevaVenta() {
         couponCode: appliedCouponCode || undefined,
         cashReceivedAmountCents,
       };
-      const fingerprint = JSON.stringify(payload);
-      const operationId = resolveSaleOperationId(
-        financeDraft.operationFingerprint,
-        fingerprint,
-        financeDraft.operationId,
-      );
+      const attempt = resolveWholesaleSaleAttempt(financeDraft, payload);
       setFinanceDraft((current) => ({
         ...current,
-        operationId,
-        operationFingerprint: fingerprint,
+        operationId: attempt.operationId,
+        operationFingerprint: attempt.operationFingerprint,
       }));
-      const sale = await createSaleMutation.mutateAsync({
-        ...payload,
-        operationId,
-      });
-      setConfirmedSale(sale);
-      setCustomerName(sale.customerName ?? "");
-      setCustomerPhone(sale.customerPhone ?? "");
-      setConfirmed(true);
-      setConfirmNegativeStock(false);
-      setCouponInput("");
-      setAppliedCouponCode("");
-      setCashReceivedInput("");
-      toast.success(`Venta ${sale.number} confirmada.`);
+      const sale = await createSaleMutation.mutateAsync(attempt.payload);
+      acceptConfirmedSale(sale);
     } catch (error) {
-      const message = getSaleCreationErrorMessage(error);
-      setSaleError(message);
-      toast.error(message);
-      inputRef.current?.focus();
+      handleSaleFailure(error);
     }
   };
 
@@ -851,7 +1022,15 @@ export function NuevaVenta() {
                           )}
                         </span>
                         <span className="text-muted-foreground tabular-nums">
-                          {formatARS(p.price)}
+                          {formatARS(effectivePrice(p)?.price ?? p.price)}
+                          {effectivePrice(p) &&
+                          effectivePrice(p)!.price !==
+                            effectivePrice(p)!.habitualPrice ? (
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              Habitual{" "}
+                              {formatARS(effectivePrice(p)!.habitualPrice)}
+                            </span>
+                          ) : null}
                         </span>
                       </button>
                     ))}
@@ -911,7 +1090,7 @@ export function NuevaVenta() {
                       </td>
                     </tr>
                   )}
-                  {lines.map((l) => {
+                  {displayLines.map((l) => {
                     const product = l.product;
                     const itemKey = getCartItemKey(product);
                     const isCombo = product.itemType === "Combo";
@@ -1016,6 +1195,11 @@ export function NuevaVenta() {
                         </td>
                         <td className="px-5 py-3 text-right tabular-nums text-muted-foreground">
                           {formatARS(l.product.price)}
+                          {l.habitualPrice !== l.product.price ? (
+                            <span className="block text-xs text-muted-foreground">
+                              Habitual {formatARS(l.habitualPrice)}
+                            </span>
+                          ) : null}
                         </td>
                         <td className="px-5 py-3 text-right tabular-nums font-medium">
                           {formatARS(l.product.price * l.qty)}
@@ -1051,21 +1235,38 @@ export function NuevaVenta() {
               Resumen de venta
             </h2>
             <div className="space-y-2 text-sm">
+              {uncertainAttempt && !locked ? (
+                <p role="status" className="text-sm text-muted-foreground">
+                  No se recibió una respuesta de la venta. Al reintentar se
+                  comprobará la misma operación con sus importes originales para
+                  evitar duplicados, si mantenés los datos de la venta.
+                </p>
+              ) : null}
+              <p
+                className="text-xs text-muted-foreground"
+                aria-label="Lista y escala de venta"
+              >
+                {pricingContextLabel(
+                  confirmedSale
+                    ? confirmedSale.pricingSnapshot
+                    : previewQuery.data,
+                )}
+              </p>
+              {!locked &&
+              (previewQuery.isFetching ||
+                priceQuery.isFetching ||
+                quoteQuery.isFetching ||
+                previewQuery.isPlaceholderData ||
+                priceQuery.isPlaceholderData ||
+                quoteQuery.isPlaceholderData) ? (
+                <p role="status" className="text-xs text-muted-foreground">
+                  Recalculando...
+                </p>
+              ) : null}
               <Row
                 label="Subtotal"
-                value={formatARS(
-                  pricing
-                    ? pricing.subtotal + comboDiscountTotal
-                    : grossSubtotal,
-                )}
+                value={formatARS(pricing?.subtotal ?? subtotal)}
               />
-              {comboDiscountTotal > 0 && (
-                <Row
-                  label="Descuento combos"
-                  value={`-${formatARS(comboDiscountTotal)}`}
-                  muted
-                />
-              )}
               {(pricing?.discount ?? 0) > 0 && pricing?.couponCode && (
                 <Row
                   label={`Cupón ${pricing.couponCode}`}
@@ -1293,7 +1494,7 @@ export function NuevaVenta() {
                     value={financeDraft}
                     onChange={setFinanceDraft}
                     onValidityChange={setFinanceMoneyValid}
-                    methods={settingsQuery.data.paymentMethods}
+                    methods={settingsQuery.data?.paymentMethods ?? []}
                     preview={
                       financeReady &&
                       !quoteQuery.isFetching &&
@@ -1495,10 +1696,17 @@ export function NuevaVenta() {
                 </div>
                 <div className="flex justify-between">
                   <span>Fecha</span>
-                  <span>{formatReceiptDateTimeAR()}</span>
+                  <span>{formatReceiptDateTimeAR(confirmedSale?.date)}</span>
                 </div>
                 <div className="border-t border-dashed border-border my-2" />
-                {lines.map((l) => {
+                <p>
+                  {pricingContextLabel(
+                    confirmedSale
+                      ? confirmedSale.pricingSnapshot
+                      : previewQuery.data,
+                  )}
+                </p>
+                {displayLines.map((l) => {
                   const product = l.product;
                   const showComboComponents =
                     product.itemType === "Combo" &&

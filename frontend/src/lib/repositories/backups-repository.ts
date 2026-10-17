@@ -29,6 +29,8 @@ export type DatabaseImportPreview = {
     supplierPayments?: number;
     supplierRefunds?: number;
     inventoryLots?: number;
+    priceLists?: number;
+    priceListPrices?: number;
   };
 };
 

@@ -161,6 +161,11 @@ describe("Database import", () => {
     createLegacyBackup(oldPath);
     const older = readFileSync(oldPath);
     const preview = await upload(older);
+    expect(preview.body.counts).toMatchObject({
+      priceLists: 1,
+      priceListPrices: 0,
+    });
+    expect(readFileSync(oldPath)).toEqual(older);
     await request(app.getHttpServer())
       .post(`/api/backups/import/${preview.body.id}/confirm`)
       .send({ confirmed: true })
@@ -172,6 +177,93 @@ describe("Database import", () => {
         })
       ).dailyBackupEnabled,
     ).toBe(true);
+    const lists = await request(app.getHttpServer())
+      .get("/api/price-lists")
+      .expect(200);
+    expect(lists.body).toEqual([
+      expect.objectContaining({ id: "general", tiers: [] }),
+    ]);
+    const legacy = await request(app.getHttpServer())
+      .get("/api/sales/legacy-sale")
+      .expect(200);
+    expect(legacy.body.pricingSnapshot).toBeNull();
+  });
+
+  it("round-trips wholesale lists, customer assignment and immutable sale prices", async () => {
+    const server = app.getHttpServer();
+    const list = await request(server)
+      .post("/api/price-lists")
+      .send({
+        name: "Distribuidores",
+        tiers: [
+          {
+            minimumQty: 1,
+            prices: [
+              { itemType: "Product", itemId: "p1", priceAmountCents: 12345 },
+            ],
+          },
+        ],
+      })
+      .expect(201);
+    const customer = await request(server)
+      .post("/api/customers")
+      .send({
+        name: "Cliente de lista",
+        priceListId: list.body.id,
+      })
+      .expect(201);
+    const input = {
+      operationId: "wholesale-backup-sale",
+      customerId: customer.body.id,
+      paymentMethodId: "pm2",
+      deliveryStatus: "Pendiente",
+      items: [{ productId: "p1", qty: 1 }],
+    };
+    const quote = await request(server)
+      .post("/api/sales/quote")
+      .send(input)
+      .expect(200);
+    const sale = await request(server)
+      .post("/api/sales")
+      .send({
+        ...input,
+        expectedPricingFingerprint: quote.body.pricing.fingerprint,
+      })
+      .expect(201);
+    const backup = await app.get(BackupsService).createBackup();
+    const bytes = readFileSync(join(backupDir, backup.filename));
+    await request(server)
+      .patch(`/api/price-lists/${list.body.id}`)
+      .send({
+        name: "Configuración posterior",
+        tiers: [],
+      })
+      .expect(200);
+    const preview = await upload(bytes);
+    expect(preview.body.counts).toMatchObject({
+      priceLists: 2,
+      priceListPrices: 1,
+    });
+    await request(server)
+      .post(`/api/backups/import/${preview.body.id}/confirm`)
+      .send({ confirmed: true })
+      .expect(201);
+    const restoredList = await request(server)
+      .get(`/api/price-lists/${list.body.id}`)
+      .expect(200);
+    expect(restoredList.body.name).toBe("Distribuidores");
+    expect(restoredList.body.tiers[0].prices[0].priceAmountCents).toBe(12345);
+    const restoredCustomer = await db.prisma.customer.findUniqueOrThrow({
+      where: { id: customer.body.id },
+    });
+    expect(restoredCustomer.priceListId).toBe(list.body.id);
+    const restoredSale = await request(server)
+      .get(`/api/sales/${sale.body.id}`)
+      .expect(200);
+    expect(restoredSale.body.pricingSnapshot).toEqual(
+      sale.body.pricingSnapshot,
+    );
+    expect(restoredSale.body.totalAmountCents).toBe(12345);
   });
 
   it("migrates legacy physical stock as unclassified without inventing supplier debts or changing the source", async () => {

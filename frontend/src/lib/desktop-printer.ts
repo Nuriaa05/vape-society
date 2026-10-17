@@ -1,3 +1,4 @@
+import { pricingContextLabel, type PricingSnapshot } from "@/lib/price-lists";
 import type { SaleFinance, PaymentTerms } from "@/lib/collections";
 import { getApiBaseUrl } from "@/lib/api-client";
 import { basisPointsToPercentInput } from "@/lib/payment-pricing";
@@ -74,6 +75,7 @@ export type SaleReceiptResponse = {
     payment: string;
     customerName?: string | null;
     customerPhone?: string | null;
+    pricingSnapshot?: PricingSnapshot | null;
     paymentTerms?: PaymentTerms | null;
     finance?: SaleFinance;
     couponCode: string | null;
@@ -239,6 +241,7 @@ export function buildBrowserReceiptHtml(
     row("Comp.", receipt.sale.number),
     row("Fecha", formatTicketDate(receipt.sale.date)),
     row("Entrega", receipt.sale.deliveryStatus),
+    `<div>${escapeHtml(pricingContextLabel(receipt.sale.pricingSnapshot))}</div>`,
     `<hr />`,
     ...receipt.items.flatMap((item) => renderItemLines(item, comboTicketMode)),
     `<hr />`,

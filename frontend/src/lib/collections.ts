@@ -47,6 +47,7 @@ export type SaleFinance = {
   };
 };
 export type Customer = {
+  priceListId?: string | null;
   id: string;
   name: string;
   phone: string | null;

@@ -5,6 +5,7 @@ import { ReceiptNumberService } from "../src/domain/receipt-number.service";
 import { StockRulesService } from "../src/domain/stock-rules.service";
 import { TotalsService } from "../src/domain/totals.service";
 import { CouponsService } from "../src/modules/coupons/coupons.service";
+import { PricingResolver } from "../src/modules/price-lists/pricing-resolver";
 import { SalesService } from "../src/modules/sales/sales.service";
 import { PrismaService } from "../src/prisma/prisma.service";
 import {
@@ -22,6 +23,7 @@ describe("SalesService", () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         SalesService,
+        PricingResolver,
         CouponsService,
         StockRulesService,
         TotalsService,

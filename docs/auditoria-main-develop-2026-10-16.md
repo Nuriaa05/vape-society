@@ -2,9 +2,11 @@
 
 ## Conclusión
 
-`develop` agrega clientes y cuentas por cobrar, cuotas directas, seguimiento manual de acreditaciones de tarjetas y reintegros. **No implementa recibir mercadería de un proveedor en consignación**, que es la necesidad aclarada durante esta revisión.
+`develop` agrega clientes y cuentas por cobrar, cuotas directas, seguimiento manual de acreditaciones de tarjetas y reintegros.
 
-No se cambió lógica de negocio ni se aplicaron migraciones a una base de trabajo. Este documento registra el análisis y las verificaciones, sin implementar una solución de consignación.
+No se cambió lógica de negocio ni se aplicaron migraciones a una base de trabajo durante esta auditoría. Este documento registra el análisis y las verificaciones de las referencias indicadas abajo.
+
+**Aclaración de alcance del 17 de octubre:** el flujo solicitado de proveedores es compra a crédito. La mercadería se compra y se debe el total al proveedor; venderla reduce el stock, pero no cancela esa deuda. La parte que el negocio llama «de ellos» corresponde al inventario ya pagado. Esta aclaración reemplaza la interpretación anterior del requerimiento.
 
 ## Ramas e integraciones
 
@@ -87,21 +89,13 @@ En tarjetas se distingue dinero entregado de bruto pendiente cancelado. Una acre
 
 Para corregir el cobro inicial o anticipo de una venta activa, el sistema exige anular primero la venta. No se incluyó devolución parcial de productos.
 
-## Qué falta para la consignación recibida de proveedores
+## Flujo de proveedores aclarado el 17 de octubre
 
-La consignación indicada por el usuario sigue este circuito: recibir mercadería que pertenece al proveedor, vender una parte, liquidar lo vendido y devolver o conservar lo restante.
+En la integración posterior de develop, Compras permite registrar una compra pagada o a crédito. Una compra a crédito genera una cuenta por pagar por su importe completo. La venta y el pago al proveedor son operaciones independientes.
 
-Ejemplo: recibir 100 unidades, vender 30, liquidar al proveedor esas 30 y mantener o devolver las otras 70. Hoy el sistema no puede relacionar esos pasos como una consignación.
+Stock distingue las unidades pagadas de las unidades a crédito que todavía existen, y muestra su total físico y sus valores a costo de adquisición. Al cancelar la deuda, las unidades restantes de esa compra pasan a pagadas sin alterar la cantidad física. La deuda puede incluir unidades ya vendidas y por eso no debe confundirse con el valor del stock a crédito restante.
 
-La evidencia del código es concreta:
-
-- La migración nueva agrega `Customer`, `ReceivablePlan`, `ReceivableInstallment`, `Collection`, `CollectionAllocation`, `CardSettlement`, `CardAccreditation`, `Refund`, `RefundCancellation` y `FinancialOperation`.
-- Los planes y cobros se vinculan con clientes y ventas, sin una cuenta por pagar al proveedor.
-- Las compras existentes ingresan unidades al stock general. No distinguen propiedad del proveedor, lotes consignados, unidades vendidas por liquidar ni devoluciones de remanentes.
-- `Product.supplierId` identifica un proveedor asociado al producto, pero no permite distribuir existencias del mismo producto entre distintos lotes o condiciones de propiedad.
-- No se encontraron modelos, endpoints ni pantallas de consignación o liquidación a proveedores.
-
-Registrar una recepción consignada como una compra común suma stock, pero no conserva las obligaciones específicas de la consignación. Crear al proveedor como cliente tampoco representa ese circuito: invertiría el sentido de la deuda.
+Ejemplo: comprar 10 unidades a $1.000 genera $10.000 de deuda. Vender 4 deja 6 unidades a crédito en stock, valuadas en $6.000, mientras la deuda sigue siendo $10.000. Al pagarla, esas 6 unidades pasan a stock pagado. El flujo actual cancela cada deuda mediante un pago total.
 
 ## Por qué la integración puede resultar confusa
 
@@ -110,14 +104,13 @@ Registrar una recepción consignada como una compra común suma stock, pero no c
 3. Los reportes de ventas siguen midiendo ventas. No pasan a representar dinero efectivamente cobrado por agregar el módulo financiero.
 4. Por completar es un dato pendiente de carga, no un depósito recibido ni una cuota vencida.
 5. Los medios personalizados necesitan habilitar las capacidades correspondientes en Configuración: Admite cobranzas directas o Admite cuotas con tarjeta.
-6. La integración es grande y llegó en un solo commit funcional. La existencia de deuda inicial y cuotas no implica que se haya implementado consignación.
+6. La integración de clientes es grande y llegó en un solo commit funcional. Las deudas de clientes y las deudas con proveedores corresponden a cuentas distintas.
 
 ## Propuestas, sin implementar
 
-- Acordar un ejemplo real de recepción, venta, liquidación y devolución al proveedor antes de modificar el sistema.
-- Tratar la consignación recibida como un circuito separado que pueda relacionarse con productos, proveedores y ventas existentes.
+- Mantener la distinción entre stock pagado, stock a crédito restante y deuda total al proveedor.
 - Aclarar en la interfaz la contraparte de cada saldo y qué indicadores corresponden al mes o al acumulado.
-- Validar primero con un caso pequeño: 10 unidades recibidas, 3 vendidas y liquidadas, 2 devueltas y 5 todavía en consignación.
+- Validar una compra a crédito, su venta parcial y el pago al proveedor, comprobando que el remanente pase a pagado.
 
 La documentación funcional previa de esta integración está en `docs/clientes-y-cobranzas.md`.
 
@@ -140,4 +133,4 @@ En la rama aislada de develop:
 
 Se usó Node.js 24.15.0, dependencias de los lockfiles existentes y generación local del cliente Prisma. Se deshabilitó la comprobación externa de actualizaciones de Prisma para las verificaciones mediante variables de entorno del proceso. No se ejecutaron setup, db:init, dev ni start sobre una base de trabajo. Los tests y el smoke utilizaron bases temporales.
 
-Estos resultados cubren las pruebas existentes; no equivalen a una aceptación manual del negocio ni prueban una función de consignación que no está implementada. No se hicieron commits, push ni publicaciones.
+Estos resultados cubren las pruebas existentes en las referencias de esta auditoría; no equivalen a una aceptación manual del negocio. No se hicieron commits, push ni publicaciones durante la auditoría inicial.

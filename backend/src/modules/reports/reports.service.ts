@@ -5,6 +5,7 @@ import {
   StockRulesService,
   type StockReadModel,
 } from "../../domain/stock-rules.service";
+import { PricingSnapshot } from "../price-lists/pricing-resolver";
 import { PrismaService } from "../../prisma/prisma.service";
 
 export type ReportsPeriod = "hour" | "month" | "90d" | "year";
@@ -56,6 +57,7 @@ type Bucket = ReportPoint & {
 };
 
 export type ReportSaleResponse = {
+  pricingSnapshot: PricingSnapshot | null;
   id: string;
   number: string;
   date: string;
@@ -687,6 +689,9 @@ export class ReportsService {
   private serializeSale(sale: ReportSale): ReportSaleResponse {
     return {
       id: sale.id,
+      pricingSnapshot: sale.pricingSnapshot
+        ? (JSON.parse(sale.pricingSnapshot) as PricingSnapshot)
+        : null,
       number: sale.number,
       date: sale.date.toISOString(),
       deliveryStatus: sale.deliveryStatus,
