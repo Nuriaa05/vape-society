@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -17,11 +18,17 @@ import { CardSettlementDto } from "../sales/dto/sale.dto";
 
 export class CardScheduleDto {
   @IsString() @IsNotEmpty() @MaxLength(128) operationId!: string;
-  @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true })
-  @Type(() => CardSettlementDto) settlements!: CardSettlementDto[];
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CardSettlementDto)
+  settlements!: CardSettlementDto[];
 }
 
 export class FinanceQueryDto {
+  @IsOptional() @IsIn(["withDebt", "overdue"]) debtStatus?:
+    | "withDebt"
+    | "overdue";
   @IsOptional() @IsString() q?: string;
   @IsOptional() @Matches(/^\d{4}-\d{2}$/) month?: string;
   @IsOptional() @IsString() customerId?: string;

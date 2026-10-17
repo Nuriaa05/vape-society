@@ -1,3 +1,5 @@
+import type { BusinessSettings, ReceiptSettings } from "./contracts";
+
 export type PaymentTerms =
   | "Immediate"
   | "DirectInstallments"
@@ -53,6 +55,7 @@ export type Customer = {
   createdAt: string;
   updatedAt: string;
   balanceAmountCents?: number;
+  overdueAmountCents?: number;
   cardPendingAmountCents?: number;
   cardUnscheduledAmountCents?: number;
 };
@@ -110,6 +113,25 @@ export type FinancialEntry = {
   reversedAt?: string | null;
   reason?: string;
   cashOutAmountCents?: number;
+};
+type ReceiptEntry = FinancialEntry & {
+  customerId?: string | null;
+  customerName?: string | null;
+  cashReceivedAmountCents?: number | null;
+  changeAmountCents?: number | null;
+  reversalReason?: string | null;
+  cancellations?: Array<{ grossAmountCents: number }>;
+};
+export type FinancialReceipt = {
+  business: BusinessSettings | null;
+  receipt: ReceiptSettings | null;
+  collection?: ReceiptEntry;
+  refund?: ReceiptEntry;
+  allocations?: Array<{
+    amountCents: number;
+    installment: { number: number; dueDate: string; plan: { title: string } };
+  }>;
+  legend: string;
 };
 export type RefundSourceRow = {
   saleId: string | null;

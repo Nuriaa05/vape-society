@@ -38,16 +38,18 @@ export function Amount({
   label,
   value,
   onChange,
+  placeholder = "0,00",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  placeholder?: string;
 }) {
   return (
     <Field label={label}>
       <Input
         inputMode="decimal"
-        placeholder="0,00"
+        placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -114,8 +116,8 @@ export function Pager({
   change: (page: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-end gap-3 p-4">
-      <span className="text-sm text-muted-foreground">
+    <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border px-5 py-3">
+      <span className="mr-auto w-full text-sm text-muted-foreground sm:mr-0 sm:w-auto">
         {total} registros · Página {page + 1}
       </span>
       <Button
@@ -138,9 +140,11 @@ export function Pager({
 export function ReasonForm({
   submit,
   pending,
+  description,
 }: {
   submit: (reason: string) => void;
   pending: boolean;
+  description?: string;
 }) {
   const [reason, setReason] = useState("");
   return (
@@ -151,6 +155,9 @@ export function ReasonForm({
         submit(reason.trim());
       }}
     >
+      {description ? (
+        <p className="text-sm text-muted-foreground">{description}</p>
+      ) : null}
       <Field label="Motivo obligatorio">
         <Input
           required

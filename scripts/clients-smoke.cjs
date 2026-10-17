@@ -77,7 +77,93 @@ module.exports = async function clientsSmoke({
     exact: true,
   });
   await customerRow()
-    .getByRole("button", { name: "Cuenta", exact: true })
+    .getByRole("button", {
+      name: "Acciones de Cliente cuotas humo",
+      exact: true,
+    })
+    .click();
+  await page.getByRole("menuitem", { name: "Editar", exact: true }).click();
+  const editModal = page.getByRole("dialog", {
+    name: "Editar cliente",
+    exact: true,
+  });
+  await editModal.waitFor();
+  assert.equal(
+    await editModal.getByLabel("Nombre", { exact: true }).inputValue(),
+    customer.name,
+  );
+  await editModal.getByRole("button", { name: "Cerrar", exact: true }).click();
+  const archiveDialog = page.getByRole("alertdialog", {
+    name: "Archivar cliente",
+    exact: true,
+  });
+  await customerRow()
+    .getByRole("button", {
+      name: "Acciones de Cliente cuotas humo",
+      exact: true,
+    })
+    .click();
+  await page.getByRole("menuitem", { name: "Archivar", exact: true }).click();
+  await archiveDialog.waitFor();
+  assert.equal(
+    (await prisma.customer.findUniqueOrThrow({ where: { id: customer.id } }))
+      .active,
+    true,
+  );
+  await archiveDialog
+    .getByRole("button", { name: "Cancelar", exact: true })
+    .click();
+  assert.equal(
+    (await prisma.customer.findUniqueOrThrow({ where: { id: customer.id } }))
+      .active,
+    true,
+  );
+  await customerRow()
+    .getByRole("button", {
+      name: "Acciones de Cliente cuotas humo",
+      exact: true,
+    })
+    .click();
+  await page.getByRole("menuitem", { name: "Archivar", exact: true }).click();
+  const archiveResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/customers/${customer.id}` &&
+      response.request().method() === "PATCH" &&
+      response.ok(),
+  );
+  await archiveDialog
+    .getByRole("button", { name: "Archivar", exact: true })
+    .click();
+  await archiveResponse;
+  await customerRow().waitFor({ state: "hidden" });
+  await page
+    .getByRole("switch", { name: "Incluir archivados", exact: true })
+    .check();
+  const archivedRow = page
+    .getByRole("region", { name: "Clientes", exact: true })
+    .getByRole("row")
+    .filter({ hasText: customer.name });
+  await archivedRow.getByText("Archivado", { exact: true }).waitFor();
+  await archivedRow
+    .getByRole("button", {
+      name: "Acciones de Cliente cuotas humo",
+      exact: true,
+    })
+    .click();
+  const activateResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/customers/${customer.id}` &&
+      response.request().method() === "PATCH" &&
+      response.ok(),
+  );
+  await page.getByRole("menuitem", { name: "Activar", exact: true }).click();
+  await activateResponse;
+  await customerRow().waitFor();
+  await page
+    .getByRole("switch", { name: "Incluir archivados", exact: true })
+    .uncheck();
+  await customerRow()
+    .getByRole("button", { name: "Ver cuenta", exact: true })
     .click();
   await accountModal.waitFor();
   assert.equal(await page.getByRole("dialog").count(), 1);
@@ -87,17 +173,30 @@ module.exports = async function clientsSmoke({
       .isDisabled(),
   );
   assert.equal(
+    await accountModal
+      .getByRole("heading", { name: "Historial de reintegros", exact: true })
+      .count(),
+    0,
+  );
+  assert.equal(
+    await accountModal
+      .locator("summary")
+      .filter({ hasText: "Ventas asociadas" })
+      .count(),
+    0,
+  );
+  assert.equal(
     await page.getByRole("table", { includeHidden: true }).count(),
     1,
   );
   await page
-    .getByRole("button", { name: "Deuda inicial", exact: true })
+    .getByRole("button", { name: "Cargar deuda anterior", exact: true })
     .click();
   let dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/^Concepto/).fill("Saldo de ventas anteriores");
   await dialog
-    .getByLabel("Concepto", { exact: true })
-    .fill("Saldo de ventas anteriores");
-  await dialog.getByLabel("Deuda inicial", { exact: true }).fill("1000,01");
+    .getByLabel("Importe que ya debía", { exact: true })
+    .fill("1000,01");
   await dialog.getByLabel("Cantidad de cuotas", { exact: true }).fill("3");
   await dialog
     .getByLabel("Primer vencimiento", { exact: true })
@@ -105,38 +204,84 @@ module.exports = async function clientsSmoke({
   const [openingResponse] = await Promise.all([
     responseFor(`/api/customers/${customer.id}/opening-balances`),
     dialog
-      .getByRole("button", { name: "Registrar deuda inicial", exact: true })
+      .getByRole("button", { name: "Guardar deuda anterior", exact: true })
       .click(),
   ]);
   const opening = await openingResponse.json();
   assert.equal(opening.totalAmountCents, 100001);
+  await accountModal.waitFor();
+  assert.equal(
+    await accountModal
+      .getByLabel("Mes de las cuotas", { exact: true })
+      .isVisible(),
+    false,
+  );
+  assert.equal(
+    await accountModal
+      .getByRole("button", { name: "Anular deuda anterior", exact: true })
+      .isVisible(),
+    false,
+  );
+  assert.equal(
+    await accountModal.getByText("Importe original:", { exact: false }).count(),
+    0,
+  );
+  await accountModal
+    .locator("summary")
+    .filter({ hasText: "Más opciones" })
+    .click();
+  await accountModal
+    .getByRole("button", { name: "Anular deuda anterior", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByText("Esto anula la deuda anterior", { exact: false })
+    .waitFor();
+  assert(
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Confirmar", exact: true })
+      .isDisabled(),
+  );
+  await page.keyboard.press("Escape");
   await customerRow()
-    .getByRole("button", { name: "Cuenta", exact: true })
+    .getByRole("button", { name: "Ver cuenta", exact: true })
+    .click();
+  await accountModal
+    .locator("summary")
+    .filter({ hasText: "Filtrar cuotas" })
     .click();
   await accountModal
     .getByLabel("Mes de las cuotas", { exact: true })
     .fill("2026-01");
   await accountModal
-    .getByText("Saldo anterior · Saldo de ventas anteriores · Cuota 1", {
+    .getByRole("region", {
+      name: "Deuda: Saldo de ventas anteriores",
       exact: true,
     })
+    .getByText("Cuota 1", { exact: true })
     .waitFor();
   await accountModal
     .getByLabel("Estado de las cuotas", { exact: true })
-    .selectOption("Pagada");
+    .click();
+  await page.getByRole("option", { name: "Pagada", exact: true }).click();
   await accountModal
     .getByText("No hay cuotas para estos filtros.", { exact: true })
     .waitFor();
   await accountModal
     .getByLabel("Estado de las cuotas", { exact: true })
-    .selectOption("");
+    .click();
+  await page.getByRole("option", { name: "Todas", exact: true }).click();
+  await accountModal
+    .getByRole("button", { name: "Restablecer filtros", exact: true })
+    .click();
   await accountModal
     .getByRole("button", { name: "Cerrar", exact: true })
     .click();
   await accountModal.waitFor({ state: "hidden" });
   assert(
     await customerRow()
-      .getByRole("button", { name: "Cuenta", exact: true })
+      .getByRole("button", { name: "Ver cuenta", exact: true })
       .evaluate((button) => button === document.activeElement),
   );
   await page
@@ -148,30 +293,98 @@ module.exports = async function clientsSmoke({
     .waitFor();
   assert.equal(await accountModal.count(), 0);
   await page.getByLabel("Buscar clientes", { exact: true }).fill("");
+  await page.getByLabel("Deuda del cliente", { exact: true }).click();
+  await page.getByRole("option", { name: "Con deuda", exact: true }).click();
+  await customerRow().waitFor();
+  await page.getByLabel("Deuda del cliente", { exact: true }).click();
+  await page
+    .getByRole("option", { name: "Con pagos vencidos", exact: true })
+    .click();
+  await customerRow().getByText("Deuda vencida", { exact: true }).waitFor();
+  await page.getByLabel("Deuda del cliente", { exact: true }).click();
+  await page
+    .getByRole("option", { name: "Todos los clientes", exact: true })
+    .click();
   await customerRow()
-    .getByRole("button", { name: "Cuenta", exact: true })
+    .getByRole("button", { name: "Ver cuenta", exact: true })
     .click();
   await accountModal
     .getByRole("button", { name: "Registrar cobro", exact: true })
     .click();
   dialog = page.getByRole("dialog");
   assert.equal(await dialog.count(), 1);
-  await dialog
-    .getByLabel("Importe cuota 1 de Saldo de ventas anteriores", {
-      exact: true,
-    })
-    .fill("100");
+  await dialog.getByLabel("Importe del pago", { exact: true }).fill("1000,02");
   await dialog.getByLabel("Medio de pago", { exact: true }).selectOption("pm2");
+  await dialog
+    .getByRole("button", { name: "Revisar pago", exact: true })
+    .click();
+  await dialog.getByRole("alert").waitFor();
+  await dialog.getByLabel("Importe del pago", { exact: true }).fill("100");
+  const beforePayment = await prisma.collection.count();
+  await dialog
+    .getByRole("button", { name: "Revisar pago", exact: true })
+    .click();
+  await dialog
+    .getByText("Después de este pago quedarán", { exact: false })
+    .waitFor();
+  assert.equal(await prisma.collection.count(), beforePayment);
+  await dialog
+    .getByRole("button", { name: "Volver a editar", exact: true })
+    .click();
+  await dialog
+    .getByRole("button", { name: "Elegir cuotas manualmente", exact: true })
+    .click();
+  assert.equal(
+    await dialog
+      .getByLabel("Importe cuota 1 de Saldo de ventas anteriores", {
+        exact: true,
+      })
+      .inputValue(),
+    "100,00",
+  );
+  await dialog
+    .getByRole("button", { name: "Usar distribución sugerida", exact: true })
+    .click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await dialog
+    .getByRole("button", { name: "Revisar pago", exact: true })
+    .click();
+  await page.screenshot({
+    path: join(evidence, "collection-payment-review-mobile.png"),
+    fullPage: true,
+  });
+  assert(
+    await dialog.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+    "Payment review must fit on mobile",
+  );
+  await page.setViewportSize({ width: 1280, height: 800 });
   const [collectionResponse] = await Promise.all([
     responseFor("/api/collections"),
-    dialog
-      .getByRole("button", { name: "Registrar cobro", exact: true })
-      .click(),
+    dialog.getByRole("button", { name: "Confirmar pago", exact: true }).click(),
   ]);
   const collection = await collectionResponse.json();
   assert.equal(collection.amountCents, 10000);
   let account = await request(`/api/customers/${customer.id}/account`);
   assert.equal(account.balanceAmountCents, 90001);
+  const paymentResult = page.getByRole("dialog", {
+    name: "Pago registrado",
+    exact: true,
+  });
+  await paymentResult.getByText("$900,01", { exact: true }).waitFor();
+  await page.screenshot({
+    path: join(evidence, "collection-payment-result.png"),
+    fullPage: true,
+  });
+  await paymentResult
+    .getByRole("button", { name: "Volver a la cuenta", exact: true })
+    .click();
+  await accountModal.waitFor();
+  await accountModal
+    .getByText("Importe original: $333,33", { exact: true })
+    .waitFor();
+  await page.keyboard.press("Escape");
 
   async function chooseCustomer() {
     await page
@@ -334,7 +547,11 @@ module.exports = async function clientsSmoke({
 
   await page.goto(url + "/clientes-cobranzas");
   await customerRow()
-    .getByRole("button", { name: "Cuenta", exact: true })
+    .getByRole("button", { name: "Ver cuenta", exact: true })
+    .click();
+  await accountModal
+    .locator("summary")
+    .filter({ hasText: "Tarjetas del cliente" })
     .click();
   await accountModal
     .getByRole("region", { name: "Tarjetas del cliente", exact: true })
@@ -390,9 +607,8 @@ module.exports = async function clientsSmoke({
     reason: "Cancelación de prueba",
   });
   await page.reload();
-  await page
-    .getByLabel("Tipo de movimiento", { exact: true })
-    .selectOption("Reintegros");
+  await page.getByLabel("Tipo de movimiento", { exact: true }).click();
+  await page.getByRole("option", { name: "Reintegros", exact: true }).click();
   await page
     .getByRole("row")
     .filter({ hasText: `Venta ${card.number}` })
@@ -453,7 +669,7 @@ module.exports = async function clientsSmoke({
   );
   await page.goto(url + "/clientes-cobranzas");
   await customerRow()
-    .getByRole("button", { name: "Cuenta", exact: true })
+    .getByRole("button", { name: "Ver cuenta", exact: true })
     .click();
   await page.evaluate(() => {
     const open = window.open;
@@ -487,7 +703,7 @@ module.exports = async function clientsSmoke({
       button.click(),
     ]);
     await popup.waitForFunction(
-      () => document.body.dataset.printRequested === "true",
+      () => document.body.dataset.receiptReady === "true",
     );
     assert.equal(await popup.title(), title);
     assert((await popup.locator("body").innerText()).includes(content));
@@ -497,6 +713,55 @@ module.exports = async function clientsSmoke({
           "Acreditaciones pendientes canceladas",
         ),
       );
+    await popup.getByRole("button", { name: "Hoja A4", exact: true }).click();
+    assert.equal(await popup.locator("body").getAttribute("data-paper"), "a4");
+    await popup.screenshot({
+      path: join(
+        evidence,
+        title.includes("reintegro")
+          ? "refund-receipt-a4.png"
+          : "collection-receipt-a4.png",
+      ),
+      fullPage: true,
+    });
+    await popup
+      .getByRole("button", { name: "Imprimir o guardar PDF", exact: true })
+      .click();
+    await popup.waitForFunction(
+      () => document.body.dataset.printRequested === "true",
+    );
+    await popup
+      .getByRole("button", { name: "Ticket 58 mm", exact: true })
+      .click();
+    assert.equal(
+      await popup.locator("body").getAttribute("data-paper"),
+      "ticket",
+    );
+    assert(
+      await popup
+        .locator(".sheet")
+        .evaluate((el) => el.scrollWidth <= el.clientWidth),
+    );
+    const ticketWidth = (await popup.locator(".sheet").boundingBox()).width;
+    assert(ticketWidth > 218 && ticketWidth < 221);
+    await popup.screenshot({
+      path: join(
+        evidence,
+        title.includes("reintegro")
+          ? "refund-receipt-58mm.png"
+          : "collection-receipt-58mm.png",
+      ),
+      fullPage: true,
+    });
+    await popup.evaluate(
+      () => (document.body.dataset.printRequested = "false"),
+    );
+    await popup
+      .getByRole("button", { name: "Imprimir o guardar PDF", exact: true })
+      .click();
+    await popup.waitForFunction(
+      () => document.body.dataset.printRequested === "true",
+    );
     await popup.close();
   }
   await page.keyboard.press("Escape");
@@ -508,15 +773,21 @@ module.exports = async function clientsSmoke({
   });
   await page.goto(url + "/clientes-cobranzas");
   await customerRow()
-    .getByRole("button", { name: "Cuenta", exact: true })
+    .getByRole("button", { name: "Ver cuenta", exact: true })
+    .click();
+  await accountModal
+    .locator("summary")
+    .filter({ hasText: "Filtrar cuotas" })
     .click();
   await accountModal
     .getByLabel("Mes de las cuotas", { exact: true })
     .fill("2026-01");
   await accountModal
-    .getByText("Saldo anterior · Saldo de ventas anteriores · Cuota 1", {
+    .getByRole("region", {
+      name: "Deuda: Saldo de ventas anteriores",
       exact: true,
     })
+    .getByText("Cuota 1", { exact: true })
     .waitFor();
   await page.keyboard.press("Control+Home");
   mkdirSync(evidence, { recursive: true });
@@ -542,21 +813,36 @@ module.exports = async function clientsSmoke({
   }
   await page.goto(url + "/clientes-cobranzas");
   await customerRow()
-    .getByRole("button", { name: "Cuenta", exact: true })
+    .getByRole("button", { name: "Ver cuenta", exact: true })
+    .click();
+  await accountModal
+    .locator("summary")
+    .filter({ hasText: "Filtrar cuotas" })
     .click();
   await accountModal
     .getByLabel("Mes de las cuotas", { exact: true })
     .fill("2026-01");
   await accountModal
-    .getByText("Saldo anterior · Saldo de ventas anteriores · Cuota 1", {
+    .getByRole("region", {
+      name: "Deuda: Saldo de ventas anteriores",
       exact: true,
     })
+    .getByText("Cuota 1", { exact: true })
     .waitFor();
   await page.screenshot({
     path: join(evidence, "clients-cobranzas-mobile.png"),
     fullPage: true,
   });
+  await page.keyboard.press("Escape");
+  const paymentsResult = await require("./customer-payments-smoke.cjs")({
+    page,
+    url,
+    request,
+    prisma,
+    evidence,
+  });
   return {
+    ...paymentsResult,
     ...checkoutResult,
     customerId: customer.id,
     openingBalance: opening.totalAmountCents,
@@ -567,9 +853,14 @@ module.exports = async function clientsSmoke({
     fixedMonthlyDates: "passed",
     independentCardAccreditation: "passed",
     printableFinancialReceipts: "passed",
+    a4AndThermalFinancialReceipts: "passed",
     financialBackupRoundtrip: "passed",
     unifiedClientsAndCollections: "passed",
     singleCustomerTableWithAccountModal: "passed",
+    customerRowActions: "passed",
+    debtorFilters: "passed",
+    suggestedPaymentReviewAndBalance: "passed",
+    simplifiedAccountAndSecondaryActions: "passed",
     financeUi: "passed",
     persistentCheckoutTotals: "passed",
     explicitCheckoutRequirements: "passed",

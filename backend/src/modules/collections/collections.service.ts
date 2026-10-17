@@ -77,7 +77,22 @@ export class CollectionsService {
   }
 
   async listCustomers(query: FinanceQueryDto = {}) {
+    const debtors = query.debtStatus
+      ? await this.prisma.$queryRaw<Array<{ customerId: string }>>(Prisma.sql`
+          SELECT DISTINCT p.customerId FROM ReceivablePlan p
+          JOIN ReceivableInstallment i ON i.planId = p.id
+          LEFT JOIN Sale s ON s.id = p.saleId
+          WHERE p.status = 'Activo' AND (p.saleId IS NULL OR s.status = 'Confirmada')
+          AND i.amountCents > (
+            SELECT COALESCE(SUM(a.amountCents), 0) FROM CollectionAllocation a
+            JOIN Collection c ON c.id = a.collectionId
+            WHERE a.installmentId = i.id AND c.reversedAt IS NULL
+          )
+          ${query.debtStatus === "overdue" ? Prisma.sql`AND i.dueDate < ${businessToday()}` : Prisma.empty}
+        `)
+      : undefined;
     const where: Prisma.CustomerWhereInput = {
+      ...(debtors ? { id: { in: debtors.map((row) => row.customerId) } } : {}),
       ...(query.includeInactive === "true" ? {} : { active: true }),
       ...(query.q
         ? {
@@ -101,6 +116,7 @@ export class CollectionsService {
               installments: {
                 select: {
                   amountCents: true,
+                  dueDate: true,
                   allocations: {
                     where: { collection: { reversedAt: null } },
                     select: { amountCents: true },
@@ -145,6 +161,23 @@ export class CollectionsService {
                   ),
                 0,
               ),
+            0,
+          ),
+          overdueAmountCents: plans.reduce(
+            (sum, plan) =>
+              sum +
+              plan.installments
+                .filter((installment) => installment.dueDate < businessToday())
+                .reduce(
+                  (balance, installment) =>
+                    balance +
+                    installment.amountCents -
+                    installment.allocations.reduce(
+                      (paid, allocation) => paid + allocation.amountCents,
+                      0,
+                    ),
+                  0,
+                ),
             0,
           ),
           ...this.cardBalances(settlements),

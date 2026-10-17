@@ -11,6 +11,7 @@ import type {
   CollectionInput,
   RefundInput,
   FinancialEntry,
+  FinancialReceipt,
   CustomerPlan,
 } from "@/lib/collections";
 
@@ -49,6 +50,7 @@ export const collectionsRepository = {
     apiClient.post<Customer>("/customers", data),
   customers: (
     query: {
+      debtStatus?: "withDebt" | "overdue";
       q?: string;
       take?: number;
       skip?: number;
@@ -121,7 +123,7 @@ export const collectionsRepository = {
   reverseRefund: (id: string, reason: string) =>
     apiClient.post(`/collections/refunds/${id}/reverse`, { reason }),
   receipt: (id: string, refund = false) =>
-    apiClient.get<Record<string, unknown>>(
+    apiClient.get<FinancialReceipt>(
       `/collections/${refund ? "refunds/" : ""}${id}/receipt`,
     ),
 };
