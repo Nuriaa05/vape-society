@@ -4,6 +4,31 @@
 
 @custom-variant dark (&:is(.dark *));
 
+.account-disclosure {
+  interpolate-size: allow-keywords;
+}
+
+.account-disclosure::details-content {
+  block-size: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    block-size 180ms ease-out,
+    opacity 180ms ease-out,
+    content-visibility 180ms allow-discrete;
+}
+
+.account-disclosure[open]::details-content {
+  block-size: auto;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-disclosure::details-content {
+    transition: none;
+  }
+}
+
 @font-face {
   font-family: "Geist";
   font-style: normal;

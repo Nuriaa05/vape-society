@@ -1,17 +1,54 @@
 import { money, today } from "@/lib/collections-form";
 import { useDeferredValue, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppShell } from "@/components/app-shell";
+import { AppShell, StatusBadge } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader } from "@/components/ui/card";
+import { Card, CardHeader, CardToolbar, KpiCard } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  CollectionForm,
+  Archive,
+  ArchiveRestore,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+} from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   CustomerForm,
   OpeningForm,
   AccreditationForm,
   RefundForm,
 } from "@/components/collections-forms";
+import {
+  CollectionForm,
+  type RecordedPayment,
+} from "@/components/collection-payment-form";
+import { CollectionPaymentResult } from "@/components/collection-payment-result";
 import {
   Field,
   Modal,
@@ -27,6 +64,7 @@ import type {
 import { Account, EntryList } from "@/components/collections-account";
 import { CardScheduleForm } from "@/components/card-schedule-form";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type View = "Clientes" | "Tarjetas" | "Reintegros";
 type Editing =
@@ -34,12 +72,14 @@ type Editing =
   | { kind: "account"; customer: Customer }
   | { kind: "opening"; customer: Customer }
   | { kind: "collect"; customer: Customer }
+  | { kind: "paid"; customer: Customer; payment: RecordedPayment }
   | { kind: "accredit"; row: CardSettlementRow }
   | { kind: "schedule"; row: CardSettlementRow }
   | { kind: "refund"; row: RefundSourceRow }
   | {
       kind: "reason";
       title: string;
+      description?: string;
       action: (reason: string) => Promise<unknown>;
     }
   | null;
@@ -62,8 +102,12 @@ export function ClientesCobranzasPage() {
   const [status, setStatus] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [inactive, setInactive] = useState(false);
+  const [debtStatus, setDebtStatus] = useState<"" | "withDebt" | "overdue">("");
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Editing>(null);
+  const [archivingCustomer, setArchivingCustomer] = useState<Customer | null>(
+    null,
+  );
   const movementsRef = useRef<HTMLDivElement>(null);
   const accountTriggerRef = useRef<HTMLButtonElement | null>(null);
   const client = useQueryClient();
@@ -81,12 +125,14 @@ export function ClientesCobranzasPage() {
       "customers",
       customerQuery,
       inactive,
+      debtStatus,
       customerPage,
     ],
     queryFn: () =>
       repo.customers({
         q: customerQuery,
         includeInactive: inactive,
+        debtStatus: debtStatus || undefined,
         take: 25,
         skip: customerPage * 25,
       }),
@@ -115,15 +161,36 @@ export function ClientesCobranzasPage() {
   });
   const mutation = useMutation({
     mutationFn: (action: () => Promise<unknown>) => action(),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      setArchivingCustomer(null);
       void client.invalidateQueries({ queryKey: ["collections"] });
       void client.invalidateQueries({ queryKey: ["customers"] });
       void client.invalidateQueries({ queryKey: ["history"] });
       void client.invalidateQueries({ queryKey: ["dashboard-summary"] });
       void client.invalidateQueries({ queryKey: ["reports"] });
       void client.invalidateQueries({ queryKey: ["sales"] });
-      setEditing(null);
-      toast.success("Movimiento guardado");
+      if (editing?.kind === "collect") {
+        setEditing({
+          kind: "paid",
+          customer: editing.customer,
+          payment: result as RecordedPayment,
+        });
+        toast.success("Pago registrado");
+      } else {
+        const isOpening = editing?.kind === "opening";
+        setEditing(
+          isOpening ? { kind: "account", customer: editing.customer } : null,
+        );
+        toast.success(
+          isOpening
+            ? "Deuda anterior registrada"
+            : archivingCustomer
+              ? "Cliente archivado"
+              : editing?.kind === "customer"
+                ? "Cliente guardado"
+                : "Movimiento guardado",
+        );
+      }
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -145,76 +212,121 @@ export function ClientesCobranzasPage() {
   const reason = (
     title: string,
     action: (reason: string) => Promise<unknown>,
-  ) => setEditing({ kind: "reason", title, action });
+    description?: string,
+  ) => setEditing({ kind: "reason", title, action, description });
   return (
     <AppShell
       title="Clientes y cobranzas"
-      subtitle="Cuentas, cuotas y movimientos de dinero"
+      subtitle="Consultá quién debe, registrá sus pagos y seguí el saldo pendiente"
       actions={
         <Button onClick={() => setEditing({ kind: "customer" })}>
-          Nuevo cliente
+          <Plus /> Nuevo cliente
         </Button>
       }
     >
-      <div className="flex flex-col gap-4">
-        <Card className="app-card-body">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className="font-semibold">Resumen de cobranzas</h2>
-              <p className="text-xs text-muted-foreground">
-                {customerId
-                  ? `Cliente: ${customerOptions.data?.find((c) => c.id === customerId)?.name ?? "seleccionado"}`
-                  : "Todos los clientes"}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <Field label="Mes">
-                <Input
-                  type="month"
-                  value={month}
-                  onChange={(e) => {
-                    setMonth(e.target.value);
-                    setPage(0);
-                  }}
-                />
-              </Field>
-              {month ? (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setMonth("");
-                    setPage(0);
-                  }}
-                >
-                  Todos los meses
-                </Button>
-              ) : null}
-            </div>
-          </div>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 xl:grid-cols-6">
-            {Object.entries(summaryLabels).map(([key, label]) => (
-              <div key={key} className="min-w-0">
-                <dt className="text-xs text-muted-foreground">{label}</dt>
-                <dd className="mt-1 break-words text-base font-semibold tabular-nums">
-                  {summary.data
-                    ? money(
-                        summary.data[key as keyof typeof summaryLabels] ?? 0,
-                      )
-                    : "—"}
-                </dd>
+      <div className="flex flex-col gap-5">
+        <section aria-label="Resumen de cobranzas" className="space-y-4">
+          <CardHeader
+            title="Resumen de cobranzas"
+            description={
+              customerId
+                ? `Cliente: ${customerOptions.data?.find((c) => c.id === customerId)?.name ?? "seleccionado"}`
+                : "Todos los clientes"
+            }
+            className="gap-4 p-0"
+            action={
+              <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
+                <div className="min-w-44 flex-1 sm:flex-none">
+                  <Field label="Mes">
+                    <Input
+                      type="month"
+                      className="text-sm"
+                      value={month}
+                      onChange={(e) => {
+                        setMonth(e.target.value);
+                        setPage(0);
+                      }}
+                    />
+                  </Field>
+                </div>
+                {month ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setMonth("");
+                      setPage(0);
+                    }}
+                  >
+                    Todos los meses
+                  </Button>
+                ) : null}
               </div>
-            ))}
-          </dl>
-        </Card>
-        {summary.error ? (
-          <p role="alert" className="text-destructive">
-            No se pudieron cargar los totales.
+            }
+          />
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(summaryLabels)
+              .filter(
+                ([key]) =>
+                  !isCustomers ||
+                  [
+                    "customerDebtAmountCents",
+                    "overdueAmountCents",
+                    "collectedAmountCents",
+                  ].includes(key),
+              )
+              .map(([key, label]) => (
+                <KpiCard
+                  key={key}
+                  label={
+                    key === "collectedAmountCents" && month
+                      ? "Cobros registrados del mes"
+                      : label
+                  }
+                  value={
+                    summary.data
+                      ? money(
+                          summary.data[key as keyof typeof summaryLabels] ?? 0,
+                        )
+                      : "—"
+                  }
+                  hint={
+                    key === "overdueAmountCents"
+                      ? "Incluida en la deuda de clientes"
+                      : key === "collectedAmountCents" ||
+                          key === "refundedAmountCents"
+                        ? month
+                          ? "Mes seleccionado"
+                          : "Todos los meses"
+                        : key === "cardUnscheduledAmountCents"
+                          ? "Fecha o comisión por definir"
+                          : "Todos los vencimientos"
+                  }
+                  className={cn(
+                    isCustomers &&
+                      key === "collectedAmountCents" &&
+                      "sm:col-span-2 lg:col-span-1",
+                    key === "overdueAmountCents" &&
+                      (summary.data?.overdueAmountCents ?? 0) > 0 &&
+                      "[&_.app-metric-value]:text-destructive",
+                  )}
+                />
+              ))}
+          </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {isCustomers
+              ? "La deuda incluye todos los meses. El mes seleccionado solo filtra los cobros del resumen. Los filtros de abajo se aplican a la lista de clientes."
+              : "El mes filtra cobros, reintegros y movimientos de tarjetas. Los saldos pendientes incluyen todos los vencimientos."}
           </p>
-        ) : null}
-        <p className="text-xs text-muted-foreground">
-          El mes filtra cobros, reintegros y movimientos de tarjetas. Los saldos
-          pendientes incluyen todos los vencimientos y no dependen de la página.
-        </p>
+          {summary.error ? (
+            <p
+              role="alert"
+              className="px-4 py-3 text-sm text-destructive sm:px-5"
+            >
+              No se pudieron cargar los totales.
+            </p>
+          ) : null}
+        </section>
         <Card
           ref={movementsRef}
           role="region"
@@ -230,26 +342,37 @@ export function ClientesCobranzasPage() {
             }
             description={
               isCustomers
-                ? "Una fila por cliente. Abrí Cuenta para consultar sus cuotas e historial."
+                ? "Buscá al cliente y elegí Cobrar para registrar un pago o Ver cuenta para consultar su deuda."
                 : "Consultá los detalles antes de registrar o revertir movimientos."
             }
           />
-          <div className="flex flex-wrap items-end gap-3 border-b border-border p-4">
-            <Field label="Tipo de movimiento">
-              <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                value={view}
-                onChange={(e) => changeView(e.target.value as View)}
-              >
-                <option value="Clientes">Clientes y cuotas</option>
-                <option value="Tarjetas">Tarjetas</option>
-                <option value="Reintegros">Reintegros</option>
-              </select>
-            </Field>
-            <Field
-              label={isCustomers ? "Buscar clientes" : "Buscar movimientos"}
+          <CardToolbar className="flex-col items-stretch gap-3 pt-0 lg:flex-row lg:items-center">
+            <Select
+              value={view}
+              onValueChange={(value) => changeView(value as View)}
             >
+              <SelectTrigger
+                aria-label="Tipo de movimiento"
+                className="lg:w-44"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Clientes">Clientes y cuotas</SelectItem>
+                <SelectItem value="Tarjetas">Tarjetas</SelectItem>
+                <SelectItem value="Reintegros">Reintegros</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative min-w-0 flex-1">
+              <Search
+                aria-hidden="true"
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              />
               <Input
+                aria-label={
+                  isCustomers ? "Buscar clientes" : "Buscar movimientos"
+                }
+                className="pl-9"
                 value={isCustomers ? customerSearch : q}
                 placeholder={
                   isCustomers ? "Nombre o celular" : "Cliente o referencia"
@@ -264,49 +387,75 @@ export function ClientesCobranzasPage() {
                   }
                 }}
               />
-            </Field>
+            </div>
             {isCustomers ? (
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={inactive}
-                  onChange={(e) => {
-                    setInactive(e.target.checked);
+              <>
+                <Select
+                  value={debtStatus || "all"}
+                  onValueChange={(value) => {
+                    setDebtStatus(
+                      value === "all" ? "" : (value as typeof debtStatus),
+                    );
                     setCustomerPage(0);
                   }}
-                />
-                Incluir archivados
-              </label>
+                >
+                  <SelectTrigger
+                    aria-label="Deuda del cliente"
+                    className="lg:w-48"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los clientes</SelectItem>
+                    <SelectItem value="withDebt">Con deuda</SelectItem>
+                    <SelectItem value="overdue">Con pagos vencidos</SelectItem>
+                  </SelectContent>
+                </Select>
+                <label className="flex items-center gap-2 whitespace-nowrap px-2 text-sm text-muted-foreground">
+                  <Switch
+                    checked={inactive}
+                    onCheckedChange={(checked) => {
+                      setInactive(checked);
+                      setCustomerPage(0);
+                    }}
+                  />
+                  Incluir archivados
+                </label>
+              </>
             ) : (
               <>
-                <Field label="Cliente">
-                  <select
-                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                    value={customerId}
-                    onChange={(e) => {
-                      setCustomerId(e.target.value);
-                      setPage(0);
-                    }}
-                  >
-                    <option value="">Todos los clientes</option>
+                <Select
+                  value={customerId || "all"}
+                  onValueChange={(value) => {
+                    setCustomerId(value === "all" ? "" : value);
+                    setPage(0);
+                  }}
+                >
+                  <SelectTrigger aria-label="Cliente" className="lg:w-52">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los clientes</SelectItem>
                     {customerOptions.data?.map((c) => (
-                      <option key={c.id} value={c.id}>
+                      <SelectItem key={c.id} value={c.id}>
                         {c.name}
                         {c.active ? "" : " (archivado)"}
-                      </option>
+                      </SelectItem>
                     ))}
-                  </select>
-                </Field>
-                <Field label="Estado">
-                  <select
-                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                    value={status}
-                    onChange={(e) => {
-                      setStatus(e.target.value);
-                      setPage(0);
-                    }}
-                  >
-                    <option value="">Todos</option>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={status || "all"}
+                  onValueChange={(value) => {
+                    setStatus(value === "all" ? "" : value);
+                    setPage(0);
+                  }}
+                >
+                  <SelectTrigger aria-label="Estado" className="lg:w-44">
+                    <SelectValue placeholder="Todos los estados" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los estados</SelectItem>
                     {(view === "Tarjetas"
                       ? [
                           "Por completar",
@@ -318,13 +467,15 @@ export function ClientesCobranzasPage() {
                         ]
                       : ["Pendiente", "Parcial", "Reintegrado"]
                     ).map((s) => (
-                      <option key={s}>{s}</option>
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
                     ))}
-                  </select>
-                </Field>
+                  </SelectContent>
+                </Select>
               </>
             )}
-          </div>
+          </CardToolbar>
           {query.isPending ? (
             <p className="p-5">Cargando…</p>
           ) : query.error ? (
@@ -339,16 +490,15 @@ export function ClientesCobranzasPage() {
               No hay registros para estos filtros.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-muted/40 text-muted-foreground">
+            <div className="max-h-[640px] overflow-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="sticky top-0 z-10 border-b border-border bg-card text-foreground">
                   <tr>
                     {(isCustomers
                       ? [
                           "Cliente",
                           "Contacto",
                           "Deuda del cliente",
-                          "Tarjetas por acreditar",
                           "Estado",
                           "Acciones",
                         ]
@@ -368,7 +518,20 @@ export function ClientesCobranzasPage() {
                             "Acciones",
                           ]
                     ).map((h) => (
-                      <th className="px-4 py-3 font-medium" key={h}>
+                      <th
+                        className={cn(
+                          "app-table-heading font-medium",
+                          ["Acciones", "Estado"].includes(h) && "text-center",
+                          isCustomers && h === "Estado" && "w-44",
+                          isCustomers && h === "Acciones" && "w-60",
+                          [
+                            "Deuda del cliente",
+                            "Reintegrado",
+                            "Pendiente",
+                          ].includes(h) && "text-right",
+                        )}
+                        key={h}
+                      >
                         {h}
                       </th>
                     ))}
@@ -377,39 +540,60 @@ export function ClientesCobranzasPage() {
                 <tbody>
                   {isCustomers
                     ? customers.data?.items.map((c) => (
-                        <tr className="border-t border-border" key={c.id}>
-                          <Cell>{c.name}</Cell>
-                          <Cell>{c.phone || "—"}</Cell>
-                          <Cell>{money(c.balanceAmountCents ?? 0)}</Cell>
-                          <Cell>
-                            <p>{money(c.cardPendingAmountCents ?? 0)}</p>
-                            {(c.cardUnscheduledAmountCents ?? 0) > 0 ? (
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {money(c.cardUnscheduledAmountCents ?? 0)} bruto
-                                por completar
+                        <tr
+                          className={cn(
+                            "border-b border-border/60 last:border-0 hover:bg-muted/30",
+                            !c.active && "text-muted-foreground",
+                          )}
+                          key={c.id}
+                        >
+                          <Cell className="font-medium">
+                            {c.name}
+                            {!c.active ? (
+                              <p className="text-xs text-muted-foreground">
+                                Archivado
                               </p>
                             ) : null}
                           </Cell>
-                          <Cell>{c.active ? "Activo" : "Archivado"}</Cell>
+                          <Cell className="text-muted-foreground">
+                            {c.phone || "—"}
+                          </Cell>
+                          <Cell className="text-right font-medium tabular-nums">
+                            {money(c.balanceAmountCents ?? 0)}
+                          </Cell>
+                          <Cell className="text-center">
+                            {(c.overdueAmountCents ?? 0) > 0 ? (
+                              <StatusBadge tone="destructive">
+                                Deuda vencida
+                              </StatusBadge>
+                            ) : (c.balanceAmountCents ?? 0) > 0 ? (
+                              <StatusBadge tone="warning">Deuda</StatusBadge>
+                            ) : (
+                              <StatusBadge tone="success">Al día</StatusBadge>
+                            )}
+                          </Cell>
                           <Cell>
-                            <Actions>
+                            <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                               <Button
                                 size="sm"
                                 disabled={
                                   mutation.isPending || !c.balanceAmountCents
                                 }
-                                onClick={() =>
+                                onClick={(event) => {
+                                  accountTriggerRef.current =
+                                    event.currentTarget;
                                   setEditing({
                                     kind: "collect",
                                     customer: c,
-                                  })
-                                }
+                                  });
+                                }}
                               >
                                 Cobrar
                               </Button>
                               <Button
                                 size="sm"
-                                variant="outline"
+                                variant="ghost"
+                                disabled={mutation.isPending}
                                 aria-haspopup="dialog"
                                 onClick={(event) => {
                                   accountTriggerRef.current =
@@ -417,40 +601,63 @@ export function ClientesCobranzasPage() {
                                   setEditing({ kind: "account", customer: c });
                                 }}
                               >
-                                Cuenta
+                                Ver cuenta
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  setEditing({
-                                    kind: "customer",
-                                    customer: c,
-                                  })
-                                }
-                              >
-                                Editar
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={mutation.isPending}
-                                onClick={() =>
-                                  submit(() =>
-                                    repo.archiveCustomer(c.id, !c.active),
-                                  )
-                                }
-                              >
-                                {c.active ? "Archivar" : "Activar"}
-                              </Button>
-                            </Actions>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8"
+                                    aria-label={`Acciones de ${c.name}`}
+                                    disabled={mutation.isPending}
+                                  >
+                                    <MoreHorizontal />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onSelect={() =>
+                                      setEditing({
+                                        kind: "customer",
+                                        customer: c,
+                                      })
+                                    }
+                                  >
+                                    <Pencil /> Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  {c.active ? (
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive"
+                                      onSelect={() => setArchivingCustomer(c)}
+                                    >
+                                      <Archive /> Archivar
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem
+                                      onSelect={() =>
+                                        submit(() =>
+                                          repo.archiveCustomer(c.id, true),
+                                        )
+                                      }
+                                    >
+                                      <ArchiveRestore /> Activar
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </Cell>
                         </tr>
                       ))
                     : null}
                   {view === "Tarjetas"
                     ? settlements.data?.items.map((r) => (
-                        <tr className="border-t border-border" key={r.id}>
+                        <tr
+                          className="border-b border-border/60 last:border-0 hover:bg-muted/30"
+                          key={r.id}
+                        >
                           <Cell>
                             {r.saleNumber} · {r.processor}
                             <br />
@@ -473,7 +680,7 @@ export function ClientesCobranzasPage() {
                               </>
                             )}
                           </Cell>
-                          <Cell>
+                          <Cell className="text-right tabular-nums">
                             {money(
                               r.remainingNetAmountCents ??
                                 r.remainingGrossAmountCents,
@@ -533,13 +740,17 @@ export function ClientesCobranzasPage() {
                   {view === "Reintegros"
                     ? refunds.data?.items.map((r, i) => (
                         <tr
-                          className="border-t border-border"
+                          className="border-b border-border/60 last:border-0 hover:bg-muted/30"
                           key={r.saleId ?? r.planId ?? i}
                         >
                           <Cell>{r.title}</Cell>
                           <Cell>{r.customerName || "Sin cliente"}</Cell>
-                          <Cell>{money(r.refundedAmountCents)}</Cell>
-                          <Cell>{money(r.pendingAmountCents)}</Cell>
+                          <Cell className="text-right tabular-nums">
+                            {money(r.refundedAmountCents)}
+                          </Cell>
+                          <Cell className="text-right font-medium tabular-nums">
+                            {money(r.pendingAmountCents)}
+                          </Cell>
                           <Cell>
                             <div className="flex flex-col gap-2">
                               <Button
@@ -613,15 +824,17 @@ export function ClientesCobranzasPage() {
                 ? `Cuenta de ${editing.customer.name}`
                 : editing.kind === "collect"
                   ? `Cobrar a ${editing.customer.name}`
-                  : editing.kind === "opening"
-                    ? "Registrar deuda inicial"
-                    : editing.kind === "schedule"
-                      ? "Completar acreditaciones esperadas"
-                      : editing.kind === "accredit"
-                        ? "Registrar acreditación"
-                        : editing.kind === "refund"
-                          ? "Registrar reintegro"
-                          : editing.title
+                  : editing.kind === "paid"
+                    ? "Pago registrado"
+                    : editing.kind === "opening"
+                      ? "Cargar deuda anterior"
+                      : editing.kind === "schedule"
+                        ? "Completar acreditaciones esperadas"
+                        : editing.kind === "accredit"
+                          ? "Registrar acreditación"
+                          : editing.kind === "refund"
+                            ? "Registrar reintegro"
+                            : editing.title
           }
         >
           {editing.kind === "account" ? (
@@ -650,10 +863,21 @@ export function ClientesCobranzasPage() {
                 )
               }
               cancel={(id) =>
-                reason("Anular deuda inicial", (text) =>
-                  repo.cancelPlan(editing.customer.id, id, text),
+                reason(
+                  "Anular deuda anterior",
+                  (text) => repo.cancelPlan(editing.customer.id, id, text),
+                  "Esto anula la deuda anterior y sus cuotas pendientes. No registra un pago. Si el cliente te entregó dinero, volvé a su cuenta y elegí Registrar cobro. Los pagos ya registrados se conservan; si corresponde devolver dinero, el reintegro se gestiona por separado.",
                 )
               }
+            />
+          ) : editing.kind === "paid" ? (
+            <CollectionPaymentResult
+              customer={editing.customer}
+              payment={editing.payment}
+              account={() =>
+                setEditing({ kind: "account", customer: editing.customer })
+              }
+              close={() => setEditing(null)}
             />
           ) : editing.kind === "customer" ? (
             <CustomerForm
@@ -694,17 +918,59 @@ export function ClientesCobranzasPage() {
           ) : (
             <ReasonForm
               pending={mutation.isPending}
+              description={editing.description}
               submit={(text) => submit(() => editing.action(text))}
             />
           )}
         </Modal>
       ) : null}
+      <AlertDialog
+        open={Boolean(archivingCustomer)}
+        onOpenChange={(open) => {
+          if (!open && !mutation.isPending) setArchivingCustomer(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archivar cliente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vas a archivar a {archivingCustomer?.name}. Dejará de aparecer en
+              la lista habitual y en nuevas ventas. Su historial y su deuda se
+              conservan; podés encontrarlo con Incluir archivados para cobrar o
+              volver a activarlo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={mutation.isPending}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={mutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(event) => {
+                event.preventDefault();
+                if (archivingCustomer)
+                  submit(() =>
+                    repo.archiveCustomer(archivingCustomer.id, false),
+                  );
+              }}
+            >
+              {mutation.isPending ? "Archivando…" : "Archivar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }
-function Cell({ children }: { children: React.ReactNode }) {
-  return <td className="px-4 py-3 align-top">{children}</td>;
-}
-function Actions({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-wrap gap-2">{children}</div>;
+function Cell({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <td className={cn("px-5 py-3 align-middle", className)}>{children}</td>
+  );
 }

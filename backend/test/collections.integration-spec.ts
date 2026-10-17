@@ -19,6 +19,79 @@ describe("collections financial ledger", () => {
     customerId = (await service.createCustomer({ name: "Cliente prueba" })).id;
   });
   afterAll(async () => db?.cleanup());
+  it("filters debtors before pagination and excludes paid, reversed and cancelled balances correctly", async () => {
+    const prefix = "Filtro deudores ";
+    const empty = await service.createCustomer({ name: prefix + "A al día" });
+    const overdue = await service.createCustomer({
+      name: prefix + "B vencido",
+    });
+    const future = await service.createCustomer({ name: prefix + "C futuro" });
+    const cancelled = await service.createCustomer({
+      name: prefix + "D anulado",
+    });
+    const opening = (id: string, date: string) =>
+      service.createOpeningBalance(id, {
+        operationId: `filter-${id}`,
+        title: "Saldo anterior",
+        totalAmountCents: 10000,
+        installmentCount: 1,
+        firstDueDate: date,
+      });
+    const plan = await opening(overdue.id, "2020-01-01");
+    await opening(future.id, "2099-01-01");
+    const cancelledPlan = await opening(cancelled.id, "2020-01-01");
+    await service.cancelPlan(cancelled.id, cancelledPlan.id, "Error de carga");
+    const filters = { q: prefix, debtStatus: "withDebt" as const, take: 1 };
+    const first = await service.listCustomers(filters);
+    expect(first).toMatchObject({ total: 2, hasMore: true });
+    expect(first.items[0]).toMatchObject({
+      id: overdue.id,
+      overdueAmountCents: 10000,
+    });
+    const second = await service.listCustomers({ ...filters, skip: 1 });
+    expect(second.items[0]).toMatchObject({
+      id: future.id,
+      overdueAmountCents: 0,
+    });
+    expect(second.hasMore).toBe(false);
+    expect(
+      (
+        await service.listCustomers({ q: prefix, debtStatus: "overdue" })
+      ).items.map((c) => c.id),
+    ).toEqual([overdue.id]);
+    const paid = await service.createCollection({
+      operationId: "filter-payment",
+      customerId: overdue.id,
+      date: "2020-01-01",
+      paymentMethodId: "pm1",
+      amountCents: 10000,
+      cashReceivedAmountCents: 10000,
+      allocations: [
+        { installmentId: plan.installments[0].id, amountCents: 10000 },
+      ],
+    });
+    expect(
+      (await service.listCustomers({ q: prefix, debtStatus: "overdue" })).total,
+    ).toBe(0);
+    await service.reverseCollection(paid.id, "Corregir pago");
+    await service.updateCustomer(overdue.id, { active: false });
+    expect(
+      (await service.listCustomers({ q: prefix, debtStatus: "overdue" })).total,
+    ).toBe(0);
+    expect(
+      (
+        await service.listCustomers({
+          q: prefix,
+          debtStatus: "overdue",
+          includeInactive: "true",
+        })
+      ).items[0].id,
+    ).toBe(overdue.id);
+    expect(
+      (await service.listCustomers({ q: empty.name })).items[0]
+        .balanceAmountCents,
+    ).toBe(0);
+  });
   it("allows selected installments across plans but rejects another customer's installment", async () => {
     const own = (await service.createCustomer({ name: "Dos planes" })).id;
     const other = (await service.createCustomer({ name: "Otro cliente" })).id;

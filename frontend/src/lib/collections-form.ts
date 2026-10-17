@@ -32,3 +32,33 @@ export function allocationAmounts(
     return [{ installmentId: row.id, amountCents }];
   });
 }
+
+export function suggestPaymentAllocations(
+  rows: InstallmentRow[],
+  amountCents: number,
+) {
+  const pending = rows
+    .filter((row) => row.status !== "Anulada" && row.remainingAmountCents > 0)
+    .sort(
+      (a, b) => a.dueDate.localeCompare(b.dueDate) || a.id.localeCompare(b.id),
+    );
+  const balance = pending.reduce(
+    (sum, row) => sum + row.remainingAmountCents,
+    0,
+  );
+  if (
+    !Number.isSafeInteger(amountCents) ||
+    amountCents <= 0 ||
+    amountCents > balance
+  ) {
+    throw new Error(
+      "El pago debe ser mayor a cero y no superar la deuda pendiente.",
+    );
+  }
+  let remaining = amountCents;
+  return pending.flatMap((row) => {
+    const applied = Math.min(remaining, row.remainingAmountCents);
+    remaining -= applied;
+    return applied > 0 ? [{ installmentId: row.id, amountCents: applied }] : [];
+  });
+}
