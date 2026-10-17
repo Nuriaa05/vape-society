@@ -188,15 +188,28 @@ export class CollectionsService {
     };
   }
 
+  private async assertCustomerPriceList(tx: Tx, priceListId?: string | null) {
+    if (priceListId === undefined || priceListId === null) return;
+    const list = await tx.priceList.findUnique({ where: { id: priceListId } });
+    if (!list?.active)
+      throw new BadRequestException(
+        "La lista de precios no existe o está archivada.",
+      );
+  }
+
   async createCustomer(dto: CreateCustomerDto) {
     if (!dto.name?.trim())
       throw new BadRequestException("El nombre es obligatorio.");
-    return this.prisma.customer.create({
-      data: {
-        name: dto.name.trim(),
-        phone: dto.phone?.trim() || null,
-        notes: dto.notes?.trim() || null,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      await this.assertCustomerPriceList(tx, dto.priceListId);
+      return tx.customer.create({
+        data: {
+          priceListId: dto.priceListId ?? null,
+          name: dto.name.trim(),
+          phone: dto.phone?.trim() || null,
+          notes: dto.notes?.trim() || null,
+        },
+      });
     });
   }
 
@@ -204,18 +217,24 @@ export class CollectionsService {
     await this.customer(this.prisma, id);
     if (dto.name !== undefined && !dto.name.trim())
       throw new BadRequestException("El nombre es obligatorio.");
-    return this.prisma.customer.update({
-      where: { id },
-      data: {
-        ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-        ...(dto.phone !== undefined
-          ? { phone: dto.phone?.trim() || null }
-          : {}),
-        ...(dto.notes !== undefined
-          ? { notes: dto.notes?.trim() || null }
-          : {}),
-        ...(dto.active !== undefined ? { active: dto.active } : {}),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      await this.assertCustomerPriceList(tx, dto.priceListId);
+      return tx.customer.update({
+        where: { id },
+        data: {
+          ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+          ...(dto.phone !== undefined
+            ? { phone: dto.phone?.trim() || null }
+            : {}),
+          ...(dto.notes !== undefined
+            ? { notes: dto.notes?.trim() || null }
+            : {}),
+          ...(dto.active !== undefined ? { active: dto.active } : {}),
+          ...(dto.priceListId !== undefined
+            ? { priceListId: dto.priceListId }
+            : {}),
+        },
+      });
     });
   }
 

@@ -1,3 +1,4 @@
+import type { PricingSnapshot } from "@/lib/price-lists";
 import type {
   PaymentTerms,
   SaleFinance,
@@ -26,6 +27,7 @@ export interface SalesFilters {
 }
 
 type ApiSalePricing = {
+  pricing?: PricingSnapshot;
   finance?: SaleFinance;
   couponId: string | null;
   couponCode: string | null;
@@ -44,6 +46,7 @@ type ApiSalePricing = {
 };
 
 type ApiSale = Partial<ApiSalePricing> & {
+  pricingSnapshot?: PricingSnapshot | null;
   id: string;
   number: string;
   date: string;
@@ -82,6 +85,7 @@ type ApiSale = Partial<ApiSalePricing> & {
 };
 
 export type CreateSaleInput = {
+  expectedPricingFingerprint?: string;
   customerId?: string;
   paymentTerms?: PaymentTerms;
   operationId?: string;
@@ -125,6 +129,7 @@ function toSale(sale: ApiSale): Sale {
     sale.netAmountCents ?? subtotalAmountCents - discountAmountCents;
 
   return {
+    pricingSnapshot: sale.pricingSnapshot ?? null,
     customerId: sale.customerId ?? undefined,
     paymentTerms: sale.paymentTerms,
     finance: sale.finance,
@@ -177,6 +182,7 @@ function toSale(sale: ApiSale): Sale {
 
 function toSaleQuote(quote: ApiSalePricing): SaleQuote {
   return {
+    pricing: quote.pricing,
     finance: quote.finance,
     subtotal: amountCentsToPesos(quote.subtotalAmountCents),
     discount: amountCentsToPesos(quote.discountAmountCents),

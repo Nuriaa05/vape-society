@@ -12,6 +12,7 @@ import { HistoryModule } from "./modules/history/history.module";
 import { ProductsModule } from "./modules/products/products.module";
 import { PurchasesModule } from "./modules/purchases/purchases.module";
 import { ReportsModule } from "./modules/reports/reports.module";
+import { PriceListsModule } from "./modules/price-lists/price-lists.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { StockModule } from "./modules/stock/stock.module";
@@ -38,6 +39,7 @@ import { StartupChecksService } from "./startup-checks.service";
     PurchasesModule,
     ReportsModule,
     SalesModule,
+    PriceListsModule,
     SuppliersModule,
     SupplierPayablesModule,
     SettingsModule,

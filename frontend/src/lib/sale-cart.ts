@@ -188,6 +188,8 @@ export function adjustLineQuantity(
 }
 
 export function getSaleCreationErrorMessage(error: unknown): string {
+  if (isSalePriceChanged(error))
+    return "Los precios cambiaron. Revisá el nuevo total antes de confirmar.";
   if (error instanceof ApiError && error.status === 409) {
     const message = error.message.trim();
     if (message.toLowerCase().includes("stock")) {
@@ -200,4 +202,15 @@ export function getSaleCreationErrorMessage(error: unknown): string {
   return error instanceof Error
     ? error.message
     : "No se pudo confirmar la venta.";
+}
+
+export function isSalePriceChanged(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    typeof error.details === "object" &&
+    error.details !== null &&
+    "code" in error.details &&
+    error.details.code === "PRICE_CHANGED"
+  );
 }

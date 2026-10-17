@@ -1,3 +1,4 @@
+import { pricingContextLabel } from "@/lib/price-lists";
 import { Card, CardHeader, CardToolbar } from "@/components/ui/card";
 import { useSearch } from "@tanstack/react-router";
 import {
@@ -355,6 +356,9 @@ export function VentasPage() {
                           </td>
                           <td className="px-5 py-3">
                             <StatusBadge tone="muted">{s.payment}</StatusBadge>
+                            <div className="text-xs text-muted-foreground">
+                              {pricingContextLabel(s.pricingSnapshot)}
+                            </div>
                           </td>
                           <td className="px-5 py-3 text-right tabular-nums font-medium">
                             {formatARS(s.total)}
@@ -552,6 +556,7 @@ export function VentasPage() {
                       </span>
                     </div>
                     <div className="border-t border-dashed border-border my-2" />
+                    <p>{pricingContextLabel(viewing.pricingSnapshot)}</p>
                     {viewing.items.map((i) => (
                       <div
                         key={i.productId}

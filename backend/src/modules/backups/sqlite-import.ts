@@ -7,6 +7,7 @@ import { BadRequestException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { validateFinancialImport } from "./finance-import-validation";
 import { validateSupplierInventoryImport } from "./supplier-import-validation";
+import { validatePricingImport } from "./pricing-import-validation";
 
 const models = Prisma.dmmf.datamodel.models;
 const tableName = (model: (typeof models)[number]) =>
@@ -30,6 +31,8 @@ export type ImportCounts = {
   supplierPayments: number;
   supplierRefunds: number;
   inventoryLots: number;
+  priceLists: number;
+  priceListPrices: number;
 };
 
 export function getImportProjectPaths() {
@@ -210,6 +213,7 @@ export function validateImportData(
     }
     validateFinancialImport(mirror);
     validateSupplierInventoryImport(mirror);
+    validatePricingImport(mirror);
     const count = (table: string) =>
       Number(
         mirror.prepare(`SELECT COUNT(*) AS value FROM ${quote(table)}`).get()!
@@ -231,6 +235,8 @@ export function validateImportData(
       supplierPayments: count("SupplierPayment"),
       supplierRefunds: count("SupplierRefund"),
       inventoryLots: count("InventoryLot"),
+      priceLists: count("PriceList"),
+      priceListPrices: count("PriceListPrice"),
     };
   } finally {
     mirror.close();

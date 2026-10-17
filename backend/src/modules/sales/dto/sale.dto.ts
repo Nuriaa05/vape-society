@@ -79,6 +79,12 @@ export class CreateSaleDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(128)
+  expectedPricingFingerprint?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
   customerId?: string;
 
   @IsOptional()

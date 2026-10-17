@@ -76,6 +76,7 @@ model Product {
   category         Category            @relation(fields: [categoryId], references: [id])
   supplier         Supplier?           @relation(fields: [supplierId], references: [id])
   saleItems        SaleItem[]
+  listPrices       PriceListPrice[]
   comboItems       ComboItem[]
   saleComponents   SaleItemComponent[]
   purchaseItems    PurchaseItem[]
@@ -97,6 +98,7 @@ model Combo {
   archived         Boolean     @default(false)
   items            ComboItem[]
   saleItems        SaleItem[]
+  listPrices       PriceListPrice[]
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 
@@ -128,6 +130,7 @@ model Sale {
   customerId              String?
   paymentTerms            String?
   financeSnapshot         String?
+  pricingSnapshot         String?
   operationId             String?          @unique
   operationPayload        String?
   couponId                String?
@@ -308,6 +311,8 @@ model Customer {
   name        String
   phone       String?
   notes       String?
+  priceListId String?
+  priceList   PriceList?       @relation(fields: [priceListId], references: [id], onDelete: Restrict)
   active      Boolean          @default(true)
   sales       Sale[]
   plans       ReceivablePlan[]
@@ -545,4 +550,39 @@ model InventoryAllocation {
 
   @@unique([lotId, stockMovementId])
   @@index([stockMovementId])
+}
+
+model PriceList {
+  id        String @id @default(cuid())
+  name      String
+  isGeneral Boolean @default(false)
+  active    Boolean @default(true)
+  tiers     PriceListTier[]
+  customers Customer[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PriceListTier {
+  id          String @id @default(cuid())
+  priceListId String
+  minimumQty  Int
+  priceList   PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  prices      PriceListPrice[]
+
+  @@unique([priceListId, minimumQty])
+}
+
+model PriceListPrice {
+  id               String @id @default(cuid())
+  tierId           String
+  productId        String?
+  comboId          String?
+  priceAmountCents Int
+  tier             PriceListTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  product          Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+  combo            Combo? @relation(fields: [comboId], references: [id], onDelete: Restrict)
+
+  @@unique([tierId, productId])
+  @@unique([tierId, comboId])
 }

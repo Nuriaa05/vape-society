@@ -46,8 +46,12 @@ export const collectionsRepository = {
       includeInactive?: boolean;
     } = {},
   ) => apiClient.get<PageResult<Customer>>("/customers", query),
-  createCustomer: (data: { name: string; phone?: string; notes?: string }) =>
-    apiClient.post<Customer>("/customers", data),
+  createCustomer: (data: {
+    name: string;
+    phone?: string;
+    notes?: string;
+    priceListId?: string | null;
+  }) => apiClient.post<Customer>("/customers", data),
   customers: (
     query: {
       debtStatus?: "withDebt" | "overdue";
@@ -63,6 +67,7 @@ export const collectionsRepository = {
     phone?: string;
     notes?: string;
     active?: boolean;
+    priceListId?: string | null;
   }) => {
     const { id, ...payload } = data;
     return id
@@ -71,6 +76,8 @@ export const collectionsRepository = {
   },
   archiveCustomer: (id: string, active: boolean) =>
     apiClient.patch<Customer>(`/customers/${id}`, { active }),
+  assignPriceList: (id: string, priceListId: string | null) =>
+    apiClient.patch<Customer>(`/customers/${id}`, { priceListId }),
   account: (id: string) =>
     apiClient.get<CustomerAccount>(`/customers/${id}/account`),
   openingBalance: (

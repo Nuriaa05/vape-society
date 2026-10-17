@@ -17,6 +17,12 @@ import {
   CouponsService,
 } from "../coupons/coupons.service";
 import { CancelSaleDto, CreateSaleDto, QuoteSaleDto } from "./dto/sale.dto";
+import {
+  aggregatePricingItems,
+  PricingResolver,
+  pricingFingerprint,
+  PricingSnapshot,
+} from "../price-lists/pricing-resolver";
 import { canonicalPayload } from "../collections/finance-rules";
 import {
   persistSaleFinance,
@@ -105,6 +111,7 @@ type PaymentMethodForSale = {
 };
 
 type SalePricingContext = {
+  pricing: PricingSnapshot;
   finance?: SaleFinance;
   preparedLines: PreparedSaleLine[];
   stockRequirements: StockRequirement[];
@@ -116,6 +123,7 @@ type SalePricingContext = {
 type CouponDiscountType = "Percentage" | "FixedAmount";
 
 export type SalePricingResponse = {
+  pricing: PricingSnapshot;
   finance?: SaleFinance;
   couponId: string | null;
   couponCode: string | null;
@@ -133,7 +141,8 @@ export type SalePricingResponse = {
   cashShortfallAmountCents: number;
 };
 
-export type SaleResponse = SalePricingResponse & {
+export type SaleResponse = Omit<SalePricingResponse, "pricing"> & {
+  pricingSnapshot: PricingSnapshot | null;
   id: string;
   number: string;
   date: string;
@@ -203,6 +212,7 @@ export class SalesService {
     private readonly stockRulesService: StockRulesService,
     private readonly totalsService: TotalsService,
     private readonly couponsService: CouponsService,
+    private readonly pricingResolver: PricingResolver,
     @Optional()
     private readonly inventoryLotsService: InventoryLotsService = new InventoryLotsService(),
   ) {}
@@ -267,6 +277,15 @@ export class SalesService {
           );
       }
       const context = await this.preparePricingContext(tx, dto);
+      if (
+        dto.expectedPricingFingerprint &&
+        dto.expectedPricingFingerprint !== context.pricing.fingerprint
+      )
+        throw new ConflictException({
+          code: "PRICE_CHANGED",
+          message:
+            "Los precios cambiaron. Actualice la cotización antes de confirmar.",
+        });
       this.assertCashForCreation(context);
       const number = await this.receiptNumberService.nextSaleNumber(tx);
       const customer = dto.customerId
@@ -276,6 +295,7 @@ export class SalesService {
       let sale = await tx.sale.create({
         data: {
           number,
+          pricingSnapshot: JSON.stringify(context.pricing),
           customerId: customer?.id ?? null,
           customerName: customer?.name ?? (dto.customerName?.trim() || null),
           customerPhone: customer?.phone ?? (dto.customerPhone?.trim() || null),
@@ -468,8 +488,8 @@ export class SalesService {
     >,
   ): Promise<SalePricingContext> {
     const pricingOnly = quoteOptions?.pricingOnly === true;
-    const requestedItems = this.aggregateRequestedItems(dto.items);
-    if (!pricingOnly && dto.customerId) {
+    const requestedItems = aggregatePricingItems(dto.items);
+    if (dto.customerId) {
       const customer = await tx.customer.findUnique({
         where: { id: dto.customerId },
       });
@@ -525,6 +545,20 @@ export class SalesService {
       allowNegativeStock: dto.allowNegativeStock === true,
     });
 
+    const resolved = await this.pricingResolver.resolve(
+      tx,
+      dto.items,
+      dto.customerId,
+    );
+    for (const line of preparedLines) {
+      const price = resolved.lines.find(
+        (item) =>
+          item.itemType === line.itemType &&
+          item.itemId === (line.productId ?? line.comboId),
+      )!;
+      line.unitPriceAmountCents = price.appliedPriceAmountCents;
+      line.lineTotalAmountCents = line.qty * price.appliedPriceAmountCents;
+    }
     const totals = this.totalsService.calculateSaleTotals(preparedLines, {
       coupon,
       surchargeBasisPoints: payment.surchargeBasisPoints,
@@ -536,7 +570,34 @@ export class SalesService {
       ? undefined
       : await prepareSaleFinance(tx, dto, totals.totalAmountCents);
 
+    const pricing: PricingSnapshot = {
+      listId: resolved.listId,
+      listName: resolved.listName,
+      countedUnits: resolved.countedUnits,
+      globalMinimumQty: resolved.globalMinimumQty,
+      lines: resolved.lines,
+      fingerprint: resolved.fingerprint,
+    };
+    pricing.fingerprint = pricingFingerprint({
+      pricing: resolved.fingerprint,
+      paymentTerms: dto.paymentTerms ?? "Immediate",
+      paymentMethodId: payment.id,
+      surchargeBasisPoints: payment.surchargeBasisPoints,
+      coupon: coupon
+        ? {
+            id: coupon.id,
+            code: coupon.code,
+            discountType: coupon.discountType,
+            discountBasisPoints: coupon.discountBasisPoints,
+            discountAmountCents: coupon.discountAmountCents,
+          }
+        : null,
+      subtotalAmountCents: totals.subtotalAmountCents,
+      discountAmountCents: totals.discountAmountCents,
+      totalAmountCents: totals.totalAmountCents,
+    });
     return {
+      pricing,
       finance,
       preparedLines,
       stockRequirements,
@@ -562,37 +623,6 @@ export class SalesService {
         "El dinero recibido no alcanza para completar la venta.",
       );
     }
-  }
-
-  private aggregateRequestedItems(
-    items: CreateSaleDto["items"],
-  ): RequestedSaleItem[] {
-    const byItem = new Map<string, RequestedSaleItem>();
-
-    for (const item of items) {
-      if (item.qty <= 0) {
-        throw new BadRequestException("La cantidad debe ser positiva.");
-      }
-
-      const itemType = item.itemType ?? "Product";
-      const itemId = item.itemId ?? item.productId;
-
-      if (!itemId) {
-        throw new BadRequestException(
-          "La línea de venta no tiene producto o combo.",
-        );
-      }
-
-      const key = `${itemType}:${itemId}`;
-      const current = byItem.get(key);
-      byItem.set(key, {
-        itemType,
-        itemId,
-        qty: (current?.qty ?? 0) + item.qty,
-      });
-    }
-
-    return [...byItem.values()];
   }
 
   private async resolvePaymentMethod(
@@ -950,6 +980,7 @@ export class SalesService {
     context: SalePricingContext,
   ): SalePricingResponse {
     return {
+      pricing: context.pricing,
       ...(context.finance ? { finance: context.finance } : {}),
       couponId: context.coupon?.id ?? null,
       couponCode: context.coupon?.code ?? null,
@@ -971,6 +1002,9 @@ export class SalesService {
   private serializeSale(sale: SaleWithRelations): SaleResponse {
     return {
       id: sale.id,
+      pricingSnapshot: sale.pricingSnapshot
+        ? (JSON.parse(sale.pricingSnapshot) as PricingSnapshot)
+        : null,
       number: sale.number,
       date: sale.date.toISOString(),
       customerName: sale.customerName,

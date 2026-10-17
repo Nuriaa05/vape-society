@@ -99,7 +99,7 @@ describe("Sale pricing before finance details are complete", () => {
     expect(response.body.finance).toBeUndefined();
   });
 
-  it("skips customer lookup for pricing while preserving direct-plan surcharge fallback", async () => {
+  it("rejects unknown customers even when quoting pricing only", async () => {
     const response = await request(app.getHttpServer())
       .post("/api/sales/quote")
       .send({
@@ -113,8 +113,8 @@ describe("Sale pricing before finance details are complete", () => {
           surchargeBasisPoints: 500,
         },
       })
-      .expect(200);
-    expect(response.body.totalAmountCents).toBe(281_400);
+      .expect(400);
+    expect(response.body.message).toContain("cliente");
   });
 
   it("uses an explicit zero surcharge before the fallback plan surcharge", async () => {

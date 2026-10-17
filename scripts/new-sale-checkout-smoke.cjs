@@ -139,21 +139,18 @@ module.exports = async function newSaleCheckoutSmoke({
   );
   await confirm().click();
   const firstSale = await stored;
-  await page
-    .getByRole("alert")
-    .filter({ hasText: /fetch|conexión/i })
-    .first()
-    .waitFor();
-  // Different visible formatting represents the same submitted money amount.
-  await page.getByLabel("Dinero recibido", { exact: true }).fill("2.000,00");
-  await waitReady();
+  const recover = page.getByRole("button", {
+    name: "Recuperar venta pendiente",
+    exact: true,
+  });
+  await recover.waitFor();
   const retryResponse = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/sales" &&
       response.request().method() === "POST" &&
       response.ok(),
   );
-  await confirm().click();
+  await recover.click();
   const response = await retryResponse;
   assert.equal(
     response.request().postDataJSON().operationId,

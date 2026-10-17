@@ -36,6 +36,8 @@ const countLabels: Record<keyof DatabaseImportPreview["counts"], string> = {
   supplierPayments: "Pagos a proveedores",
   supplierRefunds: "Reintegros de proveedores",
   inventoryLots: "Ingresos de mercadería por origen",
+  priceLists: "Listas de precios",
+  priceListPrices: "Precios por escala",
 };
 
 export function DataImportControls({

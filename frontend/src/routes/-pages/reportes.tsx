@@ -1,3 +1,4 @@
+import { pricingContextLabel } from "@/lib/price-lists";
 import { Card, CardToolbar, KpiCard, CardFooter } from "@/components/ui/card";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
@@ -72,6 +73,9 @@ export function ReportesPage() {
   const [rankingSort, setRankingSort] = useState<TopProductsSort>("quantity");
   const [detailScope, setDetailScope] = useState<"bucket" | "all">("bucket");
   const [isExportingSales, setIsExportingSales] = useState(false);
+  const [visibleSalesCount, setVisibleSalesCount] = useState(
+    REPORT_PREVIEW_INCREMENT,
+  );
   const [visibleBestSellingCount, setVisibleBestSellingCount] = useState(
     REPORT_PREVIEW_INCREMENT,
   );
@@ -248,7 +252,15 @@ export function ReportesPage() {
       const rows: string[][] = [
         ["Rango", getReportRangeLabel(reportRange)],
         [],
-        ["Comprobante", "Fecha", "Ítems", "Total ARS", "Pago", "Entrega"],
+        [
+          "Comprobante",
+          "Fecha",
+          "Ítems",
+          "Total ARS",
+          "Pago",
+          "Entrega",
+          "Lista y escala",
+        ],
       ];
       sales.forEach((sale) =>
         rows.push([
@@ -258,6 +270,7 @@ export function ReportesPage() {
           String(sale.total),
           sale.payment,
           sale.delivery,
+          pricingContextLabel(sale.pricingSnapshot),
         ]),
       );
       downloadCSV(`ventas-${reportRange}.csv`, rows);
@@ -826,6 +839,84 @@ export function ReportesPage() {
         />
       </Card>
 
+      <Card className="min-w-0">
+        <CardToolbar>
+          <div>
+            <h2 className="font-semibold app-card-title">
+              Precios originales por venta
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Historial completo: lista y escala guardadas al confirmar. Las
+              ventas anteriores sin registro no se reclasifican.
+            </p>
+          </div>
+        </CardToolbar>
+        <div
+          className="max-h-96 overflow-auto"
+          role="region"
+          aria-label="Historial de listas y escalas"
+          tabIndex={0}
+        >
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="app-table-heading text-left">Comprobante</th>
+                <th className="app-table-heading text-left">
+                  Lista y escala originales
+                </th>
+                <th className="app-table-heading text-right">Total cobrado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {getVisibleItems(commercialSummary.sales, visibleSalesCount).map(
+                (sale) => (
+                  <tr
+                    key={sale.id}
+                    className="border-b border-border last:border-0"
+                  >
+                    <td className="px-5 py-3">
+                      {sale.number}
+                      <span className="block text-xs text-muted-foreground">
+                        {formatDateTimeAR(sale.date)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      {pricingContextLabel(sale.pricingSnapshot)}
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums">
+                      {formatARS(sale.total)}
+                    </td>
+                  </tr>
+                ),
+              )}
+              {!commercialSummary.sales.length ? (
+                <tr>
+                  <td
+                    colSpan={3}
+                    className="px-5 py-8 text-center text-muted-foreground"
+                  >
+                    No hay ventas registradas.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+        <ReportProgressiveControls
+          visibleCount={visibleSalesCount}
+          total={commercialSummary.sales.length}
+          onMore={() =>
+            setVisibleSalesCount((current) =>
+              getNextVisibleCount(
+                current,
+                REPORT_PREVIEW_INCREMENT,
+                commercialSummary.sales.length,
+              ),
+            )
+          }
+          onLess={() => setVisibleSalesCount(REPORT_PREVIEW_INCREMENT)}
+        />
+      </Card>
       <div className="text-xs text-muted-foreground">
         Catálogo activo: {commercialSummary.productCount} productos ·
         Comprobantes internos · No incluye facturación fiscal.

@@ -38,11 +38,13 @@ export class FinanceQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) skip?: number;
 }
 export class CreateCustomerDto {
+  @IsOptional() @IsString() @IsNotEmpty() priceListId?: string | null;
   @IsString() @IsNotEmpty() @MaxLength(100) name!: string;
   @IsOptional() @IsString() @MaxLength(40) phone?: string;
   @IsOptional() @IsString() @MaxLength(4000) notes?: string;
 }
 export class UpdateCustomerDto {
+  @IsOptional() @IsString() @IsNotEmpty() priceListId?: string | null;
   @IsOptional() @IsString() @IsNotEmpty() @MaxLength(100) name?: string;
   @IsOptional() @IsString() @MaxLength(40) phone?: string;
   @IsOptional() @IsString() @MaxLength(4000) notes?: string;
