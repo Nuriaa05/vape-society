@@ -84,7 +84,6 @@ import {
   calculateSalePriceFromMargin,
 } from "@/lib/product-pricing";
 import { filterProductsForList } from "@/lib/product-visibility";
-import { requiresNegativeInitialStockConfirmation } from "@/lib/product-stock-warning";
 import { toast } from "sonner";
 
 type Editing =
@@ -143,6 +142,7 @@ export function ProductosPage() {
     },
   });
   const [tab, setTab] = useState<"catalog" | "lists">("catalog");
+  const [listsOpened, setListsOpened] = useState(false);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("Todas");
   const [showArchived, setShowArchived] = useState(false);
@@ -298,17 +298,21 @@ export function ProductosPage() {
           aria-controls="lists-panel"
           aria-selected={tab === "lists"}
           variant={tab === "lists" ? "default" : "outline"}
-          onClick={() => setTab("lists")}
+          onClick={() => {
+            setListsOpened(true);
+            setTab("lists");
+          }}
         >
           Listas de precios
         </Button>
       </div>
-      {tab === "lists" ? (
+      {listsOpened ? (
         <div
           id="lists-panel"
           role="tabpanel"
           aria-labelledby="lists-tab"
           className="min-w-0"
+          hidden={tab !== "lists"}
         >
           <PriceListsEditor />
         </div>
@@ -605,10 +609,8 @@ function ProductDialog({
   const [costInput, setCostInput] = useState(formatPriceInput(initialCost));
   const [margin, setMargin] = useState(initialMargin);
   const [priceInput, setPriceInput] = useState(formatPriceInput(initialPrice));
-  const [stock, setStock] = useState(initial?.stock ?? 0);
+  const stock = initial?.stock ?? 0;
   const [minStock, setMinStock] = useState(initial?.minStock ?? 5);
-  const [negativeStockConfirmationOpen, setNegativeStockConfirmationOpen] =
-    useState(false);
   const costAmountCents = (() => {
     try {
       return parsePesosToAmountCents(costInput);
@@ -668,15 +670,8 @@ function ProductDialog({
     }
   };
 
-  const submit = async (negativeStockConfirmed = false) => {
+  const submit = async () => {
     if (!canSave || !category) return;
-    if (
-      requiresNegativeInitialStockConfirmation({ isEdit, stock }) &&
-      !negativeStockConfirmed
-    ) {
-      setNegativeStockConfirmationOpen(true);
-      return;
-    }
 
     await onSave({
       id: initial?.id,
@@ -703,7 +698,7 @@ function ProductDialog({
         <DialogDescription>
           {isEdit
             ? "Actualizá los datos del producto. Los cambios afectan al catálogo, no al historial."
-            : "Completá los datos del nuevo producto."}
+            : "Creá el producto y luego ingresá las unidades desde Compras o Aumentar stock."}
         </DialogDescription>
       </DialogHeader>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
@@ -778,25 +773,11 @@ function ProductDialog({
             Al cambiar este precio se recalcula el porcentaje de ganancia.
           </p>
         </Field>
-        <Field label={isEdit ? "Stock actual" : "Stock inicial"}>
-          <Input
-            type="number"
-            value={stock}
-            disabled={isEdit}
-            onChange={(e) => setStock(Number(e.target.value))}
-          />
-          {!isEdit && stock < 0 && (
-            <p className="text-xs text-warning">
-              Advertencia: el producto se guardará con stock inicial negativo.
-            </p>
-          )}
-          {isEdit && (
-            <p className="text-xs text-muted-foreground">
-              El stock físico se modifica por compras, ventas y anulaciones. Los
-              ajustes manuales quedan fuera de esta fase.
-            </p>
-          )}
-        </Field>
+        {isEdit ? (
+          <Field label="Stock actual">
+            <Input type="number" value={stock} disabled />
+          </Field>
+        ) : null}
         <Field label="Stock mínimo">
           <Input
             type="number"
@@ -819,29 +800,6 @@ function ProductDialog({
           {isEdit ? "Guardar cambios" : "Guardar producto"}
         </Button>
       </DialogFooter>
-      <AlertDialog
-        open={negativeStockConfirmationOpen}
-        onOpenChange={setNegativeStockConfirmationOpen}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Confirmar stock inicial negativo
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              El producto se guardará con {stock} unidades de stock físico. Esta
-              cantidad quedará registrada como movimiento inicial y generará una
-              alerta de stock.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Volver</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void submit(true)}>
-              Guardar de todos modos
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </DialogContent>
   );
 }

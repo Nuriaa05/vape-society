@@ -1,8 +1,11 @@
+import { StockPurchaseDialog } from "@/components/stock-purchase-dialog";
+import { Disclosure } from "@/components/ui/disclosure";
+import { StockCreditTable } from "@/components/stock-credit-table";
 import { StockClassificationDialog } from "@/components/stock-classification-dialog";
 import { money } from "@/lib/collections-form";
-import { Card, CardHeader, CardToolbar } from "@/components/ui/card";
+import { Card, CardHeader, CardToolbar, KpiCard } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppShell, StatusBadge } from "@/components/app-shell";
+import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,12 +46,6 @@ import {
   type StockAdjustmentInput,
 } from "@/lib/repositories";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -63,10 +60,8 @@ import {
   ArrowUp,
   Check,
   ChevronsUpDown,
-  MoreHorizontal,
   Search,
   Settings2,
-  SlidersHorizontal,
   Undo2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -74,11 +69,6 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const ADJUST_TYPES = [
-  {
-    value: "Ingreso manual",
-    sign: "+",
-    help: "Suma unidades al stock físico.",
-  },
   {
     value: "Egreso manual",
     sign: "-",
@@ -97,6 +87,10 @@ export function StockPage() {
   const queryClient = useQueryClient();
   const [q, setQ] = useState("");
   const [classifying, setClassifying] = useState<Product | null>(null);
+  const [increase, setIncrease] = useState<{
+    productId: string | null;
+    qty?: number;
+  } | null>(null);
   const summaryQuery = useQuery({
     queryKey: ["stock", "summary", q.trim()],
     queryFn: () => stockRepository.summary(q.trim() || undefined),
@@ -254,66 +248,86 @@ export function StockPage() {
 
   return (
     <AppShell title="Stock" subtitle="Inventario actual y movimientos">
-      <div className="rounded-md border border-accent/30 bg-accent/5 px-4 py-2.5 text-xs text-foreground">
-        Las ventas con <strong>Entrega: Pendiente</strong> reservan stock
-        automáticamente. El stock disponible para nuevas ventas excluye lo
-        reservado. Los ajustes manuales se registran como movimientos auditables
-        y nunca pueden dejar stock disponible negativo.
-      </div>
-      <Card className="app-card-body space-y-3">
-        <h2 className="font-semibold">
-          Valor del inventario a costo de adquisición
-        </h2>
-        {summaryQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Cargando totales...</p>
-        ) : summaryQuery.error ? (
-          <p className="text-sm text-destructive">
-            No se pudieron cargar los totales.
+      <section aria-label="Resumen del stock" className="space-y-3">
+        <div>
+          <h2 className="font-semibold">Tu inventario</h2>
+          <p className="text-xs text-muted-foreground">
+            Unidades actuales y valor al costo de compra
+            {q.trim() ? " de los productos filtrados" : ""}.
           </p>
-        ) : summaryQuery.data ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        </div>
+        {summaryQuery.error ? (
+          <p role="alert" className="text-sm text-destructive">
+            No se pudieron cargar los totales.{" "}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void summaryQuery.refetch()}
+            >
+              Reintentar
+            </Button>
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {(
               [
                 [
                   "Pagado",
-                  summaryQuery.data.paidQty,
-                  summaryQuery.data.paidValueCents,
+                  summaryQuery.data?.paidQty,
+                  summaryQuery.data?.paidValueCents,
+                  "Mercadería ya pagada al proveedor",
                 ],
                 [
                   "A crédito",
-                  summaryQuery.data.creditQty,
-                  summaryQuery.data.creditValueCents,
+                  summaryQuery.data?.creditQty,
+                  summaryQuery.data?.creditValueCents,
+                  "Mercadería con pago pendiente",
                 ],
                 [
-                  "Sin clasificar",
-                  summaryQuery.data.unclassifiedQty,
-                  summaryQuery.data.unclassifiedValueCents,
-                ],
-                [
-                  "Total físico",
-                  summaryQuery.data.physicalStock,
-                  summaryQuery.data.totalValueCents,
+                  "Total general",
+                  summaryQuery.data?.physicalStock,
+                  summaryQuery.data?.totalValueCents,
+                  "Todo el stock físico actual",
                 ],
               ] as const
-            ).map(([label, qty, value]) => (
-              <div key={label}>
-                <p className="text-xs text-muted-foreground">
-                  {label} · {qty} unidades
-                </p>
-                <p className="font-semibold tabular-nums">{money(value)}</p>
-              </div>
+            ).map(([label, qty, value, hint]) => (
+              <KpiCard
+                key={label}
+                label={label}
+                value={
+                  summaryQuery.isLoading
+                    ? "..."
+                    : value === undefined
+                      ? "—"
+                      : money(value)
+                }
+                hint={`${qty ?? "—"} unidades · ${hint}`}
+              />
             ))}
           </div>
+        )}
+        {(summaryQuery.data?.unclassifiedQty ?? 0) > 0 ? (
+          <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm">
+            <strong>
+              {summaryQuery.data?.unclassifiedQty} unidades con pago sin indicar
+              · {money(summaryQuery.data?.unclassifiedValueCents ?? 0)}
+            </strong>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Incluidas en el total. Indicá si ya las pagaste o todavía las
+              debés desde las acciones del producto.
+            </p>
+          </div>
         ) : null}
-        <p className="text-xs text-muted-foreground">
-          {q.trim()
-            ? "Totales de todos los productos que coinciden con la búsqueda."
-            : "Totales de todo el inventario."}{" "}
-          Las unidades a crédito vendidas dejan de figurar en stock; la deuda
-          permanece en Proveedores hasta pagarla. Los ingresos manuales quedan
-          sin clasificar.
-        </p>
-      </Card>
+        <Disclosure title="Stock y deuda: qué muestra cada uno">
+          <p className="mt-2">
+            Reservadas para entregas: {summaryQuery.data?.reservedStock ?? "—"}.
+            Disponibles: {summaryQuery.data?.availableStock ?? "—"}. Stock
+            muestra lo que queda. Vender unidades a crédito no reduce lo que
+            debés: consultá y registrá ese pago en Proveedores. Las unidades
+            reservadas siguen en el total físico y se descuentan de Disponible.
+          </p>
+        </Disclosure>
+      </section>
       <div className="grid grid-cols-1 gap-5">
         <Card>
           <CardHeader title="Inventario" />
@@ -327,178 +341,22 @@ export function StockPage() {
                 className="pl-9"
               />
             </div>
-            <Button variant="outline" onClick={() => openAdjust(null)}>
-              <Settings2 /> Ajustar stock
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => setIncrease({ productId: null })}>
+                <ArrowUp /> Aumentar stock
+              </Button>
+              <Button variant="outline" onClick={() => openAdjust(null)}>
+                <Settings2 /> Ajustar stock
+              </Button>
+            </div>
           </CardToolbar>
-          <div className="max-h-[640px] overflow-auto">
-            <table className="w-full min-w-[1080px] text-sm">
-              <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
-                <tr>
-                  <th className="app-table-heading font-medium">Producto</th>
-                  <th className="app-table-heading font-medium text-right">
-                    Físico
-                  </th>
-                  <th className="app-table-heading font-medium text-right">
-                    Reservado
-                  </th>
-                  <th className="app-table-heading font-medium text-right">
-                    Disponible
-                  </th>
-                  <th className="app-table-heading font-medium text-right">
-                    Pagado / valor
-                  </th>
-                  <th className="app-table-heading font-medium text-right">
-                    A crédito / valor
-                  </th>
-                  <th className="app-table-heading font-medium text-right">
-                    Sin clasificar / valor
-                  </th>
-                  <th className="app-table-heading font-medium text-right">
-                    Valor total
-                  </th>
-                  <th className="app-table-heading font-medium text-right">
-                    Mínimo
-                  </th>
-                  <th className="app-table-heading font-medium">Estado</th>
-                  <th className="app-table-heading font-medium text-right">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleStockProducts.map((p) => {
-                  const st = stockRepository.getStatus(p);
-                  const reserved = p.reservedStock ?? 0;
-                  const available = stockRepository.getAvailableStock(p);
-                  return (
-                    <tr
-                      key={p.id}
-                      className="border-b border-border/60 last:border-0 hover:bg-muted/30"
-                    >
-                      <td className="px-5 py-3">
-                        <div className="font-medium">{p.name}</div>
-                        <div className="text-xs font-mono text-muted-foreground">
-                          {p.barcode}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums font-medium">
-                        {p.stock}
-                      </td>
-                      <td
-                        className={cn(
-                          "px-5 py-3 text-right tabular-nums",
-                          reserved > 0
-                            ? "text-warning-foreground font-medium"
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        {reserved}
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums font-semibold">
-                        {available}
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums">
-                        <div>{p.paidQty ?? 0}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {money(p.paidValueCents ?? 0)}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums">
-                        <div>{p.creditQty ?? 0}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {money(p.creditValueCents ?? 0)}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums">
-                        <div>{p.unclassifiedQty ?? 0}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {money(p.unclassifiedValueCents ?? 0)}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums font-medium">
-                        {money(p.totalValueCents ?? 0)}
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums text-muted-foreground">
-                        {p.minStock}
-                      </td>
-                      <td className="px-5 py-3">
-                        <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              aria-label="Acciones"
-                            >
-                              <MoreHorizontal />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              disabled={(p.unclassifiedQty ?? 0) < 1}
-                              onClick={() => setClassifying(p)}
-                            >
-                              Clasificar stock existente
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openAdjust(p.id)}>
-                              <Settings2 /> Ajustar stock
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setEditingMin(p)}>
-                              <SlidersHorizontal /> Editar stock mínimo
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              {summaryQuery.data ? (
-                <tfoot className="border-t border-border bg-muted/40 font-semibold">
-                  <tr>
-                    <td className="px-5 py-3">
-                      Total{q.trim() ? " filtrado" : " general"}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums">
-                      {summaryQuery.data.physicalStock}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums">
-                      {summaryQuery.data.reservedStock}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums">
-                      {summaryQuery.data.availableStock}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums">
-                      <div>{summaryQuery.data.paidQty}</div>
-                      <div className="text-xs">
-                        {money(summaryQuery.data.paidValueCents)}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums">
-                      <div>{summaryQuery.data.creditQty}</div>
-                      <div className="text-xs">
-                        {money(summaryQuery.data.creditValueCents)}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums">
-                      <div>{summaryQuery.data.unclassifiedQty}</div>
-                      <div className="text-xs">
-                        {money(summaryQuery.data.unclassifiedValueCents)}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums">
-                      {money(summaryQuery.data.totalValueCents)}
-                    </td>
-                    <td colSpan={3}></td>
-                  </tr>
-                </tfoot>
-              ) : null}
-            </table>
-          </div>
+          <StockCreditTable
+            products={visibleStockProducts}
+            classify={setClassifying}
+            increase={(id) => setIncrease({ productId: id })}
+            adjust={(id) => openAdjust(id)}
+            minimum={setEditingMin}
+          />
           {(canShowMore(visibleStockCount, list.length) ||
             canShowLess(
               visibleStockCount,
@@ -664,12 +522,24 @@ export function StockPage() {
           close={() => setClassifying(null)}
         />
       ) : null}
+      {increase ? (
+        <StockPurchaseDialog
+          products={products}
+          initialProductId={increase.productId}
+          initialQty={increase.qty}
+          close={() => setIncrease(null)}
+        />
+      ) : null}
       <AdjustStockDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         products={products}
         preselectedId={preselectedId}
         onSubmit={applyAdjustment}
+        onIncrease={(productId, qty) => {
+          setDialogOpen(false);
+          setIncrease({ productId, qty });
+        }}
         saving={adjustmentMutation.isPending}
       />
 
@@ -831,6 +701,7 @@ function AdjustStockDialog({
   products,
   preselectedId,
   onSubmit,
+  onIncrease,
   saving,
 }: {
   open: boolean;
@@ -838,10 +709,11 @@ function AdjustStockDialog({
   products: Product[];
   preselectedId: string | null;
   onSubmit: (input: StockAdjustmentInput) => Promise<void>;
+  onIncrease: (productId: string, qty: number) => void;
   saving: boolean;
 }) {
   const [productId, setProductId] = useState<string>("");
-  const [type, setType] = useState<AdjustType>("Ingreso manual");
+  const [type, setType] = useState<AdjustType>("Egreso manual");
   const [qty, setQty] = useState<number>(1);
   const [reason, setReason] = useState("");
   const [touched, setTouched] = useState(false);
@@ -849,7 +721,7 @@ function AdjustStockDialog({
   useEffect(() => {
     if (open) {
       setProductId(preselectedId ?? "");
-      setType("Ingreso manual");
+      setType("Egreso manual");
       setQty(1);
       setReason("");
       setTouched(false);
@@ -858,17 +730,14 @@ function AdjustStockDialog({
 
   const product = products.find((p) => p.id === productId);
   const sign = ADJUST_TYPES.find((t) => t.value === type)!.sign;
-  const resulting = product
-    ? sign === "="
-      ? qty
-      : sign === "+"
-        ? product.stock + qty
-        : product.stock - qty
-    : 0;
+  const resulting = product ? (sign === "=" ? qty : product.stock - qty) : 0;
 
   const errors = {
     product: !productId ? "Elegí un producto" : null,
-    qty: !(qty > 0) ? "La cantidad debe ser mayor a 0" : null,
+    qty:
+      !Number.isSafeInteger(qty) || (sign === "=" ? qty < 0 : qty <= 0)
+        ? "Ingresá una cantidad entera válida"
+        : null,
     reason:
       reason.trim().length < 3 ? "Indicá un motivo (min. 3 caracteres)" : null,
     negative:
@@ -876,7 +745,10 @@ function AdjustStockDialog({
         ? "El stock resultante no puede ser negativo"
         : null,
   };
-  const hasError = Boolean(errors.product || errors.qty || errors.negative);
+  const extra = product && sign === "=" ? Math.max(0, qty - product.stock) : 0;
+  const hasError = Boolean(
+    errors.product || errors.qty || errors.negative || extra > 0,
+  );
   const showReasonError = false;
 
   const submit = () => {
@@ -894,7 +766,7 @@ function AdjustStockDialog({
           }
         : {
             productId,
-            type: sign === "+" ? "Ingreso" : "Egreso",
+            type: "Egreso",
             qty,
             reason: trimmedReason || undefined,
           };
@@ -908,8 +780,8 @@ function AdjustStockDialog({
         <DialogHeader>
           <DialogTitle>Ajustar stock</DialogTitle>
           <DialogDescription className="sr-only">
-            Registrá un ingreso, egreso o conteo físico. El movimiento quedará
-            guardado en el historial.
+            Registrá una baja o corregí el conteo físico. Para sumar unidades se
+            registra una compra.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -935,13 +807,16 @@ function AdjustStockDialog({
                 value={type}
                 onValueChange={(v) => setType(v as AdjustType)}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Tipo de ajuste">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {ADJUST_TYPES.map((t) => (
                     <SelectItem key={t.value} value={t.value}>
-                      <span className="font-mono mr-2 text-muted-foreground">
+                      <span
+                        aria-hidden="true"
+                        className="font-mono mr-2 text-muted-foreground"
+                      >
                         {t.sign}
                       </span>
                       {t.value}
@@ -958,8 +833,10 @@ function AdjustStockDialog({
                 {sign === "=" ? "Stock contado" : "Cantidad"}
               </Label>
               <Input
+                aria-label={sign === "=" ? "Stock contado" : "Cantidad"}
                 type="number"
                 min={sign === "=" ? 0 : 1}
+                step={1}
                 value={qty}
                 onChange={(e) => setQty(Number(e.target.value))}
               />
@@ -999,6 +876,22 @@ function AdjustStockDialog({
               </span>
             </div>
           )}
+          {product && extra > 0 ? (
+            <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3 text-sm">
+              <p>
+                Hay {extra} unidades adicionales. Registrá el ingreso indicando
+                proveedor y condición de pago.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!!errors.qty || saving}
+                onClick={() => onIncrease(product.id, extra)}
+              >
+                Registrar ingreso de {extra} unidades
+              </Button>
+            </div>
+          ) : null}
           {touched && errors.negative && (
             <p className="text-xs text-destructive">{errors.negative}</p>
           )}
@@ -1023,7 +916,7 @@ function AdjustStockDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button disabled={saving} onClick={submit}>
+          <Button disabled={saving || extra > 0} onClick={submit}>
             {saving ? "Guardando..." : "Guardar ajuste"}
           </Button>
         </DialogFooter>

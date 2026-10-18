@@ -1,9 +1,9 @@
 import { SupplierAccountDialog } from "@/components/supplier-account";
 import { supplierPayablesRepository } from "@/lib/repositories/supplier-payables-repository";
-import { money, today } from "@/lib/collections-form";
-import { Card, CardHeader } from "@/components/ui/card";
+import { today } from "@/lib/collections-form";
+import { Card, CardHeader, CardToolbar } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppShell, StatusBadge } from "@/components/app-shell";
+import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,12 +16,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { type Supplier } from "@/lib/contracts";
 import { suppliersRepository } from "@/lib/repositories";
 import {
@@ -31,17 +25,17 @@ import {
   getVisibleItems,
   PAGE_LIST_INCREMENT,
 } from "@/lib/visible-items";
-import {
-  Mail,
-  MoreHorizontal,
-  Pencil,
-  Phone,
-  Plus,
-  Power,
-  PowerOff,
-} from "lucide-react";
+import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { cn } from "@/lib/utils";
+import { SupplierSummary } from "@/components/supplier-summary";
+import { SupplierTable } from "@/components/supplier-table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Editing =
   | { mode: "create" }
@@ -109,7 +103,36 @@ export function ProveedoresPage() {
   const [editing, setEditing] = useState<Editing>(null);
   const [visibleSuppliersCount, setVisibleSuppliersCount] =
     useState(PAGE_LIST_INCREMENT);
-  const items = useMemo(() => suppliersQuery.data ?? [], [suppliersQuery.data]);
+  const [search, setSearch] = useState("");
+  const [debtFilter, setDebtFilter] = useState("all");
+  const items = useMemo(
+    () =>
+      (suppliersQuery.data ?? []).filter((supplier) => {
+        const matchesText =
+          `${supplier.name} ${supplier.phone} ${supplier.email ?? ""}`
+            .toLocaleLowerCase("es-AR")
+            .includes(search.trim().toLocaleLowerCase("es-AR"));
+        const balance = balances.get(supplier.id);
+        const matchesDebt =
+          debtFilter === "all" ||
+          (!debtsQuery.isLoading &&
+            !debtsQuery.error &&
+            (debtFilter === "debt"
+              ? (balance?.balance ?? 0) > 0
+              : debtFilter === "overdue"
+                ? (balance?.overdue ?? 0) > 0
+                : (balance?.balance ?? 0) === 0));
+        return matchesText && matchesDebt;
+      }),
+    [
+      suppliersQuery.data,
+      search,
+      debtFilter,
+      balances,
+      debtsQuery.isLoading,
+      debtsQuery.error,
+    ],
+  );
   const visibleSuppliers = useMemo(
     () => getVisibleItems(items, visibleSuppliersCount),
     [items, visibleSuppliersCount],
@@ -126,7 +149,10 @@ export function ProveedoresPage() {
 
   if (suppliersQuery.isLoading) {
     return (
-      <AppShell title="Proveedores" subtitle="Contactos y registros de compra">
+      <AppShell
+        title="Proveedores"
+        subtitle="Compras, deudas y pagos a tus proveedores"
+      >
         <Card className="app-card-body text-sm text-muted-foreground">
           Cargando proveedores...
         </Card>
@@ -136,7 +162,10 @@ export function ProveedoresPage() {
 
   if (suppliersQuery.error) {
     return (
-      <AppShell title="Proveedores" subtitle="Contactos y registros de compra">
+      <AppShell
+        title="Proveedores"
+        subtitle="Compras, deudas y pagos a tus proveedores"
+      >
         <Card className="app-card-body text-sm text-destructive">
           No se pudieron cargar los proveedores.
         </Card>
@@ -147,215 +176,74 @@ export function ProveedoresPage() {
   return (
     <AppShell
       title="Proveedores"
-      subtitle="Contactos y registros de compra"
+      subtitle="Compras, deudas y pagos a tus proveedores"
       actions={
         <Button onClick={() => setEditing({ mode: "create" })}>
           <Plus /> Nuevo proveedor
         </Button>
       }
     >
-      <Card className="app-card-body space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-semibold">Cuenta de proveedores</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <Label htmlFor="supplier-summary-month">Mes del resumen</Label>
-            <Input
-              id="supplier-summary-month"
-              className="w-auto"
-              type="month"
-              value={summaryMonth}
-              onChange={(e) => setSummaryMonth(e.target.value || currentMonth)}
-            />
-            {summaryMonth !== currentMonth ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSummaryMonth(currentMonth)}
-              >
-                Mes actual
-              </Button>
-            ) : null}
-          </div>
-        </div>
-        {summaryQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Cargando saldos...</p>
-        ) : summaryQuery.error ? (
-          <p className="text-sm text-destructive">
-            No se pudieron cargar los saldos.
-          </p>
-        ) : summaryQuery.data ? (
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            {(
-              [
-                ["Deuda pendiente", summaryQuery.data.balanceCents],
-                ["Vencida", summaryQuery.data.overdueCents],
-                ["Vence en el mes", summaryQuery.data.dueThisMonthCents],
-                ["Pagado en el mes", summaryQuery.data.paidAmountCents],
-                [
-                  "Reintegros por recibir",
-                  summaryQuery.data.refundPendingCents,
-                ],
-              ] as const
-            ).map(([label, amount]) => (
-              <div key={label}>
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="font-semibold tabular-nums">{money(amount)}</p>
-              </div>
-            ))}
-          </div>
-        ) : null}
-        <p className="text-xs text-muted-foreground">
-          La deuda y los reintegros incluyen todos los vencimientos. Los pagos
-          corresponden a su fecha efectiva dentro del mes seleccionado.
-        </p>
-      </Card>
+      <SupplierSummary
+        data={summaryQuery.data}
+        loading={summaryQuery.isLoading}
+        error={!!summaryQuery.error}
+        month={summaryMonth}
+        onMonth={(value) => setSummaryMonth(value || currentMonth)}
+        retry={() => void summaryQuery.refetch()}
+      />
       <Card className="overflow-hidden">
         <CardHeader title="Proveedores" />
-        <div
-          className={
-            visibleSuppliersCount > PAGE_LIST_INCREMENT
-              ? "max-h-[640px] overflow-auto"
-              : "overflow-x-auto"
-          }
-        >
-          <table className="w-full min-w-[560px] text-sm">
-            <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
-              <tr>
-                <th className="app-table-heading font-medium">Proveedor</th>
-                <th className="app-table-heading font-medium">Contacto</th>
-                <th className="app-table-heading font-medium">Última compra</th>
-                <th className="app-table-heading font-medium">Estado</th>
-                <th className="app-table-heading font-medium text-right">
-                  Deuda pendiente
-                </th>
-                <th className="app-table-heading font-medium">
-                  Próximo vencimiento
-                </th>
-                <th className="app-table-heading font-medium">Cuenta</th>
-                <th className="app-table-heading font-medium w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleSuppliers.map((s) => {
-                const isProtected = s.id === "local";
-                return (
-                  <tr
-                    key={s.id}
-                    className={cn(
-                      "border-b border-border/60 last:border-0 hover:bg-muted/30",
-                      !s.active && "opacity-70",
-                    )}
-                  >
-                    <td className="px-5 py-3">
-                      <div className="font-medium">{s.name}</div>
-                      {s.notes && (
-                        <div className="text-xs text-muted-foreground">
-                          {s.notes}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-muted-foreground">
-                      <div className="flex items-center gap-2 text-xs">
-                        <Phone className="h-3 w-3" />
-                        {s.phone}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs mt-0.5">
-                        <Mail className="h-3 w-3" />
-                        {s.email || "Sin email"}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-muted-foreground">
-                      {s.lastPurchase}
-                    </td>
-                    <td className="px-5 py-3">
-                      <StatusBadge tone={s.active ? "success" : "muted"}>
-                        {s.active ? "Activo" : "Inactivo"}
-                      </StatusBadge>
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums">
-                      {debtsQuery.error ? (
-                        <span className="text-destructive">Sin datos</span>
-                      ) : debtsQuery.isLoading ? (
-                        "..."
-                      ) : (
-                        <>
-                          <div className="font-medium">
-                            {money(balances.get(s.id)?.balance ?? 0)}
-                          </div>
-                          {(balances.get(s.id)?.overdue ?? 0) > 0 ? (
-                            <div className="text-xs text-destructive">
-                              Vencida: {money(balances.get(s.id)?.overdue ?? 0)}
-                            </div>
-                          ) : null}
-                        </>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-muted-foreground">
-                      {debtsQuery.error
-                        ? "Sin datos"
-                        : debtsQuery.isLoading
-                          ? "..."
-                          : (balances.get(s.id)?.nextDueDate ?? "—")}
-                    </td>
-                    <td className="px-5 py-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setAccountSupplier(s)}
-                      >
-                        Cuenta
-                      </Button>
-                    </td>
-                    <td className="px-2 py-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            aria-label="Acciones"
-                          >
-                            <MoreHorizontal />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {isProtected ? (
-                            <DropdownMenuItem disabled>
-                              <Power /> Proveedor fijo
-                            </DropdownMenuItem>
-                          ) : (
-                            <>
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  setEditing({ mode: "edit", supplier: s })
-                                }
-                              >
-                                <Pencil /> Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => void toggleActive(s)}
-                              >
-                                {s.active ? (
-                                  <>
-                                    <PowerOff /> Desactivar
-                                  </>
-                                ) : (
-                                  <>
-                                    <Power /> Activar
-                                  </>
-                                )}
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <CardToolbar className="flex flex-wrap gap-3 pt-0">
+          <Input
+            className="max-w-sm"
+            aria-label="Buscar proveedor"
+            placeholder="Buscar proveedor o contacto"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setVisibleSuppliersCount(PAGE_LIST_INCREMENT);
+            }}
+          />
+          <Select
+            value={debtFilter}
+            onValueChange={(value) => {
+              setDebtFilter(value);
+              setVisibleSuppliersCount(PAGE_LIST_INCREMENT);
+            }}
+          >
+            <SelectTrigger aria-label="Filtrar proveedores" className="sm:w-52">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los proveedores</SelectItem>
+              <SelectItem value="debt">Con deuda</SelectItem>
+              <SelectItem value="overdue">Con deuda vencida</SelectItem>
+              <SelectItem value="clear">Al día</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardToolbar>
+        {debtsQuery.error ? (
+          <p role="alert" className="px-5 py-3 text-sm text-destructive">
+            No se pudieron consultar las deudas.{" "}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void debtsQuery.refetch()}
+            >
+              Reintentar saldos
+            </Button>
+          </p>
+        ) : null}
+        <SupplierTable
+          items={visibleSuppliers}
+          balances={balances}
+          loading={debtsQuery.isLoading}
+          error={!!debtsQuery.error}
+          pending={statusMutation.isPending}
+          account={setAccountSupplier}
+          edit={(supplier) => setEditing({ mode: "edit", supplier })}
+          toggle={(supplier) => void toggleActive(supplier)}
+        />
         {(canShowMore(visibleSuppliersCount, items.length) ||
           canShowLess(
             visibleSuppliersCount,

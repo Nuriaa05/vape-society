@@ -41,7 +41,7 @@ export function PurchaseFinanceFields({
       </Field>
       {value.paymentCondition === "Credito" ? (
         <>
-          <Field label="Vencimiento del pago único">
+          <Field label="Vencimiento del pago">
             <Input
               type="date"
               value={value.dueDate ?? ""}
@@ -49,9 +49,8 @@ export function PurchaseFinanceFields({
             />
           </Field>
           <p className="sm:col-span-2 text-xs text-muted-foreground">
-            El total queda como deuda del proveedor. Se cancela con un único
-            pago desde Proveedores → Cuenta. Vender la mercadería no reduce esta
-            deuda.
+            Queda por pagar el total. Registrá el pago completo en Proveedores →
+            Ver cuenta.
           </p>
         </>
       ) : value.paymentCondition === "Pagada" ? (

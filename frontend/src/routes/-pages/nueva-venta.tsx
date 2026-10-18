@@ -1243,13 +1243,14 @@ export function NuevaVenta() {
                 </p>
               ) : null}
               <p
-                className="text-xs text-muted-foreground"
+                className="rounded-md bg-muted/40 px-3 py-2 text-sm font-medium"
                 aria-label="Lista y escala de venta"
               >
                 {pricingContextLabel(
                   confirmedSale
                     ? confirmedSale.pricingSnapshot
                     : previewQuery.data,
+                  true,
                 )}
               </p>
               {!locked &&

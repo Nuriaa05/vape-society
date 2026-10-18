@@ -1,3 +1,5 @@
+import { Disclosure } from "@/components/ui/disclosure";
+import { useSearch } from "@tanstack/react-router";
 import { PurchaseFinanceFields } from "@/components/purchase-finance-fields";
 import {
   emptyPurchaseFinance,
@@ -56,7 +58,7 @@ import {
   type Purchase,
   type PurchaseStatus,
 } from "@/lib/contracts";
-import { formatARS, formatDateInputAR } from "@/lib/formatters";
+import { formatARS, formatDateAR, formatDateInputAR } from "@/lib/formatters";
 import {
   productsRepository,
   purchasesRepository,
@@ -77,7 +79,6 @@ import {
   Pencil,
   Plus,
   Trash2,
-  TrendingUp,
   Undo2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -168,7 +169,8 @@ export function ComprasPage() {
   );
 
   // Draft form (top)
-  const [supplier, setSupplier] = useState("");
+  const purchaseSearch = useSearch({ from: "/compras" });
+  const [supplier, setSupplier] = useState(purchaseSearch.proveedor ?? "");
   const [date, setDate] = useState(formatDateInputAR());
   const [items, setItems] = useState<Item[]>([]);
   const [clearOpen, setClearOpen] = useState(false);
@@ -416,8 +418,8 @@ export function ComprasPage() {
           <CardFooter className="flex flex-wrap items-center justify-between gap-4 bg-muted/30">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <ArrowDown className="h-3.5 w-3.5 text-success" />
-              Al registrar la compra, el stock se incrementa. Si la guardás como
-              pendiente, no afecta el inventario hasta confirmarla.
+              Al registrar se suma la mercadería al stock. Un borrador todavía
+              no modifica el stock ni la deuda.
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="text-right">
@@ -451,31 +453,64 @@ export function ComprasPage() {
           </CardFooter>
         </Card>
 
-        <Card className="app-card-body">
-          <h2 className="flex items-center gap-2 font-semibold mb-2 app-card-title">
-            <TrendingUp className="h-4 w-4 text-accent" /> Resumen del mes
+        <Card
+          className="app-card-body self-start space-y-4"
+          aria-label="Resumen de esta compra"
+        >
+          <h2 className="font-semibold app-card-title">
+            Al registrar esta compra
           </h2>
-          <div className="text-2xl font-semibold tabular-nums">
-            {formatARS(monthTotal)}
-          </div>
-          <div className="text-xs text-muted-foreground mb-4">
-            {purchasesRepository.getActiveCount(monthlyPurchases)} compras (sin
-            anuladas)
-          </div>
-          <div className="text-xs text-muted-foreground border-t border-border pt-3 space-y-2">
-            <p>
-              Cada compra <strong>registrada</strong> ingresa stock al
-              inventario.
+          <p className="text-sm text-muted-foreground">
+            {suppliers.find((item) => item.id === supplier)?.name ??
+              "Elegí un proveedor"}
+          </p>
+          <div>
+            <p className="text-sm text-muted-foreground">
+              {finance.paymentCondition === "Credito"
+                ? "Queda por pagar"
+                : finance.paymentCondition === "Pagada"
+                  ? "Importe ya pagado"
+                  : "Total de la compra"}
             </p>
-            <p>
-              Las compras <strong>pendientes</strong> son borradores: se pueden
-              editar antes de registrar.
-            </p>
-            <p>
-              Una compra <strong>anulada</strong> devuelve el stock y queda en
-              el historial con su motivo.
+            <p className="mt-1 text-3xl font-semibold tabular-nums">
+              {formatARS(total)}
             </p>
           </div>
+          <dl className="space-y-3 border-t border-border pt-4 text-sm">
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Se agregan al stock</dt>
+              <dd className="font-medium">
+                {items.reduce((sum, item) => sum + item.qty, 0)} unidades
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Condición</dt>
+              <dd className="font-medium">
+                {finance.paymentCondition === "Credito"
+                  ? "A crédito"
+                  : finance.paymentCondition === "Pagada"
+                    ? "Pagada"
+                    : "Sin elegir"}
+              </dd>
+            </div>
+            {finance.paymentCondition === "Credito" ? (
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Vence</dt>
+                <dd className="font-medium">
+                  {finance.dueDate
+                    ? formatDateAR(`${finance.dueDate}T12:00:00`)
+                    : "Elegí el vencimiento"}
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+          <Disclosure title="Resumen del mes">
+            <p className="mt-2">
+              {formatARS(monthTotal)} ·{" "}
+              {purchasesRepository.getActiveCount(monthlyPurchases)} compras sin
+              anuladas
+            </p>
+          </Disclosure>
         </Card>
       </div>
 

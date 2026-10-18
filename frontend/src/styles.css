@@ -4,11 +4,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
-.account-disclosure {
+.app-disclosure {
   interpolate-size: allow-keywords;
 }
 
-.account-disclosure::details-content {
+.app-disclosure::details-content {
   block-size: 0;
   overflow: hidden;
   opacity: 0;
@@ -18,13 +18,22 @@
     content-visibility 180ms allow-discrete;
 }
 
-.account-disclosure[open]::details-content {
+.app-disclosure[open]::details-content {
   block-size: auto;
   opacity: 1;
 }
 
+.disclosure-chevron {
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.app-disclosure[open] > summary > .disclosure-chevron {
+  transform: rotate(180deg);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .account-disclosure::details-content {
+  .app-disclosure::details-content,
+  .disclosure-chevron {
     transition: none;
   }
 }

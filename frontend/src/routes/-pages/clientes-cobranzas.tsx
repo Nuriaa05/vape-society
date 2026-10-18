@@ -165,6 +165,11 @@ export function ClientesCobranzasPage() {
       setArchivingCustomer(null);
       void client.invalidateQueries({ queryKey: ["collections"] });
       void client.invalidateQueries({ queryKey: ["customers"] });
+      if (editing?.kind === "customer") {
+        void client.invalidateQueries({ queryKey: ["price-preview"] });
+        void client.invalidateQueries({ queryKey: ["sale-price"] });
+        void client.invalidateQueries({ queryKey: ["sale-quote"] });
+      }
       void client.invalidateQueries({ queryKey: ["history"] });
       void client.invalidateQueries({ queryKey: ["dashboard-summary"] });
       void client.invalidateQueries({ queryKey: ["reports"] });

@@ -35,6 +35,35 @@ export type PricingSnapshot = {
 };
 export type PricingPreview = PricingSnapshot & { catalogPrices: PricingLine[] };
 export type TierDraft = { minimumQty: string; cells: Record<string, string> };
+export function effectiveDraftPrice(
+  tiers: TierDraft[],
+  itemKey: string,
+  habitual: number,
+  quantity: number,
+): number | null {
+  if (!Number.isSafeInteger(quantity) || quantity < 1) return null;
+  const seen = new Set<number>();
+  let price = habitual;
+  try {
+    for (const tier of [...tiers].sort(
+      (a, b) => Number(a.minimumQty) - Number(b.minimumQty),
+    )) {
+      const minimum = Number(tier.minimumQty);
+      if (!Number.isSafeInteger(minimum) || minimum < 1 || seen.has(minimum))
+        return null;
+      seen.add(minimum);
+      const value = tier.cells[itemKey]?.trim();
+      if (minimum <= quantity && value) {
+        const cents = parsePesosToAmountCents(value);
+        if (!Number.isSafeInteger(cents) || cents < 0) return null;
+        price = cents / 100;
+      }
+    }
+    return price;
+  } catch {
+    return null;
+  }
+}
 export function serializePriceListTiers(tiers: TierDraft[]): PriceListTier[] {
   const seen = new Set<number>();
   return tiers
@@ -69,8 +98,9 @@ export function pricingContextLabel(
     PricingSnapshot,
     "listName" | "countedUnits" | "globalMinimumQty"
   > | null,
+  plainLanguage = false,
 ): string {
   return snapshot
-    ? `${snapshot.listName} · ${snapshot.countedUnits} unidades · ${snapshot.globalMinimumQty === null ? "Sin escala alcanzada" : `Desde ${snapshot.globalMinimumQty}`}`
+    ? `${snapshot.listName} · ${snapshot.countedUnits} unidades · ${snapshot.globalMinimumQty === null ? (plainLanguage ? "Precio habitual" : "Sin escala alcanzada") : `${plainLanguage ? "Precio desde" : "Desde"} ${snapshot.globalMinimumQty}`}`
     : "Lista no registrada";
 }

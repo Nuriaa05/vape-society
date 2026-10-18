@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { useState } from "react";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/collections-controls";
@@ -19,35 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-function AccountDisclosure({
-  title,
-  children,
-  active = false,
-}: {
-  title: string;
-  children: ReactNode;
-  active?: boolean;
-}) {
-  return (
-    <details className="account-disclosure group rounded-lg border border-border bg-card open:bg-muted/20">
-      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-        <span className="flex flex-wrap items-center gap-2">
-          {title}
-          {active ? (
-            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs text-primary dark:text-accent">
-              Filtros activos
-            </span>
-          ) : null}
-        </span>
-        <ChevronDown
-          aria-hidden="true"
-          className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none"
-        />
-      </summary>
-      <div className="border-t border-border px-4 py-3">{children}</div>
-    </details>
-  );
-}
 function Actions({ children }: { children: React.ReactNode }) {
   return <div className="flex flex-wrap gap-2">{children}</div>;
 }
@@ -131,9 +102,13 @@ export function Account({
       </Actions>
       <h3 className="font-semibold">Detalle de la deuda</h3>
       {query.data.installments.length > 0 ? (
-        <AccountDisclosure
+        <Disclosure
           title="Filtrar cuotas"
-          active={Boolean(installmentMonth || installmentStatus)}
+          badge={
+            installmentMonth || installmentStatus
+              ? "Filtros activos"
+              : undefined
+          }
         >
           <div className="flex flex-wrap items-end gap-3">
             <Field label="Mes de las cuotas">
@@ -178,7 +153,7 @@ export function Account({
               </Button>
             ) : null}
           </div>
-        </AccountDisclosure>
+        </Disclosure>
       ) : null}
       {query.data.plans.map((plan) => {
         const planInstallments = installments.filter(
@@ -275,7 +250,7 @@ export function Account({
         </p>
       ) : null}
       {hasCards ? (
-        <AccountDisclosure title="Tarjetas del cliente">
+        <Disclosure title="Tarjetas del cliente">
           <section
             aria-label="Tarjetas del cliente"
             className="flex flex-col gap-2"
@@ -302,7 +277,7 @@ export function Account({
               </Button>
             </Actions>
           </section>
-        </AccountDisclosure>
+        </Disclosure>
       ) : null}
       <h3 className="font-semibold">Historial de cobros</h3>
       <EntryList entries={query.data.collections} reverse={reverse} />
@@ -313,9 +288,7 @@ export function Account({
         </>
       ) : null}
       {query.data.sales.length > 0 ? (
-        <AccountDisclosure
-          title={`Ventas asociadas (${query.data.sales.length})`}
-        >
+        <Disclosure title={`Ventas asociadas (${query.data.sales.length})`}>
           <ul className="space-y-2 text-sm">
             {query.data.sales.map((sale) => (
               <li key={sale.id}>
@@ -326,10 +299,10 @@ export function Account({
               </li>
             ))}
           </ul>
-        </AccountDisclosure>
+        </Disclosure>
       ) : null}
       {cancellablePlans.length > 0 ? (
-        <AccountDisclosure title="Más opciones">
+        <Disclosure title="Más opciones">
           <p className="text-sm text-muted-foreground">
             Anular una deuda sirve para corregir una carga equivocada. Si el
             cliente pagó, usá Registrar cobro.
@@ -349,7 +322,7 @@ export function Account({
               </Button>
             </div>
           ))}
-        </AccountDisclosure>
+        </Disclosure>
       ) : null}
     </div>
   ) : null;

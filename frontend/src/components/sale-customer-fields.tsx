@@ -26,7 +26,7 @@ export function SaleCustomerFields({
         <p className="text-xs text-muted-foreground">
           {required
             ? "Seleccioná o creá el cliente al que se le cobrarán las cuotas."
-            : "Podés vender a consumidor final o vincular la compra a un cliente."}
+            : "Elegí un cliente para aplicar su lista de precios. Consumidor final usa General."}
         </p>
       </div>
       <SaleCustomerCombobox

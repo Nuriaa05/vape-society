@@ -88,6 +88,11 @@ module.exports = async function wholesalePricingSmoke({
         .click();
     }
   }
+  async function openCustomerAssignment() {
+    const details = page.locator("details").filter({has: page.locator("summary", {hasText:"Clientes que usan esta lista"})});
+    if (await details.getAttribute("open") === null) await details.locator("summary").click();
+    await page.getByRole("button", {name:"Asignar cliente",exact:true}).click();
+  }
   async function savePrices(id) {
     return changed(`/api/price-lists/${id}`, "PATCH", () =>
       page
@@ -98,7 +103,7 @@ module.exports = async function wholesalePricingSmoke({
   async function cell(item, scale, amount) {
     await page
       .getByRole("textbox", {
-        name: `${item.name}, escala ${scale}`,
+        name: `${item.name}, precio por unidad desde cantidad ${scale}`,
         exact: true,
       })
       .fill(amount);
@@ -110,27 +115,26 @@ module.exports = async function wholesalePricingSmoke({
     .getByRole("tab", { name: "Listas de precios", exact: true })
     .click();
   await page.getByRole("region", { name: "Matriz de precios" }).waitFor();
-  assert(
-    await page
-      .getByRole("button", { name: "Archivar lista", exact: true })
-      .isDisabled(),
-  );
+  await page.getByRole("button", {name:"Acciones de la lista",exact:true}).click();
+  assert(await page.getByRole("menuitem", {name:"Archivar lista",exact:true}).isDisabled());
+  await page.keyboard.press("Escape");
   await page
-    .getByRole("button", { name: "Agregar escala", exact: true })
+    .getByRole("button", { name: "Agregar cantidad mínima", exact: true })
     .click();
   await page
-    .getByLabel("Escala 1: unidades mínimas", { exact: true })
+    .getByLabel("Cantidad mínima 1", { exact: true })
     .fill("6");
   await cell(a, 1, "900");
   await cell(b, 1, "1800");
   await cell(combo, 1, "2300");
   await page
-    .getByRole("button", { name: "Agregar escala", exact: true })
+    .getByRole("button", { name: "Agregar cantidad mínima", exact: true })
     .click();
   await page
-    .getByLabel("Escala 2: unidades mínimas", { exact: true })
+    .getByLabel("Cantidad mínima 2", { exact: true })
     .fill("12");
   await cell(b, 2, "1600");
+  assert.equal(await page.getByRole("textbox", {name:`${a.name}, precio por unidad desde cantidad 2`,exact:true}).getAttribute("placeholder"), "$900");
   await savePrices("general");
   await page.screenshot({
     path: join(evidence, "wholesale-lists-desktop.png"),
@@ -143,21 +147,42 @@ module.exports = async function wholesalePricingSmoke({
     .getByLabel("Nombre de lista", { exact: true })
     .fill("Acuerdo comercial");
   const custom = await changed("/api/price-lists", "POST", () =>
-    dialog.getByRole("button", { name: "Guardar lista", exact: true }).click(),
+    dialog.getByRole("button", { name: "Continuar con precios", exact: true }).click(),
   );
   await page
-    .getByRole("button", { name: "Agregar escala", exact: true })
+    .getByRole("button", { name: "Agregar cantidad mínima", exact: true })
     .click();
   await page
-    .getByLabel("Escala 1: unidades mínimas", { exact: true })
+    .getByLabel("Cantidad mínima 1", { exact: true })
     .fill("6");
   await cell(a, 1, "750");
   await cell(b, 1, "1500");
   await cell(combo, 1, "2000");
   const configured = await savePrices(custom.id);
-  await page
-    .getByRole("button", { name: "Duplicar lista", exact: true })
-    .click();
+  await page.getByText("Probar estos precios", {exact:true}).click();
+  await page.getByLabel("Unidades totales de la venta", {exact:true}).fill("6");
+  await page.getByText("$750 por unidad", {exact:true}).waitFor();
+  await page.screenshot({path:join(evidence,"wholesale-example-desktop.png"),fullPage:true});
+  await cell(a,1,"740");
+  await page.getByRole("tab", {name:"Productos",exact:true}).click();
+  await page.getByRole("tab", {name:"Listas de precios",exact:true}).click();
+  assert.equal(await page.getByRole("textbox", {name:`${a.name}, precio por unidad desde cantidad 1`,exact:true}).inputValue(),"740");
+  await page.getByLabel("Lista de precios", {exact:true}).click();
+  await page.getByRole("option", {name:"General (predeterminada)",exact:true}).click();
+  let unsaved = page.getByRole("dialog", {name:"Tenés precios sin guardar",exact:true});
+  await unsaved.getByRole("button", {name:"Seguir editando",exact:true}).click();
+  await page.getByRole("button", {name:"Stock",exact:true}).click();
+  await unsaved.getByRole("button", {name:"Seguir editando",exact:true}).click();
+  assert(page.url().endsWith("/productos"));
+  assert.equal((await request(`/api/price-lists/${custom.id}`)).tiers[0].prices.find(p=>p.itemId===a.id).priceAmountCents,75000);
+  await page.getByLabel("Lista de precios", {exact:true}).click();
+  await page.getByRole("option", {name:"General (predeterminada)",exact:true}).click();
+  await unsaved.getByRole("button", {name:"Descartar cambios",exact:true}).click();
+  await page.getByLabel("Lista de precios", {exact:true}).click();
+  await page.getByRole("option", {name:custom.name,exact:true}).click();
+  assert.equal(await page.getByRole("textbox", {name:`${a.name}, precio por unidad desde cantidad 1`,exact:true}).inputValue(),"750,00");
+  await page.getByRole("button", {name:"Acciones de la lista",exact:true}).click();
+  await page.getByRole("menuitem", {name:"Duplicar lista",exact:true}).click();
   dialog = page.getByRole("dialog", { name: "Duplicar lista", exact: true });
   await dialog
     .getByLabel("Nombre de lista", { exact: true })
@@ -171,9 +196,8 @@ module.exports = async function wholesalePricingSmoke({
         .click(),
   );
   assert.deepEqual(copy.tiers, configured.tiers);
-  await page
-    .getByRole("button", { name: "Archivar lista", exact: true })
-    .click();
+  await page.getByRole("button", {name:"Acciones de la lista",exact:true}).click();
+  await page.getByRole("menuitem", {name:"Archivar lista",exact:true}).click();
   await changed(`/api/price-lists/${copy.id}`, "PATCH", () =>
     page
       .getByRole("button", { name: "Confirmar archivo", exact: true })
@@ -255,9 +279,7 @@ module.exports = async function wholesalePricingSmoke({
     .click();
   await page.getByLabel("Lista de precios", { exact: true }).click();
   await page.getByRole("option", { name: custom.name, exact: true }).click();
-  await page
-    .getByRole("button", { name: "Asignar cliente", exact: true })
-    .click();
+  await openCustomerAssignment();
   let assignmentDialog = page.getByRole("dialog", {
     name: `Asignar cliente a ${custom.name}`,
     exact: true,
@@ -319,9 +341,7 @@ module.exports = async function wholesalePricingSmoke({
     ).priceListId ?? null,
     null,
   );
-  await page
-    .getByRole("button", { name: "Asignar cliente", exact: true })
-    .click();
+  await openCustomerAssignment();
   assignmentDialog = page.getByRole("dialog", {
     name: `Asignar cliente a ${custom.name}`,
     exact: true,
@@ -342,9 +362,7 @@ module.exports = async function wholesalePricingSmoke({
   });
 
   const newCustomerName = "Cliente nuevo desde Productos";
-  await page
-    .getByRole("button", { name: "Asignar cliente", exact: true })
-    .click();
+  await openCustomerAssignment();
   assignmentDialog = page.getByRole("dialog", {
     name: `Asignar cliente a ${custom.name}`,
     exact: true,
@@ -681,15 +699,27 @@ module.exports = async function wholesalePricingSmoke({
     path: join(evidence, "wholesale-reports-desktop.png"),
     fullPage: true,
   });
+  await page.goto(url + "/clientes-cobranzas");
+  await page.getByRole("button", {name:`Acciones de ${customer.name}`,exact:true}).click();
+  await page.getByRole("menuitem", {name:"Editar",exact:true}).click();
+  let customerEditor = page.getByRole("dialog", {name:"Editar cliente",exact:true});
+  await customerEditor.getByLabel("Lista de precios del cliente", {exact:true}).click();
+  await page.getByRole("option", {name:"General (predeterminada)",exact:true}).click();
+  let fromCard = await changed(assignmentPath,"PATCH",()=>customerEditor.getByRole("button", {name:"Guardar cliente",exact:true}).click());
+  assert.equal(fromCard.priceListId,null);
+  await page.getByRole("button", {name:`Acciones de ${customer.name}`,exact:true}).click();
+  await page.getByRole("menuitem", {name:"Editar",exact:true}).click();
+  await customerEditor.getByLabel("Lista de precios del cliente", {exact:true}).click();
+  await page.getByRole("option", {name:"Nombre posterior",exact:true}).click();
+  fromCard = await changed(assignmentPath,"PATCH",()=>customerEditor.getByRole("button", {name:"Guardar cliente",exact:true}).click());
+  assert.equal(fromCard.priceListId,custom.id);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(url + "/productos");
   await page
     .getByRole("tab", { name: "Listas de precios", exact: true })
     .click();
   await page.getByRole("region", { name: "Matriz de precios" }).waitFor();
-  await page
-    .getByRole("button", { name: "Asignar cliente", exact: true })
-    .click();
+  await openCustomerAssignment();
   assignmentDialog = page.getByRole("dialog", {
     name: "Asignar cliente a General",
     exact: true,
@@ -745,9 +775,7 @@ module.exports = async function wholesalePricingSmoke({
     .getByRole("region", { name: "Clientes de esta lista", exact: true })
     .getByText(generalCustomer.name, { exact: true })
     .waitFor();
-  await page
-    .getByRole("button", { name: "Asignar cliente", exact: true })
-    .click();
+  await openCustomerAssignment();
   await assignmentDialog
     .getByLabel("Buscar cliente por nombre o celular", { exact: true })
     .fill(customer.phone);
@@ -766,9 +794,7 @@ module.exports = async function wholesalePricingSmoke({
   await page
     .getByRole("option", { name: "Nombre posterior", exact: true })
     .click();
-  await page
-    .getByRole("button", { name: "Asignar cliente", exact: true })
-    .click();
+  await openCustomerAssignment();
   assignmentDialog = page.getByRole("dialog", {
     name: "Asignar cliente a Nombre posterior",
     exact: true,
@@ -817,7 +843,11 @@ module.exports = async function wholesalePricingSmoke({
   return {
     success: true,
     management: "passed",
+    effectiveBlankPrice: "passed",
+    unsavedNavigationAndTabs: "passed",
+    exampleDoesNotWrite: "passed",
     customerAssignmentFromProducts: "passed",
+    customerAssignmentFromClientCard: "passed",
     customerCreationFromProducts: "passed",
     mixedQuantityCustomerPrices: "passed",
     directCoupon: direct.number,
