@@ -275,34 +275,28 @@ export function StockPage() {
             {(
               [
                 [
-                  "Pagado",
-                  summaryQuery.data?.paidQty,
+                  "Stock Propio",
                   summaryQuery.data?.paidValueCents,
-                  "Mercadería ya pagada al proveedor",
                   <PackageCheck
                     className="size-4 text-success"
                     aria-hidden="true"
                   />,
                 ],
                 [
-                  "A crédito",
-                  summaryQuery.data?.creditQty,
+                  "Stock a crédito",
                   summaryQuery.data?.creditValueCents,
-                  "Mercadería con pago pendiente",
                   <Package
                     className="size-4 text-warning-foreground"
                     aria-hidden="true"
                   />,
                 ],
                 [
-                  "Total general",
-                  summaryQuery.data?.physicalStock,
+                  "Valor Stock",
                   summaryQuery.data?.totalValueCents,
-                  "Todo el stock físico actual",
                   <Boxes className="size-4 text-accent" aria-hidden="true" />,
                 ],
               ] as const
-            ).map(([label, qty, value, hint, icon]) => (
+            ).map(([label, value, icon]) => (
               <KpiCard
                 key={label}
                 icon={icon}
@@ -314,7 +308,6 @@ export function StockPage() {
                       ? "—"
                       : money(value)
                 }
-                hint={`${qty ?? "—"} unidades · ${hint}`}
               />
             ))}
           </div>

@@ -56,7 +56,7 @@ export function StockCreditTable({
             <th className="app-table-heading text-left font-medium">
               Producto
             </th>
-            {["Pagado", "A crédito", "Total físico", "Disponible"].map(
+            {["Propio", "A crédito", "Total físico", "Disponible"].map(
               (label) => (
                 <th
                   key={label}
