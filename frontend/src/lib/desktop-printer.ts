@@ -232,6 +232,12 @@ export function buildBrowserReceiptHtml(
   receipt: SaleReceiptResponse,
   comboTicketMode: "ComboLine" | "ComboWithComponents",
 ): string {
+  const comparable = (value: string) =>
+    value.toLocaleLowerCase("es").replace(/[\s.,·]/g, "");
+  const footer =
+    comparable(receipt.receipt.footer) === comparable(receipt.legend)
+      ? ""
+      : receipt.receipt.footer.trim();
   const lines = [
     ...buildReceiptHeaderLines(receipt).map(
       (line, index) =>
@@ -259,7 +265,7 @@ export function buildBrowserReceiptHtml(
     ),
     ...renderFinanceReceiptLines(receipt.sale.finance),
     ...renderCashLines(receipt),
-    `<div class="center footer">${escapeHtml(receipt.receipt.footer)}</div>`,
+    footer ? `<div class="center footer">${escapeHtml(footer)}</div>` : "",
     `<div class="center legend">${escapeHtml(receipt.legend)}</div>`,
     `<div class="receipt-final-rule" aria-hidden="true">${RECEIPT_FINAL_RULE}</div>`,
     `<div class="receipt-bottom-feed" aria-hidden="true">&nbsp;</div>`,
