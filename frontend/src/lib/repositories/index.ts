@@ -19,6 +19,8 @@ export type {
   ReportProductBreakdownItem,
   ReportProductConsumptionItem,
   ReportRange,
+  ReportDateRange,
+  ReportFilter,
   ReportsPeriod,
   ReportSubPoint,
   TopProductsQuery,

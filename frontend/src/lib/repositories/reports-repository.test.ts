@@ -23,6 +23,45 @@ describe("reports repository", () => {
     vi.restoreAllMocks();
   });
 
+  it("sends the same exact date interval to every report and export", async () => {
+    const dates = {
+      from: "2026-09-30T03:00:00.000Z",
+      to: "2026-10-02T03:00:00.000Z",
+    };
+    vi.mocked(globalThis.fetch)
+      .mockImplementationOnce(() =>
+        mockJsonResponse({
+          sales: [],
+          dailyTotalAmountCents: 0,
+          monthlyTotalAmountCents: 0,
+          monthlyPurchasesAmountCents: 0,
+          salesPurchasesDifferenceAmountCents: 0,
+          deliveredSalesCount: 0,
+          pendingSalesCount: 0,
+          pendingSalesTotalAmountCents: 0,
+          productCount: 0,
+        }),
+      )
+      .mockImplementationOnce(() =>
+        mockJsonResponse({ period: "month", points: [] }),
+      )
+      .mockImplementation(() => mockJsonResponse([]));
+
+    await reportsRepository.getCommercialSummary(dates);
+    await reportsRepository.getSalesDataset("hour", dates);
+    await reportsRepository.getBestSellingProducts(dates);
+    await reportsRepository.getProductConsumption(dates);
+    await reportsRepository.getSalesExport(dates);
+    await reportsRepository.getPaymentBreakdown(dates);
+
+    for (const [url] of vi.mocked(globalThis.fetch).mock.calls) {
+      const params = new URL(String(url)).searchParams;
+      expect(params.get("from")).toBe(dates.from);
+      expect(params.get("to")).toBe(dates.to);
+      expect(params.has("range")).toBe(false);
+    }
+  });
+
   it.each(["week", "month"] as const)(
     "loads the %s sold units without converting them to currency",
     async (period) => {
@@ -214,5 +253,87 @@ describe("reports repository", () => {
     expect(String(fetchMock.mock.calls[1][0])).toContain(
       "/reports/sales?range=all",
     );
+  });
+
+  it("keeps financing, historical customer data and combo identity in sales exports", async () => {
+    const finance = {
+      paymentTerms: "CardInstallments",
+      upfrontAmountCents: 0,
+      financedAmountCents: 12345,
+      installments: [],
+      cardPlan: {
+        installmentCount: 3,
+        processor: "Procesador original",
+        deferred: true,
+        settlements: [],
+      },
+    };
+    vi.mocked(globalThis.fetch).mockImplementationOnce(() =>
+      mockJsonResponse([
+        {
+          id: "export-sale",
+          number: "000042",
+          date: "2026-10-18T12:00:00Z",
+          customerId: "customer",
+          customerName: "Nombre al vender",
+          customerPhone: "362123",
+          paymentTerms: "CardInstallments",
+          finance,
+          subtotalAmountCents: 15000,
+          discountAmountCents: 3000,
+          netAmountCents: 12000,
+          surchargeBasisPoints: 288,
+          surchargeAmountCents: 345,
+          totalAmountCents: 12345,
+          couponCode: "ORIGINAL",
+          deliveryStatus: "Entregado",
+          status: "Confirmada",
+          payment: "Tarjeta original",
+          items: [
+            {
+              itemType: "Combo",
+              productId: null,
+              comboId: "combo",
+              name: "Combo al vender",
+              qty: 1,
+              unitPriceAmountCents: 15000,
+              comboDiscountAmountCents: 100,
+              components: [
+                {
+                  productId: "p",
+                  productName: "Componente",
+                  barcode: "",
+                  qtyPerCombo: 2,
+                  qty: 2,
+                },
+              ],
+            },
+          ],
+        },
+      ]),
+    );
+    const [sale] = await reportsRepository.getSalesExport("all");
+    expect(sale).toMatchObject({
+      customerId: "customer",
+      customerName: "Nombre al vender",
+      customerPhone: "362123",
+      paymentTerms: "CardInstallments",
+      finance,
+      subtotal: 150,
+      discount: 30,
+      net: 120,
+      surcharge: 3.45,
+      total: 123.45,
+      couponCode: "ORIGINAL",
+      items: [
+        {
+          itemType: "Combo",
+          productId: null,
+          comboId: "combo",
+          comboDiscount: 1,
+          components: [{ productName: "Componente", qty: 2 }],
+        },
+      ],
+    });
   });
 });

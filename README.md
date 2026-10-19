@@ -96,9 +96,17 @@ npm run test:installer
 
 El archivo `.sha256` junto al instalador permite comprobar su integridad. Esta versión del instalador no tiene firma digital. No instala servicios de Windows ni configura inicio automático.
 
+## Exportar datos
+
+En **Configuración → Datos → Exportar datos** se puede descargar cualquiera de las 33 secciones en CSV: catálogo, ventas, compras, clientes, cuotas, cobros, tarjetas, devoluciones, cuentas de proveedores, stock por origen y listas de precios. Incluyen los registros archivados y los movimientos revertidos, identificados como tales. Los importes previstos se distinguen del dinero efectivamente cobrado o pagado.
+
+Los CSV usan UTF-8, separador de punto y coma y coma decimal. **Productos → Exportar** conserva los filtros de la pantalla; los archivos de **Reportes → Exportar** conservan el período elegido. Las ventas incluyen sus condiciones originales de financiación y precios. Para restaurar el sistema completo, usar un respaldo SQLite.
+
 ## Importar un respaldo
 
 En **Configuración → Datos → Importar datos**, seleccionar una copia SQLite de este núcleo (`.db`, `.sqlite` o `.sqlite3`, hasta 50 MB). Se validan la integridad, la versión, la estructura y los datos del archivo antes de mostrar un resumen y pedir confirmación. Las copias de versiones anteriores compatibles se actualizan en una carpeta temporal.
+
+La restauración conserva clientes, cuotas y aplicaciones de cobros, acreditaciones y devoluciones, deudas y pagos a proveedores, ingresos de mercadería y sus costos históricos, asignaciones de stock y listas, escalas y precios. El resumen previo muestra las cantidades de estos registros; sus relaciones, saldos e importes se validan antes del reemplazo.
 
 Al confirmar, el sistema espera a que terminen las operaciones en curso, crea un backup de los datos actuales y reemplaza los datos comerciales y la configuración en una sola transacción. Si no se puede crear la copia previa o falla el reemplazo, se conservan los datos actuales. El historial de backups locales se mantiene porque sus archivos pertenecen a esta instalación. Al terminar, pulsar **Continuar** para recargar la interfaz.
 

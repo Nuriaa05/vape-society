@@ -29,6 +29,8 @@ export type SupplierPayable = {
   status: "Pendiente" | "Vencida" | "Pagada" | "Anulada";
   balanceCents: number;
   refundPendingCents: number;
+  cancelReason?: string | null;
+  cancelledAt?: string | null;
   payments: SupplierFinancialEntry[];
   refunds: SupplierFinancialEntry[];
 };

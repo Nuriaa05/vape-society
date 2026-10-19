@@ -61,7 +61,47 @@ describe("Financial backup consistency", () => {
   afterEach(() => rmSync(directory, { recursive: true, force: true }));
 
   it("accepts a paid installment without losing its allocation", () => {
-    expect(validateImportData(path, path)).toMatchObject({ sales: 1 });
+    expect(validateImportData(path, path)).toMatchObject({
+      sales: 1,
+      receivableInstallments: 1,
+      collectionAllocations: 1,
+      cardAccreditations: 0,
+      refundCancellations: 0,
+      inventoryAllocations: 0,
+      priceListTiers: 0,
+      financialOperations: 0,
+    });
+  });
+
+  it("recognizes the equivalent early supplier-credit migration without bypassing data validation", () => {
+    const database = new DatabaseSync(path);
+    database
+      .prepare(
+        "UPDATE _prisma_migrations SET checksum = ? WHERE migration_name = '20261015010000_supplier_credit'",
+      )
+      .run("ea6fbe3843c58ac8a7974a025ff87c14864db75ba69062af9b2ac31b8bff4bd8");
+    database.close();
+    expect(checkImportFile(path)).toBe(false);
+    expect(validateImportData(path, path)).toMatchObject({
+      collectionAllocations: 1,
+    });
+    const damaged = new DatabaseSync(path);
+    damaged.exec(
+      "UPDATE CollectionAllocation SET amountCents = 10001 WHERE id = 'a1'",
+    );
+    damaged.close();
+    expect(() => validateImportData(path, path)).toThrow();
+  });
+
+  it("does not accept the legacy supplier checksum as a different migration", () => {
+    const database = new DatabaseSync(path);
+    database
+      .prepare(
+        "UPDATE _prisma_migrations SET checksum = ? WHERE migration_name = '20261015000000_customers_collections'",
+      )
+      .run("ea6fbe3843c58ac8a7974a025ff87c14864db75ba69062af9b2ac31b8bff4bd8");
+    database.close();
+    expect(() => checkImportFile(path)).toThrow("migraciones distintas");
   });
 
   it("accepts explicitly deferred card calendars and rejects a lost confirmed calendar", () => {

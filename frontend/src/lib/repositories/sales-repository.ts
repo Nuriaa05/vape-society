@@ -45,7 +45,7 @@ type ApiSalePricing = {
   cashShortfallAmountCents: number;
 };
 
-type ApiSale = Partial<ApiSalePricing> & {
+export type ApiSale = Partial<ApiSalePricing> & {
   pricingSnapshot?: PricingSnapshot | null;
   id: string;
   number: string;
@@ -122,7 +122,7 @@ function toSaleComponent(
   };
 }
 
-function toSale(sale: ApiSale): Sale {
+export function toSale(sale: ApiSale): Sale {
   const subtotalAmountCents = sale.subtotalAmountCents ?? sale.totalAmountCents;
   const discountAmountCents = sale.discountAmountCents ?? 0;
   const netAmountCents =

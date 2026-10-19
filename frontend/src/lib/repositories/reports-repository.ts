@@ -1,7 +1,7 @@
-import type { PricingSnapshot } from "@/lib/price-lists";
 import { apiClient } from "@/lib/api-client";
 import type { Category, Product, Sale } from "@/lib/contracts";
 import { amountCentsToPesos } from "@/lib/money";
+import { toSale, type ApiSale } from "./sales-repository";
 
 export type ReportsPeriod = "hour" | "month" | "90d" | "year";
 export type SoldUnitsPeriod = "week" | "month";
@@ -17,6 +17,8 @@ export type SoldUnitsDataset = {
   }>;
 };
 export type ReportRange = "all" | "30d" | "90d" | "year";
+export type ReportDateRange = { from: string; to: string };
+export type ReportFilter = ReportRange | ReportDateRange;
 export type TopProductsSort = "quantity" | "revenue";
 export type TopProductsQuery = {
   range?: ReportRange;
@@ -57,24 +59,6 @@ export interface ReportProductConsumptionItem {
   reservedQty: number;
   totalQty: number;
 }
-
-type ApiSale = {
-  pricingSnapshot?: PricingSnapshot | null;
-  id: string;
-  number: string;
-  date: string;
-  deliveryStatus: Sale["delivery"];
-  status: Sale["status"];
-  payment: string;
-  items: Array<{
-    productId: string;
-    name: string;
-    productName: string;
-    qty: number;
-    unitPriceAmountCents: number;
-  }>;
-  totalAmountCents: number;
-};
 
 type ApiStockAlert = {
   productId: string;
@@ -177,25 +161,6 @@ const paymentColors = ["bg-primary", "bg-accent", "bg-success", "bg-warning"];
 const VISIBLE_HOURLY_REPORT_START = 8;
 const VISIBLE_HOURLY_REPORT_END = 22;
 
-function toSale(sale: ApiSale): Sale {
-  return {
-    pricingSnapshot: sale.pricingSnapshot ?? null,
-    id: sale.id,
-    number: sale.number,
-    date: sale.date,
-    items: sale.items.map((item) => ({
-      productId: item.productId,
-      name: item.name || item.productName,
-      qty: item.qty,
-      price: amountCentsToPesos(item.unitPriceAmountCents),
-    })),
-    total: amountCentsToPesos(sale.totalAmountCents),
-    payment: sale.payment as Sale["payment"],
-    delivery: sale.deliveryStatus,
-    status: sale.status,
-  };
-}
-
 function toStockAlert(alert: ApiStockAlert): Product {
   return {
     itemType: "Product",
@@ -235,9 +200,10 @@ export const reportsRepository = {
     };
   },
 
-  async getCommercialSummary() {
+  async getCommercialSummary(dates?: ReportDateRange) {
     const summary = await apiClient.get<ApiCommercialSummary>(
       "/reports/commercial",
+      dates,
     );
 
     return {
@@ -265,18 +231,29 @@ export const reportsRepository = {
     return { ...periodMeta[period] };
   },
 
-  async getSalesDataset(period: ReportsPeriod): Promise<ReportPoint[]> {
+  async getSalesDataset(
+    period: ReportsPeriod,
+    dates?: ReportDateRange,
+  ): Promise<ReportPoint[]> {
+    return (await this.getSalesReport(period, dates)).points;
+  },
+
+  async getSalesReport(period: ReportsPeriod, dates?: ReportDateRange) {
     const series = await apiClient.get<ApiSeries>("/reports/sales-series", {
       period,
+      ...dates,
     });
 
-    return getVisibleReportPoints(period, series.points).map((point) => ({
+    const points = (
+      dates ? series.points : getVisibleReportPoints(period, series.points)
+    ).map((point) => ({
       label: point.label,
       fullLabel: point.fullLabel,
       from: point.from,
       to: point.to,
       v: amountCentsToPesos(point.v),
     }));
+    return { meta: dates ? series.meta : this.getPeriodMeta(period), points };
   },
 
   async getSoldUnitsDataset(
@@ -313,22 +290,26 @@ export const reportsRepository = {
   },
 
   async getProductConsumption(
-    range: ReportRange = "all",
+    filter: ReportFilter = "all",
   ): Promise<ReportProductConsumptionItem[]> {
     return apiClient.get<ApiProductConsumption[]>(
       "/reports/product-consumption",
-      { range },
+      typeof filter === "string" ? { range: filter } : filter,
     );
   },
 
-  async getSalesExport(range: ReportRange = "all"): Promise<Sale[]> {
-    const sales = await apiClient.get<ApiSale[]>("/reports/sales", { range });
+  async getSalesExport(filter: ReportFilter = "all"): Promise<Sale[]> {
+    const sales = await apiClient.get<ApiSale[]>(
+      "/reports/sales",
+      typeof filter === "string" ? { range: filter } : filter,
+    );
     return sales.map(toSale);
   },
 
-  async getPaymentBreakdown() {
+  async getPaymentBreakdown(dates?: ReportDateRange) {
     const breakdown = await apiClient.get<ApiPaymentBreakdown[]>(
       "/reports/payment-methods",
+      dates,
     );
 
     return breakdown.map((item, index) => ({

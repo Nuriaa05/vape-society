@@ -3,6 +3,9 @@ import { Card, CardToolbar, KpiCard, CardFooter } from "@/components/ui/card";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
+import { ReportDateRangePicker } from "@/components/report-date-range-picker";
+import { downloadCSV, type CsvCell } from "@/lib/csv";
+import { buildSalesExportRows } from "@/lib/data-export";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +25,7 @@ import {
   reportsRepository,
   type ReportPoint,
   type ReportRange,
+  type ReportDateRange,
   type ReportsPeriod,
   type TopProductsSort,
 } from "@/lib/repositories";
@@ -32,7 +36,19 @@ import {
   getVisibleItems,
   REPORT_PREVIEW_INCREMENT,
 } from "@/lib/visible-items";
-import { Download, FileSpreadsheet, FileText, X } from "lucide-react";
+import {
+  Clock,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  PackageCheck,
+  ReceiptText,
+  Scale,
+  ShoppingCart,
+  TrendingUp,
+  Wallet,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -44,31 +60,15 @@ const reportRangeOptions: Array<{ id: ReportRange; label: string }> = [
   { id: "year", label: "12 meses" },
 ];
 
-function downloadCSV(filename: string, rows: string[][]) {
-  const csv = rows
-    .map((r) =>
-      r
-        .map((cell) => {
-          const s = String(cell ?? "");
-          return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-        })
-        .join(","),
-    )
-    .join("\n");
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
 export function ReportesPage() {
   const [period, setPeriod] = useState<ReportsPeriod>("hour");
   const [reportRange, setReportRange] = useState<ReportRange>("all");
+  const [dateRange, setDateRange] = useState<ReportDateRange>();
+  const reportFilter = dateRange ?? reportRange;
+  const reportLabel = getReportRangeLabel(reportFilter);
+  const exportRange = dateRange
+    ? `${dateRange.from.slice(0, 10)}-${new Date(new Date(dateRange.to).getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}`
+    : reportRange;
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [rankingSort, setRankingSort] = useState<TopProductsSort>("quantity");
   const [detailScope, setDetailScope] = useState<"bucket" | "all">("bucket");
@@ -84,38 +84,41 @@ export function ReportesPage() {
   );
   const periodOptions = useMemo(() => reportsRepository.getPeriodOptions(), []);
   const commercialSummaryQuery = useQuery({
-    queryKey: ["reports", "commercial"],
-    queryFn: () => reportsRepository.getCommercialSummary(),
+    queryKey: ["reports", "commercial", dateRange],
+    queryFn: () => reportsRepository.getCommercialSummary(dateRange),
+    placeholderData: keepPreviousData,
   });
   const salesDatasetQuery = useQuery({
-    queryKey: ["reports", "sales-series", period],
-    queryFn: () => reportsRepository.getSalesDataset(period),
+    queryKey: ["reports", "sales-series", period, dateRange],
+    queryFn: () => reportsRepository.getSalesReport(period, dateRange),
     placeholderData: keepPreviousData,
   });
   const bestSellingQuery = useQuery({
-    queryKey: ["reports", "top-products", reportRange, rankingSort],
+    queryKey: ["reports", "top-products", reportFilter, rankingSort],
     queryFn: () =>
       reportsRepository.getBestSellingProducts({
-        range: reportRange,
+        ...(dateRange ?? { range: reportRange }),
         sort: rankingSort,
       }),
     placeholderData: keepPreviousData,
   });
   const productConsumptionQuery = useQuery({
-    queryKey: ["reports", "product-consumption", reportRange],
-    queryFn: () => reportsRepository.getProductConsumption(reportRange),
+    queryKey: ["reports", "product-consumption", reportFilter],
+    queryFn: () => reportsRepository.getProductConsumption(reportFilter),
     placeholderData: keepPreviousData,
   });
   const paymentBreakdownQuery = useQuery({
-    queryKey: ["reports", "payment-methods"],
-    queryFn: () => reportsRepository.getPaymentBreakdown(),
+    queryKey: ["reports", "payment-methods", dateRange],
+    queryFn: () => reportsRepository.getPaymentBreakdown(dateRange),
+    placeholderData: keepPreviousData,
   });
 
   const data = useMemo(
-    () => salesDatasetQuery.data ?? [],
+    () => salesDatasetQuery.data?.points ?? [],
     [salesDatasetQuery.data],
   );
-  const meta = reportsRepository.getPeriodMeta(period);
+  const meta =
+    salesDatasetQuery.data?.meta ?? reportsRepository.getPeriodMeta(period);
   const total = useMemo(() => data.reduce((s, d) => s + d.v, 0), [data]);
   const avg = data.length > 0 ? Math.round(total / data.length) : 0;
   const max = data.length > 0 ? Math.max(...data.map((d) => d.v)) : 0;
@@ -130,11 +133,12 @@ export function ReportesPage() {
       selected?.from,
       selected?.to,
       rankingSort,
+      dateRange,
     ],
     queryFn: () => {
       if (detailScope === "all") {
         return reportsRepository.getBestSellingProducts({
-          range: "all",
+          ...(dateRange ?? { range: "all" }),
           sort: rankingSort,
         });
       }
@@ -189,14 +193,41 @@ export function ReportesPage() {
     bestSellingQuery.error ||
     productConsumptionQuery.error ||
     paymentBreakdownQuery.error;
+  const isRefreshing =
+    commercialSummaryQuery.isFetching ||
+    salesDatasetQuery.isFetching ||
+    bestSellingQuery.isFetching ||
+    productConsumptionQuery.isFetching ||
+    paymentBreakdownQuery.isFetching;
+  const dateControls = (
+    <>
+      <ReportDateRangePicker
+        value={dateRange}
+        disabled={isLoading}
+        onChange={(range) => {
+          setDateRange(range);
+          setSelectedIdx(null);
+          setDetailScope("bucket");
+          setVisibleSalesCount(REPORT_PREVIEW_INCREMENT);
+        }}
+      />
+      <span role="status" className="sr-only">
+        {isRefreshing
+          ? "Actualizando reportes..."
+          : dateRange
+            ? `Período: ${getReportRangeLabel(dateRange)}`
+            : "Sin filtro de fechas."}
+      </span>
+    </>
+  );
 
   useEffect(() => {
     setVisibleBestSellingCount(REPORT_PREVIEW_INCREMENT);
-  }, [reportRange, rankingSort]);
+  }, [reportFilter, rankingSort]);
 
   useEffect(() => {
     setVisibleConsumptionCount(REPORT_PREVIEW_INCREMENT);
-  }, [reportRange]);
+  }, [reportFilter]);
 
   const handleSelectPeriod = (id: ReportsPeriod) => {
     setPeriod(id);
@@ -215,32 +246,33 @@ export function ReportesPage() {
   };
 
   const exportPeriodCSV = () => {
-    const rows: string[][] = [
+    const rows: CsvCell[][] = [
       ["Periodo", meta.title],
+      ["Fechas", dateRange ? getReportRangeLabel(dateRange) : meta.subtitle],
       ["Bucket", "Total ARS"],
     ];
-    data.forEach((d) => rows.push([d.fullLabel, String(d.v)]));
-    rows.push(["", ""], ["Total", String(total)], ["Promedio", String(avg)]);
-    downloadCSV(`reporte-${period}.csv`, rows);
+    data.forEach((d) => rows.push([d.fullLabel, d.v]));
+    rows.push(["", ""], ["Total", total], ["Promedio", avg]);
+    downloadCSV(`reporte-${dateRange ? exportRange : period}.csv`, rows);
   };
 
   const exportTopProductsCSV = () => {
     const rows = [
-      ["Rango", getReportRangeLabel(reportRange)],
+      ["Rango", reportLabel],
       ["Criterio", getTopProductsSortLabel(rankingSort)],
       [],
       ...buildTopProductsExportRows(bestSelling),
     ];
-    downloadCSV(`productos-vendidos-${reportRange}-${rankingSort}.csv`, rows);
+    downloadCSV(`productos-vendidos-${exportRange}-${rankingSort}.csv`, rows);
   };
 
   const exportConsumptionCSV = () => {
     const rows = [
-      ["Rango", getReportRangeLabel(reportRange)],
+      ["Rango", reportLabel],
       [],
       ...buildConsumptionExportRows(productConsumption),
     ];
-    downloadCSV(`consumo-productos-${reportRange}.csv`, rows);
+    downloadCSV(`consumo-productos-${exportRange}.csv`, rows);
   };
 
   const exportSalesCSV = async () => {
@@ -248,32 +280,13 @@ export function ReportesPage() {
 
     setIsExportingSales(true);
     try {
-      const sales = await reportsRepository.getSalesExport(reportRange);
-      const rows: string[][] = [
-        ["Rango", getReportRangeLabel(reportRange)],
+      const sales = await reportsRepository.getSalesExport(reportFilter);
+      const rows: CsvCell[][] = [
+        ["Rango", reportLabel],
         [],
-        [
-          "Comprobante",
-          "Fecha",
-          "Ítems",
-          "Total ARS",
-          "Pago",
-          "Entrega",
-          "Lista y escala",
-        ],
+        ...buildSalesExportRows(sales),
       ];
-      sales.forEach((sale) =>
-        rows.push([
-          sale.number,
-          formatDateTimeAR(sale.date),
-          sale.items.map((item) => `${item.qty}x ${item.name}`).join(" | "),
-          String(sale.total),
-          sale.payment,
-          sale.delivery,
-          pricingContextLabel(sale.pricingSnapshot),
-        ]),
-      );
-      downloadCSV(`ventas-${reportRange}.csv`, rows);
+      downloadCSV(`ventas-${exportRange}.csv`, rows);
     } catch {
       toast.error("No se pudo exportar el listado completo de ventas.");
     } finally {
@@ -283,7 +296,11 @@ export function ReportesPage() {
 
   if (isLoading) {
     return (
-      <AppShell title="Reportes" subtitle="Análisis comercial e indicadores">
+      <AppShell
+        title="Reportes"
+        subtitle="Análisis comercial e indicadores"
+        actions={dateControls}
+      >
         <Card className="app-card-body text-sm text-muted-foreground">
           Cargando reportes...
         </Card>
@@ -293,9 +310,27 @@ export function ReportesPage() {
 
   if (hasError || !commercialSummary) {
     return (
-      <AppShell title="Reportes" subtitle="Análisis comercial e indicadores">
+      <AppShell
+        title="Reportes"
+        subtitle="Análisis comercial e indicadores"
+        actions={dateControls}
+      >
         <Card className="app-card-body text-sm text-destructive">
           No se pudieron cargar los reportes.
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-3"
+            onClick={() => {
+              void commercialSummaryQuery.refetch();
+              void salesDatasetQuery.refetch();
+              void bestSellingQuery.refetch();
+              void productConsumptionQuery.refetch();
+              void paymentBreakdownQuery.refetch();
+            }}
+          >
+            Reintentar
+          </Button>
         </Card>
       </AppShell>
     );
@@ -306,64 +341,89 @@ export function ReportesPage() {
       title="Reportes"
       subtitle="Análisis comercial e indicadores"
       actions={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline">
-              <Download /> Exportar
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Exportar a CSV</DropdownMenuLabel>
-            <DropdownMenuItem
-              disabled={salesDatasetQuery.isFetching}
-              onClick={exportPeriodCSV}
-            >
-              <FileSpreadsheet /> Período actual ({meta.title})
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={bestSellingQuery.isFetching}
-              onClick={exportTopProductsCSV}
-            >
-              <FileSpreadsheet /> Productos vendidos (
-              {getReportRangeLabel(reportRange)})
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={productConsumptionQuery.isFetching}
-              onClick={exportConsumptionCSV}
-            >
-              <FileSpreadsheet /> Consumo por producto
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={isExportingSales}
-              onClick={() => void exportSalesCSV()}
-            >
-              <FileSpreadsheet />
-              {isExportingSales
-                ? "Preparando ventas..."
-                : "Listado completo de ventas"}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => window.print()}>
-              <FileText /> Imprimir / PDF
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <>
+          {dateControls}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={isRefreshing}>
+                <Download /> Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Exportar a CSV</DropdownMenuLabel>
+              <DropdownMenuItem
+                disabled={salesDatasetQuery.isFetching}
+                onClick={exportPeriodCSV}
+              >
+                <FileSpreadsheet /> Período actual ({meta.title})
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={bestSellingQuery.isFetching}
+                onClick={exportTopProductsCSV}
+              >
+                <FileSpreadsheet /> Productos vendidos ({reportLabel})
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={productConsumptionQuery.isFetching}
+                onClick={exportConsumptionCSV}
+              >
+                <FileSpreadsheet /> Consumo por producto
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={isExportingSales || isRefreshing}
+                onClick={() => void exportSalesCSV()}
+              >
+                <FileSpreadsheet />
+                {isExportingSales
+                  ? "Preparando ventas..."
+                  : "Listado completo de ventas"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => window.print()}>
+                <FileText /> Imprimir / PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
       }
     >
+      <p className="hidden print:block text-sm">
+        Período:{" "}
+        {dateRange
+          ? getReportRangeLabel(dateRange)
+          : "Vista sin filtro de fechas"}
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <KpiCard
-          label="Ventas hoy"
-          value={formatARS(commercialSummary.dailyTotal)}
+          icon={
+            <ReceiptText className="size-4 text-accent" aria-hidden="true" />
+          }
+          label={dateRange ? "Cantidad de ventas" : "Ventas hoy"}
+          value={
+            dateRange
+              ? String(
+                  commercialSummary.deliveredSalesCount +
+                    commercialSummary.pendingSalesCount,
+                )
+              : formatARS(commercialSummary.dailyTotal)
+          }
         />
         <KpiCard
-          label="Ventas del mes"
+          icon={
+            <TrendingUp className="size-4 text-success" aria-hidden="true" />
+          }
+          label={dateRange ? "Ventas del período" : "Ventas del mes"}
           value={formatARS(commercialSummary.monthlyTotal)}
         />
         <KpiCard
-          label="Compras del mes"
+          icon={
+            <ShoppingCart className="size-4 text-accent" aria-hidden="true" />
+          }
+          label={dateRange ? "Compras del período" : "Compras del mes"}
           value={formatARS(commercialSummary.monthlyPurchases)}
         />
         <KpiCard
+          icon={<Scale className="size-4 text-accent" aria-hidden="true" />}
           label="Ventas menos compras"
           value={formatARS(commercialSummary.salesPurchasesDifference)}
           accent
@@ -372,14 +432,29 @@ export function ReportesPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <KpiCard
+          icon={
+            <PackageCheck className="size-4 text-success" aria-hidden="true" />
+          }
           label="Ventas entregadas"
           value={String(commercialSummary.deliveredSalesCount)}
         />
         <KpiCard
+          icon={
+            <Clock
+              className="size-4 text-warning-foreground"
+              aria-hidden="true"
+            />
+          }
           label="Ventas pendientes"
           value={String(commercialSummary.pendingSalesCount)}
         />
         <KpiCard
+          icon={
+            <Wallet
+              className="size-4 text-warning-foreground"
+              aria-hidden="true"
+            />
+          }
           label="Total pendiente"
           value={formatARS(commercialSummary.pendingSalesTotal)}
         />
@@ -401,24 +476,26 @@ export function ReportesPage() {
                 )}
               </div>
             </div>
-            <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5">
-              {periodOptions.map((o) => (
-                <button
-                  key={o.id}
-                  type="button"
-                  aria-pressed={period === o.id}
-                  onClick={() => handleSelectPeriod(o.id)}
-                  className={cn(
-                    "px-3 py-1.5 text-xs font-medium rounded transition-colors",
-                    period === o.id
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
+            {!dateRange && (
+              <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5">
+                {periodOptions.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    aria-pressed={period === o.id}
+                    onClick={() => handleSelectPeriod(o.id)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs font-medium rounded transition-colors",
+                      period === o.id
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-3 mb-4">
@@ -445,7 +522,9 @@ export function ReportesPage() {
                   </div>
                   <div className="text-sm font-semibold">
                     {detailScope === "all"
-                      ? "Todo el tiempo"
+                      ? dateRange
+                        ? getReportRangeLabel(dateRange)
+                        : "Todo el tiempo"
                       : selected.fullLabel}
                   </div>
                   <div className="text-xs text-muted-foreground">
@@ -474,7 +553,9 @@ export function ReportesPage() {
                   >
                     {detailScope === "all"
                       ? "Ver período seleccionado"
-                      : "Ver todo el tiempo"}
+                      : dateRange
+                        ? "Ver todo el rango"
+                        : "Ver todo el tiempo"}
                   </Button>
                   <button
                     type="button"
@@ -567,7 +648,7 @@ export function ReportesPage() {
             Ventas por método de pago
           </h2>
           <div className="text-xs text-muted-foreground mb-4">
-            Todo el tiempo
+            {dateRange ? getReportRangeLabel(dateRange) : "Todo el tiempo"}
           </div>
           <div className="flex h-3 rounded-full overflow-hidden">
             {byPayment.map((p) => (
@@ -601,8 +682,7 @@ export function ReportesPage() {
               Productos y combos vendidos
             </h2>
             <div className="text-xs text-muted-foreground mt-0.5">
-              {getReportRangeLabel(reportRange)} ·{" "}
-              {getTopProductsSortLabel(rankingSort)} ·{" "}
+              {reportLabel} · {getTopProductsSortLabel(rankingSort)} ·{" "}
               {bestSellingQuery.isFetching ? (
                 <span role="status">Actualizando datos...</span>
               ) : (
@@ -611,24 +691,26 @@ export function ReportesPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5">
-              {reportRangeOptions.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  aria-pressed={reportRange === option.id}
-                  onClick={() => setReportRange(option.id)}
-                  className={cn(
-                    "rounded px-2.5 py-1.5 text-xs font-medium transition-colors",
-                    reportRange === option.id
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            {!dateRange && (
+              <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5">
+                {reportRangeOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    aria-pressed={reportRange === option.id}
+                    onClick={() => setReportRange(option.id)}
+                    className={cn(
+                      "rounded px-2.5 py-1.5 text-xs font-medium transition-colors",
+                      reportRange === option.id
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <RankingSortControl value={rankingSort} onChange={setRankingSort} />
             <Button
               variant="outline"
@@ -747,7 +829,7 @@ export function ReportesPage() {
               Consumo por producto
             </h2>
             <div className="text-xs text-muted-foreground mt-0.5">
-              {getReportRangeLabel(reportRange)} ·{" "}
+              {reportLabel} ·{" "}
               {productConsumptionQuery.isFetching ? (
                 <span role="status">Actualizando datos...</span>
               ) : (
@@ -846,8 +928,10 @@ export function ReportesPage() {
               Precios originales por venta
             </h2>
             <p className="text-sm text-muted-foreground">
-              Historial completo: lista y escala guardadas al confirmar. Las
-              ventas anteriores sin registro no se reclasifican.
+              {dateRange
+                ? `Ventas del ${getReportRangeLabel(dateRange)}: lista y escala guardadas al confirmar.`
+                : "Historial completo: lista y escala guardadas al confirmar."}{" "}
+              Las ventas anteriores sin registro no se reclasifican.
             </p>
           </div>
         </CardToolbar>

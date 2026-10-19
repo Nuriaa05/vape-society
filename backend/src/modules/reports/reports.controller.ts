@@ -12,13 +12,17 @@ export class ReportsController {
   }
 
   @Get("commercial")
-  getCommercialSummary() {
-    return this.reportsService.getCommercialSummary();
+  getCommercialSummary(@Query("from") from?: string, @Query("to") to?: string) {
+    return this.reportsService.getCommercialSummary(from, to);
   }
 
   @Get("sales-series")
-  getSalesSeries(@Query("period") period?: string) {
-    return this.reportsService.getSalesSeries(period);
+  getSalesSeries(
+    @Query("period") period?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.reportsService.getSalesSeries(period, from, to);
   }
 
   @Get("units-series")
@@ -37,17 +41,28 @@ export class ReportsController {
   }
 
   @Get("product-consumption")
-  getProductConsumption(@Query("range") range?: string) {
-    return this.reportsService.getProductConsumption(range);
+  getProductConsumption(
+    @Query("range") range?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.reportsService.getProductConsumption(range, from, to);
   }
 
   @Get("sales")
-  getSalesExport(@Query("range") range?: string) {
-    return this.reportsService.getSalesExport(range);
+  getSalesExport(
+    @Query("range") range?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.reportsService.getSalesExport(range, from, to);
   }
 
   @Get("payment-methods")
-  getPaymentMethodsBreakdown() {
-    return this.reportsService.getPaymentMethodsBreakdown();
+  getPaymentMethodsBreakdown(
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.reportsService.getPaymentMethodsBreakdown(from, to);
   }
 }

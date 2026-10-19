@@ -7,6 +7,7 @@ import {
 } from "../../domain/stock-rules.service";
 import { PricingSnapshot } from "../price-lists/pricing-resolver";
 import { PrismaService } from "../../prisma/prisma.service";
+import type { SaleFinance } from "../sales/sale-finance";
 
 export type ReportsPeriod = "hour" | "month" | "90d" | "year";
 export type SoldUnitsPeriod = "week" | "month";
@@ -57,6 +58,11 @@ type Bucket = ReportPoint & {
 };
 
 export type ReportSaleResponse = {
+  customerId: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  paymentTerms: string | null;
+  finance?: SaleFinance;
   pricingSnapshot: PricingSnapshot | null;
   id: string;
   number: string;
@@ -87,6 +93,19 @@ export type ReportSaleResponse = {
     }>;
   }>;
   totalAmountCents: number;
+  subtotalAmountCents: number;
+  discountAmountCents: number;
+  netAmountCents: number;
+  surchargeBasisPoints: number;
+  surchargeAmountCents: number;
+  couponId: string | null;
+  couponCode: string | null;
+  couponType: string | null;
+  couponBasisPoints: number | null;
+  couponValueAmountCents: number | null;
+  cashReceivedAmountCents: number | null;
+  changeAmountCents: number | null;
+  cancelReason: string | null;
 };
 
 @Injectable()
@@ -156,16 +175,29 @@ export class ReportsService {
     };
   }
 
-  async getCommercialSummary() {
-    const now = new Date();
+  async getCommercialSummary(fromInput?: string, toInput?: string) {
+    this.getReportSalesWhere(undefined, fromInput, toInput);
+    const hasDates = fromInput !== undefined;
+    const now = hasDates
+      ? new Date(new Date(toInput!).getTime() - 1)
+      : new Date();
     const todayStart = startOfArgentinaDay(now);
     const tomorrowStart = addDays(todayStart, 1);
-    const monthStart = startOfArgentinaMonth(now);
-    const nextMonthStart = addMonths(monthStart, 1);
+    const monthStart = hasDates
+      ? new Date(fromInput!)
+      : startOfArgentinaMonth(now);
+    const nextMonthStart = hasDates
+      ? new Date(toInput!)
+      : addMonths(monthStart, 1);
 
     const [dailySales, monthlySales, registeredPurchases, productCount] =
       await Promise.all([
-        this.findConfirmedSalesBetween(todayStart, tomorrowStart),
+        this.findConfirmedSalesBetween(
+          hasDates && monthStart > todayStart ? monthStart : todayStart,
+          hasDates && nextMonthStart < tomorrowStart
+            ? nextMonthStart
+            : tomorrowStart,
+        ),
         this.findConfirmedSalesBetween(monthStart, nextMonthStart),
         this.prisma.purchase.findMany({
           where: {
@@ -205,9 +237,19 @@ export class ReportsService {
     };
   }
 
-  async getSalesSeries(periodInput?: string) {
-    const period = this.parsePeriod(periodInput ?? "month");
-    const buckets = buildBuckets(period, new Date());
+  async getSalesSeries(
+    periodInput?: string,
+    fromInput?: string,
+    toInput?: string,
+  ) {
+    const requestedPeriod = this.parsePeriod(periodInput ?? "month");
+    this.getReportSalesWhere(undefined, fromInput, toInput);
+    const customSeries =
+      fromInput !== undefined
+        ? buildCustomBuckets(new Date(fromInput), new Date(toInput!))
+        : null;
+    const period = customSeries?.period ?? requestedPeriod;
+    const buckets = customSeries?.buckets ?? buildBuckets(period, new Date());
     const sales = await this.prisma.sale.findMany({
       where: {
         status: "Confirmada",
@@ -224,7 +266,7 @@ export class ReportsService {
 
     return {
       period,
-      meta: getPeriodMeta(period),
+      meta: customSeries?.meta ?? getPeriodMeta(period),
       points: buckets.map((bucket) => ({
         label: bucket.label,
         fullLabel: bucket.fullLabel,
@@ -308,11 +350,7 @@ export class ReportsService {
     toInput?: string,
     sortInput = "quantity",
   ) {
-    const saleWhere = this.getTopProductsSalesWhere(
-      rangeInput,
-      fromInput,
-      toInput,
-    );
+    const saleWhere = this.getReportSalesWhere(rangeInput, fromInput, toInput);
     const sort = this.parseTopProductsSort(sortInput);
     const items = await this.prisma.saleItem.findMany({
       where: { sale: saleWhere },
@@ -396,9 +434,13 @@ export class ReportsService {
       );
   }
 
-  async getProductConsumption(rangeInput = "all") {
+  async getProductConsumption(
+    rangeInput?: string,
+    fromInput?: string,
+    toInput?: string,
+  ) {
     const items = await this.prisma.saleItem.findMany({
-      where: { sale: this.getConfirmedSalesWhere(rangeInput) },
+      where: { sale: this.getReportSalesWhere(rangeInput, fromInput, toInput) },
       include: {
         sale: { select: { deliveryStatus: true } },
         components: true,
@@ -473,9 +515,13 @@ export class ReportsService {
     );
   }
 
-  async getSalesExport(rangeInput = "all") {
+  async getSalesExport(
+    rangeInput?: string,
+    fromInput?: string,
+    toInput?: string,
+  ) {
     const sales = await this.prisma.sale.findMany({
-      where: this.getConfirmedSalesWhere(rangeInput),
+      where: this.getReportSalesWhere(rangeInput, fromInput, toInput),
       include: reportSaleInclude,
       orderBy: [{ date: "desc" }, { id: "desc" }],
     });
@@ -483,12 +529,13 @@ export class ReportsService {
     return sales.map((sale) => this.serializeSale(sale));
   }
 
-  async getPaymentMethodsBreakdown() {
+  async getPaymentMethodsBreakdown(fromInput?: string, toInput?: string) {
+    const saleWhere = this.getReportSalesWhere(undefined, fromInput, toInput);
     const [paymentMethods, groupedSales] = await Promise.all([
       this.prisma.paymentMethod.findMany({ orderBy: { id: "asc" } }),
       this.prisma.sale.groupBy({
         by: ["paymentMethodId", "paymentMethodName"],
-        where: { status: "Confirmada" },
+        where: saleWhere,
         _count: { _all: true },
         _sum: { totalAmountCents: true },
       }),
@@ -593,7 +640,7 @@ export class ReportsService {
     };
   }
 
-  private getTopProductsSalesWhere(
+  private getReportSalesWhere(
     rangeInput?: string,
     fromInput?: string,
     toInput?: string,
@@ -689,6 +736,13 @@ export class ReportsService {
   private serializeSale(sale: ReportSale): ReportSaleResponse {
     return {
       id: sale.id,
+      customerId: sale.customerId,
+      customerName: sale.customerName,
+      customerPhone: sale.customerPhone,
+      paymentTerms: sale.paymentTerms,
+      ...(sale.financeSnapshot
+        ? { finance: JSON.parse(sale.financeSnapshot) as SaleFinance }
+        : {}),
       pricingSnapshot: sale.pricingSnapshot
         ? (JSON.parse(sale.pricingSnapshot) as PricingSnapshot)
         : null,
@@ -721,6 +775,19 @@ export class ReportsService {
         })),
       })),
       totalAmountCents: sale.totalAmountCents,
+      subtotalAmountCents: sale.subtotalAmountCents,
+      discountAmountCents: sale.discountAmountCents,
+      netAmountCents: sale.subtotalAmountCents - sale.discountAmountCents,
+      surchargeBasisPoints: sale.surchargeBasisPoints,
+      surchargeAmountCents: sale.surchargeAmountCents,
+      couponId: sale.couponId,
+      couponCode: sale.couponCode,
+      couponType: sale.couponType,
+      couponBasisPoints: sale.couponBasisPoints,
+      couponValueAmountCents: sale.couponValueAmountCents,
+      cashReceivedAmountCents: sale.cashReceivedAmountCents,
+      changeAmountCents: sale.changeAmountCents,
+      cancelReason: sale.cancelReason,
     };
   }
 }
@@ -784,6 +851,53 @@ function buildSoldUnitsBuckets(
       end: next,
     };
   });
+}
+
+function buildCustomBuckets(from: Date, to: Date) {
+  const days = (to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000);
+  const period: ReportsPeriod =
+    days <= 1 ? "hour" : days <= 31 ? "month" : days <= 180 ? "90d" : "year";
+  const titles: Record<ReportsPeriod, string> = {
+    hour: "Ventas por hora",
+    month: "Ventas por día",
+    "90d": "Ventas semanales",
+    year: "Ventas mensuales",
+  };
+  const monthStep = Math.max(1, Math.ceil(days / 3652.5));
+  const buckets: Bucket[] = [];
+  for (let start = from; start < to; ) {
+    const next =
+      period === "hour"
+        ? addHours(start, 1)
+        : period === "month"
+          ? addDays(start, 1)
+          : period === "90d"
+            ? addDays(start, 7)
+            : addMonths(startOfArgentinaMonth(start), monthStep);
+    const end = next > to ? to : next;
+    const fullLabel =
+      period === "hour"
+        ? `${formatArgentinaDate(start)} ${String(getArgentinaParts(start).hour).padStart(2, "0")}:00`
+        : formatArgentinaRange(start, end);
+    buckets.push({
+      label:
+        period === "hour"
+          ? `${String(getArgentinaParts(start).hour).padStart(2, "0")}:00`
+          : period === "year"
+            ? formatArgentinaMonth(start)
+            : formatArgentinaDate(start).slice(0, 5),
+      fullLabel,
+      start,
+      end,
+      v: 0,
+    });
+    start = end;
+  }
+  return {
+    period,
+    meta: { title: titles[period], subtitle: formatArgentinaRange(from, to) },
+    buckets,
+  };
 }
 
 function buildBuckets(period: ReportsPeriod, now: Date): Bucket[] {

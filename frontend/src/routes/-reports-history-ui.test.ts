@@ -12,8 +12,8 @@ describe("reports and history UI contracts", () => {
   it("exports complete report datasets and exposes product consumption", () => {
     const source = readPage("reportes.tsx");
 
-    expect(source).toContain("getProductConsumption(reportRange)");
-    expect(source).toContain("getSalesExport(reportRange)");
+    expect(source).toContain("getProductConsumption(reportFilter)");
+    expect(source).toContain("getSalesExport(reportFilter)");
     expect(source).toContain("buildTopProductsExportRows(bestSelling)");
     expect(source).not.toContain(
       "buildTopProductsExportRows(visibleBestSelling)",

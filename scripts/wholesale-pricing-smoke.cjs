@@ -89,9 +89,17 @@ module.exports = async function wholesalePricingSmoke({
     }
   }
   async function openCustomerAssignment() {
-    const details = page.locator("details").filter({has: page.locator("summary", {hasText:"Clientes que usan esta lista"})});
-    if (await details.getAttribute("open") === null) await details.locator("summary").click();
     await page.getByRole("button", {name:"Asignar cliente",exact:true}).click();
+  }
+  async function openListCustomers(name) {
+    await page.getByRole("button", {name:"Ver clientes",exact:true}).click();
+    const modal = page.getByRole("dialog", {name:`Clientes de ${name}`,exact:true});
+    await modal.waitFor();
+    return modal;
+  }
+  async function closeListCustomers(modal) {
+    await modal.getByRole("button", {name:"Cerrar",exact:true}).first().click();
+    await modal.waitFor({state:"hidden"});
   }
   async function savePrices(id) {
     return changed(`/api/price-lists/${id}`, "PATCH", () =>
@@ -159,10 +167,6 @@ module.exports = async function wholesalePricingSmoke({
   await cell(b, 1, "1500");
   await cell(combo, 1, "2000");
   const configured = await savePrices(custom.id);
-  await page.getByText("Probar estos precios", {exact:true}).click();
-  await page.getByLabel("Unidades totales de la venta", {exact:true}).fill("6");
-  await page.getByText("$750 por unidad", {exact:true}).waitFor();
-  await page.screenshot({path:join(evidence,"wholesale-example-desktop.png"),fullPage:true});
   await cell(a,1,"740");
   await page.getByRole("tab", {name:"Productos",exact:true}).click();
   await page.getByRole("tab", {name:"Listas de precios",exact:true}).click();
@@ -326,11 +330,14 @@ module.exports = async function wholesalePricingSmoke({
     name: "Clientes de esta lista",
     exact: true,
   });
-  await assignmentSection.getByText(customer.name, { exact: true }).waitFor();
+  await assignmentSection.getByText("Se aplica a 1 cliente", { exact: true }).waitFor();
+  let listCustomers = await openListCustomers(custom.name);
+  await listCustomers.getByLabel("Buscar cliente por nombre o celular", {exact:true}).fill(customer.phone);
+  await listCustomers.getByText(customer.name, { exact: true }).waitFor();
   await changed(assignmentPath, "PATCH", () =>
-    assignmentSection
+    listCustomers
       .getByRole("button", {
-        name: `Usar General para ${customer.name}`,
+        name: `Quitar a ${customer.name} de ${custom.name}`,
         exact: true,
       })
       .click(),
@@ -341,6 +348,9 @@ module.exports = async function wholesalePricingSmoke({
     ).priceListId ?? null,
     null,
   );
+  await listCustomers.getByText("No se encontraron clientes.", {exact:true}).waitFor();
+  await closeListCustomers(listCustomers);
+  await assignmentSection.getByText("Se aplica a 0 clientes", {exact:true}).waitFor();
   await openCustomerAssignment();
   assignmentDialog = page.getByRole("dialog", {
     name: `Asignar cliente a ${custom.name}`,
@@ -429,7 +439,11 @@ module.exports = async function wholesalePricingSmoke({
   assert.equal(newCustomer.phone, "3624000888");
   assert.equal(newCustomer.priceListId, custom.id);
   await createDialog.waitFor({ state: "hidden" });
-  await assignmentSection.getByText(newCustomerName, { exact: true }).waitFor();
+  await assignmentSection.getByText("Se aplica a 2 clientes", {exact:true}).waitFor();
+  listCustomers = await openListCustomers(custom.name);
+  await listCustomers.getByLabel("Buscar cliente por nombre o celular", {exact:true}).fill(newCustomerName);
+  await listCustomers.getByText(newCustomerName, {exact:true}).waitFor();
+  await closeListCustomers(listCustomers);
   const newAccount = await request(`/api/customers/${newCustomer.id}/account`);
   assert.equal(newAccount.balanceAmountCents, 0);
   assert.equal(newAccount.plans.length, 0);
@@ -442,7 +456,7 @@ module.exports = async function wholesalePricingSmoke({
   );
 
   await page
-    .getByRole("button", { name: "Clientes y cobranzas", exact: true })
+    .getByRole("button", { name: "Cobranzas", exact: true })
     .click();
   await page
     .getByRole("button", { name: `Acciones de ${customer.name}`, exact: true })
@@ -450,7 +464,7 @@ module.exports = async function wholesalePricingSmoke({
   await page.getByRole("menuitem", { name: "Editar", exact: true }).click();
   dialog = page.getByRole("dialog", { name: "Editar cliente", exact: true });
   assert.equal(
-    await dialog.getByLabel("Lista de precios", { exact: true }).count(),
+    await dialog.getByLabel(/^Lista de precios/).count(),
     0,
   );
   await dialog
@@ -699,29 +713,58 @@ module.exports = async function wholesalePricingSmoke({
     path: join(evidence, "wholesale-reports-desktop.png"),
     fullPage: true,
   });
-  await page.goto(url + "/clientes-cobranzas");
-  await page.getByRole("button", {name:`Acciones de ${customer.name}`,exact:true}).click();
-  await page.getByRole("menuitem", {name:"Editar",exact:true}).click();
-  let customerEditor = page.getByRole("dialog", {name:"Editar cliente",exact:true});
-  await customerEditor.getByLabel("Lista de precios del cliente", {exact:true}).click();
-  await page.getByRole("option", {name:"General (predeterminada)",exact:true}).click();
-  let fromCard = await changed(assignmentPath,"PATCH",()=>customerEditor.getByRole("button", {name:"Guardar cliente",exact:true}).click());
-  assert.equal(fromCard.priceListId,null);
-  await page.getByRole("button", {name:`Acciones de ${customer.name}`,exact:true}).click();
-  await page.getByRole("menuitem", {name:"Editar",exact:true}).click();
-  await customerEditor.getByLabel("Lista de precios del cliente", {exact:true}).click();
-  await page.getByRole("option", {name:"Nombre posterior",exact:true}).click();
-  fromCard = await changed(assignmentPath,"PATCH",()=>customerEditor.getByRole("button", {name:"Guardar cliente",exact:true}).click());
-  assert.equal(fromCard.priceListId,custom.id);
+  for (let index = 0; index < 26; index++) {
+    await request("/api/customers", "POST", {
+      name: `Cliente General ${String(index + 1).padStart(2, "0")}`,
+      phone: `36241000${String(index).padStart(2, "0")}`,
+    });
+  }
+  const generalCount = (await request("/api/customers?take=500&includeInactive=true"))
+    .items.filter((item) => !item.priceListId || item.priceListId === "general").length;
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(url + "/productos");
   await page
     .getByRole("tab", { name: "Listas de precios", exact: true })
     .click();
   await page.getByRole("region", { name: "Matriz de precios" }).waitFor();
+  await assignmentSection.getByText(
+    `Se aplica a todos los clientes sin lista particular (${generalCount})`,
+    {exact:true},
+  ).waitFor();
+  assert.equal(await page.getByRole("button", {name:"Asignar cliente",exact:true}).count(), 0);
+  listCustomers = await openListCustomers("General");
+  assert.equal(await listCustomers.getByRole("listitem").count(), 25);
+  assert.equal(await listCustomers.getByRole("button", {name:/^Quitar a /}).count(), 0);
+  await listCustomers.getByRole("button", {name:"Siguiente",exact:true}).click();
+  await listCustomers.getByText(`${generalCount} registros · Página 2`, {exact:true}).waitFor();
+  await listCustomers.getByLabel("Buscar cliente por nombre o celular", {exact:true}).fill("3624100025");
+  await listCustomers.getByText("Cliente General 26", {exact:true}).waitFor();
+  assert.equal(await listCustomers.getByRole("listitem").count(), 1);
+  await listCustomers.getByText("1 registros · Página 1", {exact:true}).waitFor();
+  const customersModalBox = await listCustomers.boundingBox();
+  assert(customersModalBox && customersModalBox.x >= 0 && customersModalBox.x + customersModalBox.width <= 390);
+  await page.screenshot({
+    path: join(evidence, "wholesale-customers-general-mobile.png"),
+    fullPage: false,
+    animations: "disabled",
+  });
+  await closeListCustomers(listCustomers);
+  await assignmentSection.getByText(
+    `Se aplica a todos los clientes sin lista particular (${generalCount})`,
+    {exact:true},
+  ).waitFor();
+  await page.getByLabel("Lista de precios", {exact:true}).click();
+  await page.getByRole("option", {name:"Nombre posterior",exact:true}).click();
+  listCustomers = await openListCustomers("Nombre posterior");
+  await listCustomers.getByLabel("Buscar cliente por nombre o celular", {exact:true}).fill(customer.phone);
+  const assignedGeneral = await changed(assignmentPath, "PATCH", () =>
+    listCustomers.getByRole("button", {name:`Quitar a ${customer.name} de Nombre posterior`,exact:true}).click(),
+  );
+  assert.equal(assignedGeneral.priceListId ?? null, null);
+  await closeListCustomers(listCustomers);
   await openCustomerAssignment();
   assignmentDialog = page.getByRole("dialog", {
-    name: "Asignar cliente a General",
+    name: "Asignar cliente a Nombre posterior",
     exact: true,
   });
   await assignmentDialog
@@ -731,7 +774,7 @@ module.exports = async function wholesalePricingSmoke({
     .getByRole("button", { name: "Nuevo cliente", exact: true })
     .click();
   createDialog = page.getByRole("dialog", {
-    name: "Nuevo cliente para General",
+    name: "Nuevo cliente para Nombre posterior",
     exact: true,
   });
   assert.equal(
@@ -751,30 +794,29 @@ module.exports = async function wholesalePricingSmoke({
     .getByRole("button", { name: "Nuevo cliente", exact: true })
     .click();
   createDialog = page.getByRole("dialog", {
-    name: "Nuevo cliente para General",
+    name: "Nuevo cliente para Nombre posterior",
     exact: true,
   });
   await createDialog
     .getByLabel("Nombre", { exact: true })
-    .fill("Cliente General desde Productos");
+    .fill("Cliente móvil desde Productos");
   await createDialog.getByLabel("Celular (opcional)", { exact: true }).fill("");
   await page.screenshot({
     path: join(evidence, "wholesale-customer-create-mobile.png"),
     fullPage: false,
     animations: "disabled",
   });
-  const generalCustomer = await changed("/api/customers", "POST", () =>
+  const mobileCustomer = await changed("/api/customers", "POST", () =>
     createDialog
       .getByRole("button", { name: "Crear y asignar", exact: true })
       .click(),
   );
-  assert.equal(generalCustomer.priceListId ?? null, null);
-  assert.equal(generalCustomer.phone ?? null, null);
+  assert.equal(mobileCustomer.priceListId, custom.id);
+  assert.equal(mobileCustomer.phone ?? null, null);
   await createDialog.waitFor({ state: "hidden" });
-  await page
-    .getByRole("region", { name: "Clientes de esta lista", exact: true })
-    .getByText(generalCustomer.name, { exact: true })
-    .waitFor();
+  listCustomers = await openListCustomers("Nombre posterior");
+  await listCustomers.getByText(mobileCustomer.name, {exact:true}).waitFor();
+  await closeListCustomers(listCustomers);
   await openCustomerAssignment();
   await assignmentDialog
     .getByLabel("Buscar cliente por nombre o celular", { exact: true })
@@ -784,29 +826,12 @@ module.exports = async function wholesalePricingSmoke({
     fullPage: false,
     animations: "disabled",
   });
-  const assignedGeneral = await changed(assignmentPath, "PATCH", () =>
+  const assignedAgain = await changed(assignmentPath, "PATCH", () =>
     assignmentDialog
       .getByRole("button", { name: `Asignar a ${customer.name}`, exact: true })
       .click(),
   );
-  assert.equal(assignedGeneral.priceListId ?? null, null);
-  await page.getByLabel("Lista de precios", { exact: true }).click();
-  await page
-    .getByRole("option", { name: "Nombre posterior", exact: true })
-    .click();
-  await openCustomerAssignment();
-  assignmentDialog = page.getByRole("dialog", {
-    name: "Asignar cliente a Nombre posterior",
-    exact: true,
-  });
-  await assignmentDialog
-    .getByLabel("Buscar cliente por nombre o celular", { exact: true })
-    .fill(customer.phone);
-  await changed(assignmentPath, "PATCH", () =>
-    assignmentDialog
-      .getByRole("button", { name: `Asignar a ${customer.name}`, exact: true })
-      .click(),
-  );
+  assert.equal(assignedAgain.priceListId, custom.id);
   assert.equal(
     (await request(`/api/sales/${direct.id}`)).pricingSnapshot.listName,
     "Acuerdo comercial",
@@ -845,9 +870,11 @@ module.exports = async function wholesalePricingSmoke({
     management: "passed",
     effectiveBlankPrice: "passed",
     unsavedNavigationAndTabs: "passed",
-    exampleDoesNotWrite: "passed",
     customerAssignmentFromProducts: "passed",
-    customerAssignmentFromClientCard: "passed",
+    customerSummaryAndModal: "passed",
+    customerSearchAndPagination: "passed",
+    generalCustomersReadOnly: "passed",
+    customerEditPreservesPriceList: "passed",
     customerCreationFromProducts: "passed",
     mixedQuantityCustomerPrices: "passed",
     directCoupon: direct.number,

@@ -94,6 +94,10 @@ export function DataExportControls() {
           {exporting ? "Exportando..." : "Exportar CSV"}
         </Button>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Los CSV sirven para consultar datos en una planilla. Para restaurar el
+        sistema completo, usá un respaldo SQLite (.db).
+      </p>
     </div>
   );
 }

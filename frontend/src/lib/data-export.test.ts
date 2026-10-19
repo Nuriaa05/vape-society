@@ -145,7 +145,23 @@ describe("settings data exports", () => {
     async ({ id }) => {
       vi.stubGlobal(
         "fetch",
-        vi.fn(() => respond([])),
+        vi.fn((input) => {
+          const path = new URL(String(input)).pathname;
+          if (path.includes("/data-exports/"))
+            return respond([["ID registro", "Detalle"]]);
+          if (
+            [
+              "/customers",
+              "/collections",
+              "/collections/refunds",
+              "/card-settlements",
+              "/supplier-payables",
+            ].some((suffix) => path.endsWith(suffix))
+          ) {
+            return respond({ items: [], total: 0, hasMore: false });
+          }
+          return respond([]);
+        }),
       );
       const rows = await loadDataExport(id);
       expect(rows).toHaveLength(1);
@@ -340,6 +356,8 @@ describe("settings data exports", () => {
                   surchargeBasisPoints: 250,
                   enabled: true,
                   cashHandling: false,
+                  supportsInstallments: true,
+                  collectionEligible: false,
                 },
               ],
         ),
@@ -350,6 +368,8 @@ describe("settings data exports", () => {
       "Pago",
       true,
       2.5,
+      false,
+      true,
       false,
     ]);
     expect((await loadDataExport("coupons"))[1]).toEqual([

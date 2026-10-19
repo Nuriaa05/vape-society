@@ -31,6 +31,20 @@ export type DatabaseImportPreview = {
     inventoryLots?: number;
     priceLists?: number;
     priceListPrices?: number;
+    categories?: number;
+    paymentMethods?: number;
+    coupons?: number;
+    saleItems?: number;
+    saleItemComponents?: number;
+    purchaseItems?: number;
+    comboItems?: number;
+    receivableInstallments?: number;
+    collectionAllocations?: number;
+    cardAccreditations?: number;
+    refundCancellations?: number;
+    inventoryAllocations?: number;
+    priceListTiers?: number;
+    financialOperations?: number;
   };
 };
 

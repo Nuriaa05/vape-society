@@ -49,7 +49,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { type CategorySetting, type Product } from "@/lib/contracts";
-import { formatARS } from "@/lib/formatters";
+import { formatARS, formatDateInputAR } from "@/lib/formatters";
+import { downloadCSV } from "@/lib/csv";
+import { buildProductExportRows } from "@/lib/data-export";
 import { invalidateInventoryQueries } from "@/lib/inventory-cache";
 import {
   canShowLess,
@@ -228,38 +230,10 @@ export function ProductosPage() {
   }
 
   const exportCSV = () => {
-    const header = [
-      "Código",
-      "Producto",
-      "Categoría",
-      "Stock",
-      "StockMin",
-      "Costo",
-      "MargenPct",
-      "Precio",
-      "Archivado",
-    ];
-    const rows = filtered.map((p) => [
-      p.barcode,
-      p.name,
-      p.category,
-      p.stock,
-      p.minStock,
-      p.cost,
-      p.marginPct,
-      p.price,
-      p.archived ? "si" : "no",
-    ]);
-    const csv = [header, ...rows]
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `productos-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCSV(
+      `productos-${formatDateInputAR()}.csv`,
+      buildProductExportRows(filtered, suppliersQuery.data ?? []),
+    );
   };
 
   return (

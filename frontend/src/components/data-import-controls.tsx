@@ -38,6 +38,20 @@ const countLabels: Record<keyof DatabaseImportPreview["counts"], string> = {
   inventoryLots: "Ingresos de mercadería por origen",
   priceLists: "Listas de precios",
   priceListPrices: "Precios por escala",
+  categories: "Categorías",
+  paymentMethods: "Medios de pago",
+  coupons: "Cupones",
+  saleItems: "Detalle de ventas",
+  saleItemComponents: "Componentes históricos vendidos",
+  purchaseItems: "Detalle de compras",
+  comboItems: "Componentes de combos",
+  receivableInstallments: "Cuotas de clientes",
+  collectionAllocations: "Aplicaciones de cobros a cuotas",
+  cardAccreditations: "Acreditaciones recibidas",
+  refundCancellations: "Acreditaciones canceladas por devolución",
+  inventoryAllocations: "Asignaciones de stock FIFO",
+  priceListTiers: "Escalas de listas de precios",
+  financialOperations: "Operaciones con protección contra duplicados",
 };
 
 export function DataImportControls({
@@ -125,7 +139,9 @@ export function DataImportControls({
         id="data-import-description"
         className="mt-1 text-sm text-muted-foreground"
       >
-        Reemplaza los datos actuales después de validar el archivo.
+        Incluye catálogo, ventas, cobranzas, deudas con proveedores, stock por
+        origen y listas de precios. Reemplaza los datos actuales después de
+        validar el respaldo.
       </p>
       <input
         ref={fileInput}
@@ -173,7 +189,7 @@ export function DataImportControls({
             <AlertDialogDescription>
               {result
                 ? "La importación terminó. Se guardó una copia de los datos anteriores."
-                : "Se reemplazarán los productos, ventas, stock y configuración actuales. Antes de importar se creará una copia de seguridad."}
+                : "Se reemplazarán todos los datos actuales, incluidos clientes, cobranzas, proveedores, stock, listas de precios y configuración. Antes de importar se creará una copia de seguridad."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {result ? (

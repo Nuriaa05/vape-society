@@ -14,6 +14,13 @@ const tableName = (model: (typeof models)[number]) =>
   model.dbName ?? model.name;
 const importedModels = models.filter((model) => model.name !== "BackupLog");
 const quote = (identifier: string) => `"${identifier.replace(/"/g, '""')}"`;
+// Early supplier-credit builds produced the same tables and indexes with this
+// migration checksum. These backups still undergo all current data checks.
+const compatibleMigrationChecksums: Record<string, readonly string[]> = {
+  "20261015010000_supplier_credit": [
+    "ea6fbe3843c58ac8a7974a025ff87c14864db75ba69062af9b2ac31b8bff4bd8",
+  ],
+};
 
 export type ImportCounts = {
   products: number;
@@ -33,6 +40,20 @@ export type ImportCounts = {
   inventoryLots: number;
   priceLists: number;
   priceListPrices: number;
+  categories: number;
+  paymentMethods: number;
+  coupons: number;
+  saleItems: number;
+  saleItemComponents: number;
+  purchaseItems: number;
+  comboItems: number;
+  receivableInstallments: number;
+  collectionAllocations: number;
+  cardAccreditations: number;
+  refundCancellations: number;
+  inventoryAllocations: number;
+  priceListTiers: number;
+  financialOperations: number;
 };
 
 export function getImportProjectPaths() {
@@ -119,7 +140,12 @@ export function checkImportFile(path: string): boolean {
         normalized,
         normalized.replace(/\n/g, "\r\n"),
       ].map((text) => createHash("sha256").update(text).digest("hex"));
-      if (!checksums.includes(String(row.checksum))) {
+      if (
+        !checksums.includes(String(row.checksum)) &&
+        !compatibleMigrationChecksums[expected[index]]?.includes(
+          String(row.checksum),
+        )
+      ) {
         throw new BadRequestException(
           "La base tiene migraciones distintas a las de este sistema.",
         );
@@ -237,6 +263,20 @@ export function validateImportData(
       inventoryLots: count("InventoryLot"),
       priceLists: count("PriceList"),
       priceListPrices: count("PriceListPrice"),
+      categories: count("Category"),
+      paymentMethods: count("PaymentMethod"),
+      coupons: count("Coupon"),
+      saleItems: count("SaleItem"),
+      saleItemComponents: count("SaleItemComponent"),
+      purchaseItems: count("PurchaseItem"),
+      comboItems: count("ComboItem"),
+      receivableInstallments: count("ReceivableInstallment"),
+      collectionAllocations: count("CollectionAllocation"),
+      cardAccreditations: count("CardAccreditation"),
+      refundCancellations: count("RefundCancellation"),
+      inventoryAllocations: count("InventoryAllocation"),
+      priceListTiers: count("PriceListTier"),
+      financialOperations: count("FinancialOperation"),
     };
   } finally {
     mirror.close();

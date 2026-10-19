@@ -34,6 +34,201 @@ describe("ReportsService", () => {
     await db.cleanup();
   });
 
+  it("exports original financing and customer details along with complete sale totals", async () => {
+    const finance = {
+      paymentTerms: "DirectInstallments",
+      upfrontAmountCents: 0,
+      financedAmountCents: 10001,
+      installments: [{ number: 1, dueDate: "2026-11-30", amountCents: 10001 }],
+    };
+    await db.prisma.sale.create({
+      data: {
+        id: "report-financed",
+        number: "export-financed",
+        customerName: "Nombre original",
+        customerPhone: "362123",
+        paymentTerms: "DirectInstallments",
+        financeSnapshot: JSON.stringify(finance),
+        deliveryStatus: "Entregado",
+        status: "Confirmada",
+        subtotalAmountCents: 11001,
+        discountAmountCents: 1000,
+        totalAmountCents: 10001,
+        paymentMethodName: "",
+        couponCode: "ORIGINAL",
+      },
+    });
+    const sales = await service.getSalesExport("all");
+    expect(sales.find((sale) => sale.id === "report-financed")).toMatchObject({
+      customerName: "Nombre original",
+      customerPhone: "362123",
+      paymentTerms: "DirectInstallments",
+      finance,
+      subtotalAmountCents: 11001,
+      discountAmountCents: 1000,
+      netAmountCents: 10001,
+      totalAmountCents: 10001,
+      couponCode: "ORIGINAL",
+      payment: "Cuotas directas",
+    });
+  });
+
+  it("uses one inclusive Argentine date range across summaries, charts, tables and exports", async () => {
+    const from = "2026-09-30T03:00:00.000Z";
+    const to = "2026-10-02T03:00:00.000Z";
+    for (const [index, date] of [
+      "2026-09-30T02:59:59.999Z",
+      from,
+      "2026-10-02T02:59:59.999Z",
+      to,
+    ].entries()) {
+      await createSale(db, {
+        number: `97000${index}`,
+        date: new Date(date),
+        deliveryStatus: index === 2 ? "Pendiente" : "Entregado",
+        paymentMethodId: index === 2 ? "pm2" : "pm1",
+        items: [
+          {
+            productId: "p1",
+            productName: "Producto",
+            barcode: "p1",
+            qty: 1,
+            unitPriceAmountCents: 10000,
+          },
+        ],
+      });
+    }
+    await createSale(db, {
+      number: "970004",
+      date: new Date(from),
+      status: "Anulada",
+      deliveryStatus: "Entregado",
+      paymentMethodId: "pm1",
+      items: [
+        {
+          productId: "p1",
+          productName: "Producto",
+          barcode: "p1",
+          qty: 1,
+          unitPriceAmountCents: 90000,
+        },
+      ],
+    });
+    await createPurchase(db, {
+      id: "dated-purchase",
+      status: "Registrada",
+      totalAmountCents: 7000,
+    });
+    await db.prisma.purchase.update({
+      where: { id: "dated-purchase" },
+      data: { date: new Date(from) },
+    });
+    await createPurchase(db, {
+      id: "outside-purchase",
+      status: "Registrada",
+      totalAmountCents: 80000,
+    });
+    await db.prisma.purchase.update({
+      where: { id: "outside-purchase" },
+      data: { date: new Date(to) },
+    });
+
+    const summary = await service.getCommercialSummary(from, to);
+    expect(summary).toMatchObject({
+      monthlyTotalAmountCents: 20000,
+      monthlyPurchasesAmountCents: 7000,
+      salesPurchasesDifferenceAmountCents: 13000,
+      deliveredSalesCount: 1,
+      pendingSalesCount: 1,
+      pendingSalesTotalAmountCents: 10000,
+    });
+    expect(
+      summary.sales.map((sale: { number: string }) => sale.number).sort(),
+    ).toEqual(["970001", "970002"]);
+    const series = await service.getSalesSeries("month", from, to);
+    expect(
+      series.points.reduce(
+        (sum: number, point: { v: number }) => sum + point.v,
+        0,
+      ),
+    ).toBe(20000);
+    expect(series.points[0].from).toBe(from);
+    expect(series.points.at(-1)?.to).toBe(to);
+    const items = await service.getTopProducts(undefined, from, to);
+    expect(items[0].qty).toBe(2);
+    const consumption = await service.getProductConsumption(
+      undefined,
+      from,
+      to,
+    );
+    expect(consumption[0]).toMatchObject({
+      totalQty: 2,
+      deliveredQty: 1,
+      reservedQty: 1,
+    });
+    const exported = await service.getSalesExport(undefined, from, to);
+    expect(
+      exported.map((sale: { number: string }) => sale.number).sort(),
+    ).toEqual(["970001", "970002"]);
+    const payments = await service.getPaymentMethodsBreakdown(from, to);
+    expect(
+      payments.filter((row: { salesCount: number }) => row.salesCount > 0),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          paymentMethodId: "pm1",
+          totalAmountCents: 10000,
+          pct: 50,
+        }),
+        expect.objectContaining({
+          paymentMethodId: "pm2",
+          totalAmountCents: 10000,
+          pct: 50,
+        }),
+      ]),
+    );
+  });
+
+  it("keeps complete, contiguous buckets across midnight, leap days and year changes", async () => {
+    for (const [from, to, count] of [
+      ["2028-02-29T03:00:00.000Z", "2028-03-01T03:00:00.000Z", 24],
+      ["2026-12-31T03:00:00.000Z", "2027-01-02T03:00:00.000Z", 2],
+      ["2026-09-30T03:00:00.000Z", "2026-12-01T03:00:00.000Z", 9],
+      ["2026-01-15T03:00:00.000Z", "2027-01-10T03:00:00.000Z", 13],
+    ] as const) {
+      const series = await service.getSalesSeries("hour", from, to);
+      expect(series.points).toHaveLength(count);
+      expect(series.points[0].from).toBe(from);
+      expect(series.points.at(-1)?.to).toBe(to);
+      expect(
+        series.points.every(
+          (point, index) =>
+            point.from < point.to &&
+            (index === 0 || point.from === series.points[index - 1].to),
+        ),
+      ).toBe(true);
+      if (count === 24) {
+        expect(series.points[0].label).toBe("00:00");
+        expect(series.points.at(-1)?.label).toBe("23:00");
+      }
+    }
+    await expect(
+      service.getCommercialSummary("bad", "2026-01-01"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.getSalesSeries("hour", "2026-01-02", "2026-01-01"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.getProductConsumption(undefined, "2026-01-01"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.getSalesExport("30d", "2026-01-01", "2026-01-02"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.getPaymentMethodsBreakdown("2026-01-01"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it("builds dashboard metrics from confirmed sales, stock and pending deliveries", async () => {
     await createSale(db, {
       number: "910001",
@@ -176,9 +371,9 @@ describe("ReportsService", () => {
       pendingSalesTotalAmountCents: 450000,
       productCount: 12,
     });
-    expect(summary.sales.map((sale: { number: string }) => sale.number)).toEqual(
-      ["920002", "920001"],
-    );
+    expect(
+      summary.sales.map((sale: { number: string }) => sale.number),
+    ).toEqual(["920002", "920001"]);
   });
 
   it("aggregates top products from confirmed sales only", async () => {
@@ -573,10 +768,7 @@ describe("ReportsService", () => {
     const allTime = await reportService.getSalesExport("all");
     const last30Days = await reportService.getSalesExport("30d");
 
-    expect(allTime.map((sale) => sale.number)).toEqual([
-      "934002",
-      "934001",
-    ]);
+    expect(allTime.map((sale) => sale.number)).toEqual(["934002", "934001"]);
     expect(last30Days.map((sale) => sale.number)).toEqual(["934002"]);
   });
 
@@ -919,7 +1111,13 @@ describe("ReportsService", () => {
         2, 0, 0, 0, 0, 12, 0,
       ]);
       expect(series.points.map((point) => point.label)).toEqual([
-        "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom",
+        "Lun",
+        "Mar",
+        "Mié",
+        "Jue",
+        "Vie",
+        "Sáb",
+        "Dom",
       ]);
       expect(series.points[0]).toMatchObject({
         fullLabel: "28/09/2026",
@@ -932,21 +1130,40 @@ describe("ReportsService", () => {
       ["Monday", "2026-10-05T03:00:00.000Z", "2026-10-05T03:00:00.000Z"],
       ["Tuesday", "2026-10-06T15:00:00.000Z", "2026-10-05T03:00:00.000Z"],
       ["Sunday", "2026-10-12T02:59:59.999Z", "2026-10-05T03:00:00.000Z"],
-      ["Sunday at the UTC Monday boundary", "2026-10-05T02:59:59.999Z", "2026-09-28T03:00:00.000Z"],
-    ])("keeps weekday order on %s using the Argentine calendar", async (_day, now, monday) => {
-      jest.setSystemTime(new Date(now));
-      await sellUnits("960101", monday, 4);
-      await sellUnits("960102", new Date(new Date(monday).getTime() - 1).toISOString(), 100);
+      [
+        "Sunday at the UTC Monday boundary",
+        "2026-10-05T02:59:59.999Z",
+        "2026-09-28T03:00:00.000Z",
+      ],
+    ])(
+      "keeps weekday order on %s using the Argentine calendar",
+      async (_day, now, monday) => {
+        jest.setSystemTime(new Date(now));
+        await sellUnits("960101", monday, 4);
+        await sellUnits(
+          "960102",
+          new Date(new Date(monday).getTime() - 1).toISOString(),
+          100,
+        );
 
-      const series = await service.getSoldUnitsSeries("week");
+        const series = await service.getSoldUnitsSeries("week");
 
-      expect(series.points.map((point) => point.label)).toEqual([
-        "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom",
-      ]);
-      expect(series.points[0].from).toBe(monday);
-      expect(series.points[0].units).toBe(4);
-      expect(series.points.slice(1).every((point) => point.units === 0)).toBe(true);
-    });
+        expect(series.points.map((point) => point.label)).toEqual([
+          "Lun",
+          "Mar",
+          "Mié",
+          "Jue",
+          "Vie",
+          "Sáb",
+          "Dom",
+        ]);
+        expect(series.points[0].from).toBe(monday);
+        expect(series.points[0].units).toBe(4);
+        expect(series.points.slice(1).every((point) => point.units === 0)).toBe(
+          true,
+        );
+      },
+    );
 
     it("keeps all twelve calendar months and groups sold units using Argentine month boundaries", async () => {
       await sellUnits("961001", "2026-01-01T03:00:00.000Z", 2);
@@ -962,7 +1179,18 @@ describe("ReportsService", () => {
 
       expect(series.meta.subtitle).toBe("Unidades por mes, 2026");
       expect(series.points.map((point) => point.label)).toEqual([
-        "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+        "Ene",
+        "Feb",
+        "Mar",
+        "Abr",
+        "May",
+        "Jun",
+        "Jul",
+        "Ago",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dic",
       ]);
       expect(series.points.map((point) => point.units)).toEqual([
         2, 0, 0, 0, 0, 0, 0, 3, 9, 6, 0, 0,
@@ -982,7 +1210,18 @@ describe("ReportsService", () => {
 
       expect(series.meta.subtitle).toBe("Unidades por mes, 2026");
       expect(series.points.map((point) => point.label)).toEqual([
-        "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+        "Ene",
+        "Feb",
+        "Mar",
+        "Abr",
+        "May",
+        "Jun",
+        "Jul",
+        "Ago",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dic",
       ]);
       expect(series.points.map((point) => point.units)).toEqual([
         2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -1006,7 +1245,11 @@ describe("ReportsService", () => {
       expect(monthly.points).toHaveLength(12);
       expect(monthly.points[0].from).toBe("2025-01-01T03:00:00.000Z");
       expect(monthly.points.at(-1)?.to).toBe("2026-01-01T03:00:00.000Z");
-      expect([...weekly.points, ...monthly.points].every((point) => point.units === 0)).toBe(true);
+      expect(
+        [...weekly.points, ...monthly.points].every(
+          (point) => point.units === 0,
+        ),
+      ).toBe(true);
     });
 
     it("rejects unsupported unit periods", async () => {
