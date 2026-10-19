@@ -1,12 +1,4 @@
-import { Disclosure } from "@/components/ui/disclosure";
-import {
-  Mail,
-  MoreHorizontal,
-  Pencil,
-  Phone,
-  Power,
-  PowerOff,
-} from "lucide-react";
+import { MoreHorizontal, Pencil, Power, PowerOff } from "lucide-react";
 import { StatusBadge } from "./app-shell";
 import { Button } from "./ui/button";
 import {
@@ -45,11 +37,14 @@ export function SupplierTable({
 }) {
   return (
     <div className="max-h-[640px] overflow-auto">
-      <table className="w-full min-w-[700px] text-sm">
+      <table className="w-full min-w-[800px] text-sm">
         <thead className="sticky top-0 z-10 border-b border-border bg-card">
           <tr>
             <th className="app-table-heading text-left font-medium">
               Proveedor
+            </th>
+            <th className="app-table-heading text-center font-medium">
+              Última compra
             </th>
             <th className="app-table-heading text-right font-medium">
               Deuda pendiente
@@ -82,23 +77,15 @@ export function SupplierTable({
                       </span>
                     ) : null}
                   </div>
-                  <Disclosure
-                    className="mt-2 min-w-44"
-                    title="Datos de contacto"
-                  >
-                    <div className="mt-2 space-y-1">
-                      <p className="flex items-center gap-2">
-                        <Phone className="size-3" />
-                        {supplier.phone || "Sin teléfono"}
-                      </p>
-                      <p className="flex items-center gap-2">
-                        <Mail className="size-3" />
-                        {supplier.email || "Sin email"}
-                      </p>
-                      <p>Última compra: {supplier.lastPurchase}</p>
-                      {supplier.notes ? <p>{supplier.notes}</p> : null}
-                    </div>
-                  </Disclosure>
+                  <p className="mt-1 whitespace-nowrap text-xs text-muted-foreground">
+                    {supplier.phone || "Sin teléfono"} ·{" "}
+                    {supplier.email || "Sin email"}
+                  </p>
+                </td>
+                <td className="whitespace-nowrap px-5 py-3 text-center text-muted-foreground">
+                  {supplier.lastPurchase && supplier.lastPurchase !== "-"
+                    ? formatDateAR(`${supplier.lastPurchase}T12:00:00`)
+                    : "—"}
                 </td>
                 <td className="px-5 py-3 text-right font-medium tabular-nums">
                   {error
@@ -183,7 +170,7 @@ export function SupplierTable({
           {!items.length ? (
             <tr>
               <td
-                colSpan={5}
+                colSpan={6}
                 className="px-5 py-8 text-center text-muted-foreground"
               >
                 No hay proveedores que coincidan con los filtros.

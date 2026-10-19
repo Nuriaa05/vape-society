@@ -46,7 +46,7 @@ export function CollectionsSummary({ compact = false }: { compact?: boolean }) {
         description={formatMonthYearAR()}
         action={
           <Button asChild variant="outline" size="sm">
-            <Link to="/clientes-cobranzas">Clientes y cobranzas</Link>
+            <Link to="/clientes-cobranzas">Cobranzas</Link>
           </Button>
         }
       />

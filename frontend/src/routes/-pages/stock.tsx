@@ -1,5 +1,4 @@
 import { StockPurchaseDialog } from "@/components/stock-purchase-dialog";
-import { Disclosure } from "@/components/ui/disclosure";
 import { StockCreditTable } from "@/components/stock-credit-table";
 import { StockClassificationDialog } from "@/components/stock-classification-dialog";
 import { money } from "@/lib/collections-form";
@@ -58,13 +57,17 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  Boxes,
   Check,
   ChevronsUpDown,
+  Info,
+  Package,
+  PackageCheck,
   Search,
   Settings2,
   Undo2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -276,23 +279,33 @@ export function StockPage() {
                   summaryQuery.data?.paidQty,
                   summaryQuery.data?.paidValueCents,
                   "Mercadería ya pagada al proveedor",
+                  <PackageCheck
+                    className="size-4 text-success"
+                    aria-hidden="true"
+                  />,
                 ],
                 [
                   "A crédito",
                   summaryQuery.data?.creditQty,
                   summaryQuery.data?.creditValueCents,
                   "Mercadería con pago pendiente",
+                  <Package
+                    className="size-4 text-warning-foreground"
+                    aria-hidden="true"
+                  />,
                 ],
                 [
                   "Total general",
                   summaryQuery.data?.physicalStock,
                   summaryQuery.data?.totalValueCents,
                   "Todo el stock físico actual",
+                  <Boxes className="size-4 text-accent" aria-hidden="true" />,
                 ],
               ] as const
-            ).map(([label, qty, value, hint]) => (
+            ).map(([label, qty, value, hint, icon]) => (
               <KpiCard
                 key={label}
+                icon={icon}
                 label={label}
                 value={
                   summaryQuery.isLoading
@@ -318,19 +331,19 @@ export function StockPage() {
             </p>
           </div>
         ) : null}
-        <Disclosure title="Stock y deuda: qué muestra cada uno">
-          <p className="mt-2">
-            Reservadas para entregas: {summaryQuery.data?.reservedStock ?? "—"}.
-            Disponibles: {summaryQuery.data?.availableStock ?? "—"}. Stock
-            muestra lo que queda. Vender unidades a crédito no reduce lo que
-            debés: consultá y registrá ese pago en Proveedores. Las unidades
-            reservadas siguen en el total físico y se descuentan de Disponible.
-          </p>
-        </Disclosure>
       </section>
       <div className="grid grid-cols-1 gap-5">
         <Card>
-          <CardHeader title="Inventario" />
+          <CardHeader
+            title="Inventario"
+            className="justify-start gap-1"
+            action={
+              <StockInventoryInfo
+                reservedStock={summaryQuery.data?.reservedStock}
+                availableStock={summaryQuery.data?.availableStock}
+              />
+            }
+          />
           <CardToolbar className="flex flex-wrap items-center justify-between gap-3 pt-0">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -557,6 +570,87 @@ export function StockPage() {
         saving={reverseMutation.isPending}
       />
     </AppShell>
+  );
+}
+
+function StockInventoryInfo({
+  reservedStock,
+  availableStock,
+}: {
+  reservedStock?: number;
+  availableStock?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const tooltipId = useId();
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
+
+  function showTooltip() {
+    clearTimeout(closeTimer.current);
+    setOpen(true);
+  }
+
+  function hideTooltip() {
+    clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => setOpen(false), 150);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-7 shrink-0 text-muted-foreground"
+          aria-label="Información sobre stock y deuda"
+          aria-describedby={open ? tooltipId : undefined}
+          aria-haspopup={undefined}
+          aria-expanded={undefined}
+          aria-controls={undefined}
+          onClick={(event) => {
+            event.preventDefault();
+            showTooltip();
+          }}
+          onPointerEnter={(event) => {
+            if (event.pointerType === "mouse") showTooltip();
+          }}
+          onPointerLeave={(event) => {
+            if (event.pointerType === "mouse") hideTooltip();
+          }}
+          onFocus={(event) => {
+            if (event.currentTarget.matches(":focus-visible")) showTooltip();
+          }}
+          onBlur={hideTooltip}
+        >
+          <Info aria-hidden="true" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        id={tooltipId}
+        role="tooltip"
+        side="top"
+        align="start"
+        className="w-80 max-w-[calc(100vw-2rem)] space-y-2 p-3 text-sm"
+        onPointerEnter={showTooltip}
+        onPointerLeave={hideTooltip}
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => event.preventDefault()}
+      >
+        <p className="font-medium">Stock y deuda: qué muestra cada uno</p>
+        <p>
+          Stock muestra lo que queda. Vender unidades a crédito no reduce lo que
+          debés: consultá y registrá ese pago en Proveedores. Las unidades
+          reservadas siguen en el total físico y se descuentan de Disponible.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Reservadas para entregas: {reservedStock ?? "—"}. Disponibles:{" "}
+          {availableStock ?? "—"}.
+        </p>
+      </PopoverContent>
+    </Popover>
   );
 }
 

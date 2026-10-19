@@ -7,7 +7,6 @@ import {
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { collectionsRepository as repo } from "@/lib/repositories/collections-repository";
@@ -18,14 +17,6 @@ import type {
   RefundSourceRow,
 } from "@/lib/collections";
 import { Amount, DateField, Field } from "./collections-controls";
-import { priceListsRepository } from "@/lib/repositories/price-lists-repository";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
 
 type Submit = (action: () => Promise<unknown>) => void;
 export function CustomerForm({
@@ -40,13 +31,6 @@ export function CustomerForm({
   const [name, setName] = useState(customer?.name ?? "");
   const [phone, setPhone] = useState(customer?.phone ?? "");
   const [notes, setNotes] = useState(customer?.notes ?? "");
-  const [priceListId, setPriceListId] = useState(
-    customer?.priceListId ?? "general",
-  );
-  const lists = useQuery({
-    queryKey: ["price-lists"],
-    queryFn: () => priceListsRepository.findAll(),
-  });
   return (
     <form
       className="flex flex-col gap-4"
@@ -58,9 +42,6 @@ export function CustomerForm({
             name: name.trim(),
             phone: phone.trim(),
             notes: notes.trim(),
-            ...(lists.isSuccess
-              ? { priceListId: priceListId === "general" ? null : priceListId }
-              : {}),
           }),
         );
       }}
@@ -78,47 +59,7 @@ export function CustomerForm({
       <Field label="Notas">
         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="customer-price-list">
-          Lista de precios del cliente
-        </Label>
-        <Select
-          value={priceListId}
-          onValueChange={setPriceListId}
-          disabled={lists.isPending || lists.isError || pending}
-        >
-          <SelectTrigger id="customer-price-list">
-            <SelectValue placeholder="Cargando listas..." />
-          </SelectTrigger>
-          <SelectContent>
-            {lists.data?.map((list) => (
-              <SelectItem key={list.id} value={list.id}>
-                {list.name}
-                {list.isGeneral ? " (predeterminada)" : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {lists.isError ? (
-        <p role="alert" className="text-sm text-destructive">
-          No se pudieron cargar las listas.{" "}
-          <Button
-            type="button"
-            variant="link"
-            onClick={() => void lists.refetch()}
-          >
-            Reintentar
-          </Button>
-        </p>
-      ) : null}
-      <p className="text-xs text-muted-foreground">
-        Se aplica al seleccionarlo en Nueva venta. Las ventas anteriores
-        conservan sus precios.
-      </p>
-      <Button disabled={pending || !name.trim() || lists.isPending}>
-        Guardar cliente
-      </Button>
+      <Button disabled={pending || !name.trim()}>Guardar cliente</Button>
     </form>
   );
 }

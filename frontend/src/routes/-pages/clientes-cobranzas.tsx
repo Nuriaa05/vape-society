@@ -8,10 +8,16 @@ import { Input } from "@/components/ui/input";
 import {
   Archive,
   ArchiveRestore,
+  Banknote,
+  CalendarClock,
+  CircleAlert,
+  CreditCard,
   MoreHorizontal,
   Pencil,
   Plus,
   Search,
+  Undo2,
+  Wallet,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -83,13 +89,40 @@ type Editing =
       action: (reason: string) => Promise<unknown>;
     }
   | null;
-const summaryLabels = {
-  customerDebtAmountCents: "Deuda de clientes",
-  overdueAmountCents: "Deuda vencida",
-  cardPendingAmountCents: "Tarjetas pendientes (neto estimado)",
-  cardUnscheduledAmountCents: "Tarjetas por completar (bruto)",
-  collectedAmountCents: "Cobros registrados",
-  refundedAmountCents: "Reintegros registrados",
+const summaryCards = {
+  customerDebtAmountCents: {
+    label: "Deuda de clientes",
+    icon: (
+      <Wallet className="size-4 text-warning-foreground" aria-hidden="true" />
+    ),
+  },
+  overdueAmountCents: {
+    label: "Deuda vencida",
+    icon: (
+      <CircleAlert className="size-4 text-destructive" aria-hidden="true" />
+    ),
+  },
+  cardPendingAmountCents: {
+    label: "Tarjetas pendientes (neto estimado)",
+    icon: <CreditCard className="size-4 text-accent" aria-hidden="true" />,
+  },
+  cardUnscheduledAmountCents: {
+    label: "Tarjetas por completar (bruto)",
+    icon: (
+      <CalendarClock
+        className="size-4 text-warning-foreground"
+        aria-hidden="true"
+      />
+    ),
+  },
+  collectedAmountCents: {
+    label: "Cobros registrados",
+    icon: <Banknote className="size-4 text-success" aria-hidden="true" />,
+  },
+  refundedAmountCents: {
+    label: "Reintegros registrados",
+    icon: <Undo2 className="size-4 text-accent" aria-hidden="true" />,
+  },
 };
 export function ClientesCobranzasPage() {
   const [view, setView] = useState<View>("Clientes");
@@ -221,7 +254,7 @@ export function ClientesCobranzasPage() {
   ) => setEditing({ kind: "reason", title, action, description });
   return (
     <AppShell
-      title="Clientes y cobranzas"
+      title="Cobranzas"
       subtitle="Consultá quién debe, registrá sus pagos y seguí el saldo pendiente"
       actions={
         <Button onClick={() => setEditing({ kind: "customer" })}>
@@ -270,7 +303,7 @@ export function ClientesCobranzasPage() {
             }
           />
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {Object.entries(summaryLabels)
+            {Object.entries(summaryCards)
               .filter(
                 ([key]) =>
                   !isCustomers ||
@@ -280,9 +313,10 @@ export function ClientesCobranzasPage() {
                     "collectedAmountCents",
                   ].includes(key),
               )
-              .map(([key, label]) => (
+              .map(([key, { label, icon }]) => (
                 <KpiCard
                   key={key}
+                  icon={icon}
                   label={
                     key === "collectedAmountCents" && month
                       ? "Cobros registrados del mes"
@@ -291,7 +325,7 @@ export function ClientesCobranzasPage() {
                   value={
                     summary.data
                       ? money(
-                          summary.data[key as keyof typeof summaryLabels] ?? 0,
+                          summary.data[key as keyof typeof summaryCards] ?? 0,
                         )
                       : "—"
                   }
@@ -578,7 +612,7 @@ export function ClientesCobranzasPage() {
                             )}
                           </Cell>
                           <Cell>
-                            <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1.5 whitespace-nowrap [&>button]:h-8 [&>button]:rounded-md [&>button:disabled]:bg-muted [&>button:disabled]:text-muted-foreground [&>button:disabled]:opacity-100">
                               <Button
                                 size="sm"
                                 disabled={
@@ -597,7 +631,7 @@ export function ClientesCobranzasPage() {
                               </Button>
                               <Button
                                 size="sm"
-                                variant="ghost"
+                                variant="outline"
                                 disabled={mutation.isPending}
                                 aria-haspopup="dialog"
                                 onClick={(event) => {

@@ -1,4 +1,3 @@
-import { Disclosure } from "@/components/ui/disclosure";
 import { useSearch } from "@tanstack/react-router";
 import { PurchaseFinanceFields } from "@/components/purchase-finance-fields";
 import {
@@ -313,9 +312,6 @@ export function ComprasPage() {
     setDeleting(null);
   };
 
-  const monthlyPurchases = purchasesRepository.findByMonth(list);
-  const monthTotal = purchasesRepository.getActiveTotal(monthlyPurchases);
-
   if (
     productsQuery.isLoading ||
     suppliersQuery.isLoading ||
@@ -504,13 +500,6 @@ export function ComprasPage() {
               </div>
             ) : null}
           </dl>
-          <Disclosure title="Resumen del mes">
-            <p className="mt-2">
-              {formatARS(monthTotal)} ·{" "}
-              {purchasesRepository.getActiveCount(monthlyPurchases)} compras sin
-              anuladas
-            </p>
-          </Disclosure>
         </Card>
       </div>
 

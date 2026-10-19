@@ -1,4 +1,3 @@
-import { Disclosure } from "@/components/ui/disclosure";
 import { useEffect, useState } from "react";
 import { useBlocker } from "@tanstack/react-router";
 import { MoreHorizontal, Plus } from "lucide-react";
@@ -35,7 +34,6 @@ import {
 } from "@/lib/price-lists";
 import { formatARS } from "@/lib/formatters";
 import { PriceListCustomers } from "./price-list-customers";
-import { PriceListExample } from "./price-list-example";
 import { effectiveDraftPrice } from "@/lib/price-lists";
 import {
   DropdownMenu,
@@ -122,11 +120,11 @@ export function PriceListsEditor() {
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {selected.isGeneral
-                ? "Se aplica a las ventas sin una lista particular."
-                : "Se aplica a los clientes que tengan esta lista asignada."}
-            </p>
+            <PriceListCustomers
+              key={`customers-${selected.id}`}
+              list={selected}
+              lists={lists.data}
+            />
             <PriceListTable
               key={selected.id}
               list={selected}
@@ -138,13 +136,6 @@ export function PriceListsEditor() {
                 void client.invalidateQueries({ queryKey: ["price-lists"] });
               }}
             />
-            <Disclosure title="Clientes que usan esta lista">
-              <PriceListCustomers
-                key={`customers-${selected.id}`}
-                list={selected}
-                lists={lists.data}
-              />
-            </Disclosure>
           </>
         ) : (
           <p>No hay listas disponibles.</p>
@@ -528,11 +519,6 @@ function PriceListTable({
           No hay productos que coincidan con la búsqueda.
         </p>
       ) : null}
-      <PriceListExample
-        tiers={tiers}
-        rows={rows.filter((row) => !row.archived)}
-        listName={list.name}
-      />
       <Dialog
         open={action !== null}
         onOpenChange={(open) => {

@@ -1,10 +1,10 @@
-import { Disclosure } from "@/components/ui/disclosure";
 import { KpiCard, CardHeader } from "./ui/card";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Button } from "./ui/button";
 import { money } from "@/lib/collections-form";
 import type { SupplierDebtSummary } from "@/lib/supplier-credit";
+import { Banknote, CalendarClock, CircleAlert, Wallet } from "lucide-react";
 
 export function SupplierSummary({
   data,
@@ -39,21 +39,42 @@ export function SupplierSummary({
           </div>
         }
       />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
+          icon={
+            <Wallet
+              className="size-4 text-warning-foreground"
+              aria-hidden="true"
+            />
+          }
           label="Deuda pendiente"
           value={loading ? "..." : data ? money(data.balanceCents) : "—"}
-          hint="Total que debés a los proveedores"
+          hint={`Reintegros a favor: ${loading ? "..." : data ? money(data.refundPendingCents) : "—"}`}
         />
         <KpiCard
+          icon={
+            <CircleAlert
+              className="size-4 text-destructive"
+              aria-hidden="true"
+            />
+          }
           label="Deuda vencida"
           value={loading ? "..." : data ? money(data.overdueCents) : "—"}
           hint="Incluida en la deuda pendiente"
         />
         <KpiCard
+          icon={<Banknote className="size-4 text-success" aria-hidden="true" />}
           label="Pagado en el mes"
           value={loading ? "..." : data ? money(data.paidAmountCents) : "—"}
           hint="Pagos registrados en el mes seleccionado"
+        />
+        <KpiCard
+          icon={
+            <CalendarClock className="size-4 text-accent" aria-hidden="true" />
+          }
+          label="Vence este mes"
+          value={loading ? "..." : data ? money(data.dueThisMonthCents) : "—"}
+          hint="Vencimientos pendientes del mes seleccionado"
         />
       </div>
       {error ? (
@@ -63,18 +84,6 @@ export function SupplierSummary({
             Reintentar
           </Button>
         </p>
-      ) : data ? (
-        <Disclosure title="Vencimientos del mes y reintegros">
-          <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2">
-            <span>
-              Vence en el mes: <strong>{money(data.dueThisMonthCents)}</strong>
-            </span>
-            <span>
-              Reintegros por recibir:{" "}
-              <strong>{money(data.refundPendingCents)}</strong>
-            </span>
-          </div>
-        </Disclosure>
       ) : null}
     </section>
   );

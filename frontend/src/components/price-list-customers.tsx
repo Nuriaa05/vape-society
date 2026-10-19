@@ -1,15 +1,17 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Field, Pager } from "./collections-controls";
 import type { Customer } from "@/lib/collections";
@@ -34,15 +36,11 @@ export function PriceListCustomers({
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(0);
+  const assignButtonRef = useRef<HTMLButtonElement | null>(null);
   const belongsToList = (customer: Customer) =>
     customer.priceListId === list.id ||
     (list.isGeneral && !customer.priceListId);
   const assigned = (customers.data ?? []).filter(belongsToList);
-  const currentPage = Math.min(
-    page,
-    Math.floor(Math.max(0, assigned.length - 1) / 25),
-  );
   const query = search.trim().toLocaleLowerCase();
   const available = (customers.data ?? []).filter(
     (customer) =>
@@ -72,7 +70,6 @@ export function PriceListCustomers({
     }
     setOpen(false);
     setCreating(false);
-    setPage(0);
   }
 
   const assignment = useMutation({
@@ -106,30 +103,73 @@ export function PriceListCustomers({
   return (
     <section
       aria-label="Clientes de esta lista"
-      className="flex min-w-0 flex-col gap-4 pt-4"
+      className="flex min-w-0 flex-col gap-2"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="font-medium">Clientes de esta lista</h3>
-          <p className="text-sm text-muted-foreground">
-            {list.isGeneral
-              ? "Los clientes sin una lista particular usan General."
-              : "Esta lista se aplicará automáticamente en sus próximas ventas."}
-          </p>
-        </div>
-        <Button
-          variant="outline"
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+        <p className="text-muted-foreground" aria-live="polite">
+          {list.isGeneral ? (
+            <>
+              Se aplica a todos los clientes sin lista particular (
+              <strong>
+                {customers.isPending
+                  ? "…"
+                  : customers.isError
+                    ? "—"
+                    : assigned.length}
+              </strong>
+              )
+            </>
+          ) : (
+            <>
+              Se aplica a{" "}
+              <strong>
+                {customers.isPending
+                  ? "…"
+                  : customers.isError
+                    ? "—"
+                    : assigned.length}{" "}
+                {assigned.length === 1 ? "cliente" : "clientes"}
+              </strong>
+            </>
+          )}
+        </p>
+        <span aria-hidden="true" className="text-muted-foreground">
+          ·
+        </span>
+        <AssignedCustomersDialog
+          list={list}
+          customers={assigned}
           disabled={customers.isPending || customers.isError || busy}
-          onClick={() => {
-            assignment.reset();
-            creation.reset();
-            setCreating(false);
-            setSearch("");
-            setOpen(true);
-          }}
-        >
-          Asignar cliente
-        </Button>
+          pending={pending}
+          error={error}
+          onOpen={() => assignment.reset()}
+          remove={(customerId) =>
+            assignment.mutate({ customerId, priceListId: null })
+          }
+        />
+        {!list.isGeneral ? (
+          <>
+            <span aria-hidden="true" className="text-muted-foreground">
+              ·
+            </span>
+            <Button
+              ref={assignButtonRef}
+              type="button"
+              variant="link"
+              className="h-auto p-0 text-sm"
+              disabled={customers.isPending || customers.isError || busy}
+              onClick={() => {
+                assignment.reset();
+                creation.reset();
+                setCreating(false);
+                setSearch("");
+                setOpen(true);
+              }}
+            >
+              Asignar cliente
+            </Button>
+          </>
+        ) : null}
       </div>
       {customers.isError ? (
         <div role="alert" className="flex flex-wrap items-center gap-3">
@@ -140,51 +180,6 @@ export function PriceListCustomers({
             Reintentar
           </Button>
         </div>
-      ) : customers.isPending ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          Cargando clientes...
-        </p>
-      ) : assigned.length ? (
-        <>
-          <ul className="divide-y divide-border">
-            {assigned
-              .slice(currentPage * 25, (currentPage + 1) * 25)
-              .map((customer) => (
-                <li
-                  key={customer.id}
-                  className="flex flex-wrap items-center gap-3 py-3"
-                >
-                  <CustomerIdentity customer={customer} />
-                  {!list.isGeneral ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy}
-                      aria-label={`Usar General para ${customer.name}`}
-                      onClick={() =>
-                        assignment.mutate({
-                          customerId: customer.id,
-                          priceListId: null,
-                        })
-                      }
-                    >
-                      Usar General
-                    </Button>
-                  ) : null}
-                </li>
-              ))}
-          </ul>
-          <Pager page={currentPage} total={assigned.length} change={setPage} />
-        </>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          No hay clientes asignados a esta lista.
-        </p>
-      )}
-      {!open && error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
       ) : null}
       <Dialog
         open={open}
@@ -192,7 +187,12 @@ export function PriceListCustomers({
           if (!pending) setOpen(next);
         }}
       >
-        <DialogContent>
+        <DialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            assignButtonRef.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {creating ? "Nuevo cliente para" : "Asignar cliente a"}{" "}
@@ -298,6 +298,128 @@ export function PriceListCustomers({
         </DialogContent>
       </Dialog>
     </section>
+  );
+}
+
+function AssignedCustomersDialog({
+  list,
+  customers,
+  disabled,
+  pending,
+  error,
+  onOpen,
+  remove,
+}: {
+  list: PriceList;
+  customers: Customer[];
+  disabled: boolean;
+  pending: boolean;
+  error?: string;
+  onOpen: () => void;
+  remove: (customerId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const query = search.trim().toLocaleLowerCase();
+  const filtered = customers.filter((customer) =>
+    `${customer.name} ${customer.phone ?? ""}`
+      .toLocaleLowerCase()
+      .includes(query),
+  );
+  const currentPage = Math.min(
+    page,
+    Math.floor(Math.max(0, filtered.length - 1) / 25),
+  );
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (pending) return;
+        if (next) {
+          setSearch("");
+          setPage(0);
+          onOpen();
+        }
+        setOpen(next);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto p-0 text-sm"
+          disabled={disabled}
+        >
+          Ver clientes
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Clientes de {list.name}</DialogTitle>
+          <DialogDescription>
+            {list.isGeneral
+              ? "General se aplica automáticamente a los clientes sin una lista particular."
+              : "Al quitar un cliente, pasará a usar General. Las ventas anteriores conservarán sus precios."}
+          </DialogDescription>
+        </DialogHeader>
+        <Field label="Buscar cliente por nombre o celular">
+          <Input
+            value={search}
+            disabled={pending}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(0);
+            }}
+          />
+        </Field>
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+        <ul className="max-h-72 divide-y divide-border overflow-y-auto">
+          {filtered
+            .slice(currentPage * 25, (currentPage + 1) * 25)
+            .map((customer) => (
+              <li
+                key={customer.id}
+                className="flex flex-wrap items-center gap-3 py-3"
+              >
+                <CustomerIdentity customer={customer} />
+                {!list.isGeneral ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    aria-label={`Quitar a ${customer.name} de ${list.name}`}
+                    onClick={() => remove(customer.id)}
+                  >
+                    Quitar
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+        </ul>
+        {!filtered.length ? (
+          <p className="text-sm text-muted-foreground">
+            {search.trim()
+              ? "No se encontraron clientes."
+              : "No hay clientes asignados a esta lista."}
+          </p>
+        ) : null}
+        <Pager page={currentPage} total={filtered.length} change={setPage} />
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" disabled={pending}>
+              Cerrar
+            </Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

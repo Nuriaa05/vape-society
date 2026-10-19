@@ -96,25 +96,32 @@ export function Dashboard() {
       <div className="dashboard-layout">
         <div className="dashboard-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <KpiCard
-            icon={<Wallet className="h-4 w-4" />}
+            icon={<Wallet className="size-4 text-accent" aria-hidden="true" />}
             label="Ventas de hoy"
             value={formatARS(summary.todayTotal)}
             hint={`${summary.confirmedSalesCount} operaciones`}
           />
           <KpiCard
-            icon={<TrendingUp className="h-4 w-4" />}
+            icon={
+              <TrendingUp className="size-4 text-success" aria-hidden="true" />
+            }
             label="Ventas del mes"
             value={formatARS(summary.monthlyTotal)}
             hint={formatMonthYearAR()}
           />
           <KpiCard
-            icon={<Boxes className="h-4 w-4" />}
+            icon={<Boxes className="size-4 text-accent" aria-hidden="true" />}
             label="Valor de stock"
             value={formatARS(summary.stockValue)}
             hint={`${summary.productCount} productos`}
           />
           <KpiCard
-            icon={<Clock className="h-4 w-4" />}
+            icon={
+              <Clock
+                className="size-4 text-warning-foreground"
+                aria-hidden="true"
+              />
+            }
             label="Entregas pendientes"
             value={String(summary.pendingDeliveries.length)}
             hint={
