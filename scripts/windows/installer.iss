@@ -12,6 +12,7 @@
 AppId={{FC3765D2-24E3-4517-B252-F193699A791C}
 AppName=Vape Society
 AppVersion={#AppVersion}
+VersionInfoVersion={#AppVersion}
 AppPublisher=Vape Society
 DefaultDirName={localappdata}\Programs\Vape Society
 DefaultGroupName=Vape Society
