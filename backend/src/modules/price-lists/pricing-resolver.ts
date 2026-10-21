@@ -31,6 +31,37 @@ export type PricingPreview = PricingSnapshot & { catalogPrices: PricingLine[] };
 export const priceListInclude = {
   tiers: { include: { prices: true }, orderBy: { minimumQty: "asc" } },
 } satisfies Prisma.PriceListInclude;
+
+type PricingTier = {
+  minimumQty: number;
+  prices: Array<{
+    productId: string | null;
+    comboId: string | null;
+    priceAmountCents: number;
+  }>;
+};
+
+export function resolveTierPrice(
+  item: CatalogPriceItemDto,
+  basePriceAmountCents: number,
+  ascendingTiers: PricingTier[],
+) {
+  let appliedPriceAmountCents = basePriceAmountCents;
+  let effectiveMinimumQty: number | null = null;
+  for (const tier of ascendingTiers) {
+    const cell = tier.prices.find((price) =>
+      item.itemType === "Product"
+        ? price.productId === item.itemId
+        : price.comboId === item.itemId,
+    );
+    if (cell) {
+      appliedPriceAmountCents = cell.priceAmountCents;
+      effectiveMinimumQty = tier.minimumQty;
+    }
+  }
+  return { appliedPriceAmountCents, effectiveMinimumQty };
+}
+
 export function pricingFingerprint(value: unknown): string {
   return createHash("sha256").update(canonicalPayload(value)).digest("hex");
 }
@@ -180,19 +211,11 @@ export class PricingResolver {
     );
     const priceLine = (item: CatalogPriceItemDto, qty: number): PricingLine => {
       const base = catalog(item);
-      let appliedPriceAmountCents = base.basePriceAmountCents;
-      let effectiveMinimumQty: number | null = null;
-      for (const tier of eligible) {
-        const cell = tier.prices.find((p) =>
-          item.itemType === "Product"
-            ? p.productId === item.itemId
-            : p.comboId === item.itemId,
-        );
-        if (cell) {
-          appliedPriceAmountCents = cell.priceAmountCents;
-          effectiveMinimumQty = tier.minimumQty;
-        }
-      }
+      const { appliedPriceAmountCents, effectiveMinimumQty } = resolveTierPrice(
+        item,
+        base.basePriceAmountCents,
+        eligible,
+      );
       money(appliedPriceAmountCents * qty);
       return {
         ...item,

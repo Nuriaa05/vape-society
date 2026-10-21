@@ -61,6 +61,15 @@ export type StockSummary = InventoryValuation & {
   physicalStock: number;
   reservedStock: number;
   availableStock: number;
+  retailValueCents: number;
+  supplierDebtCents: number;
+  netRetailValueCents: number;
+  wholesaleValueCents: number | null;
+  wholesaleReference: {
+    listName: string;
+    quantity: number;
+    fallbackProductCount: number;
+  } | null;
 };
 export type StockClassification = {
   productId: string;

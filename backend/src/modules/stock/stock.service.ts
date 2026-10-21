@@ -17,6 +17,11 @@ import {
 } from "../../domain/stock-rules.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import {
+  priceListInclude,
+  resolveTierPrice,
+} from "../price-lists/pricing-resolver";
+import { SupplierPayablesService } from "../supplier-payables/supplier-payables.service";
+import {
   ClassifyStockDto,
   CreateStockAdjustmentDto,
   ReverseStockMovementDto,
@@ -36,6 +41,8 @@ export type StockMovementResponse = {
   canReverse: boolean;
 };
 
+const WHOLESALE_REFERENCE_QUANTITY = 3;
+
 @Injectable()
 export class StockService {
   constructor(
@@ -43,6 +50,10 @@ export class StockService {
     private readonly stockRulesService: StockRulesService,
     @Optional()
     private readonly inventoryLotsService: InventoryLotsService = new InventoryLotsService(),
+    @Optional()
+    private readonly supplierPayablesService: SupplierPayablesService = new SupplierPayablesService(
+      prisma,
+    ),
   ) {}
 
   findAll(): Promise<StockReadModel[]> {
@@ -51,14 +62,22 @@ export class StockService {
 
   async summary(q?: string) {
     const query = q?.trim().toLocaleLowerCase("es-AR");
-    const rows = (await this.findAll()).filter(
+    const [stockRows, generalList, supplierSummary] = await Promise.all([
+      this.findAll(),
+      this.prisma.priceList.findFirst({
+        where: { isGeneral: true, active: true },
+        include: priceListInclude,
+      }),
+      this.supplierPayablesService.summary(),
+    ]);
+    const rows = stockRows.filter(
       (row) =>
         !query ||
         `${row.productName} ${row.barcode ?? ""}`
           .toLocaleLowerCase("es-AR")
           .includes(query),
     );
-    return rows.reduce(
+    const summary = rows.reduce(
       (sum, row) => ({
         physicalStock: sum.physicalStock + row.physicalStock,
         reservedStock: sum.reservedStock + row.reservedStock,
@@ -85,6 +104,53 @@ export class StockService {
         totalValueCents: 0,
       },
     );
+    const tiers = (generalList?.tiers ?? []).filter(
+      (tier) => tier.minimumQty <= WHOLESALE_REFERENCE_QUANTITY,
+    );
+    let retailValueCents = 0;
+    let wholesaleValueCents = 0;
+    let fallbackProductCount = 0;
+    for (const row of rows) {
+      const quantity = Math.max(0, row.physicalStock);
+      const price = resolveTierPrice(
+        { itemType: "Product", itemId: row.productId },
+        row.priceAmountCents,
+        tiers,
+      );
+      retailValueCents += quantity * row.priceAmountCents;
+      wholesaleValueCents += quantity * price.appliedPriceAmountCents;
+      if (quantity > 0 && price.effectiveMinimumQty === null) {
+        fallbackProductCount += 1;
+      }
+    }
+    const supplierDebtCents = supplierSummary.balanceCents;
+    const netRetailValueCents = retailValueCents - supplierDebtCents;
+    if (
+      ![
+        retailValueCents,
+        wholesaleValueCents,
+        supplierDebtCents,
+        netRetailValueCents,
+      ].every(Number.isSafeInteger)
+    ) {
+      throw new BadRequestException(
+        "El valor del inventario o la deuda excede el importe que se puede calcular con precisión.",
+      );
+    }
+    return {
+      ...summary,
+      retailValueCents,
+      supplierDebtCents,
+      netRetailValueCents,
+      wholesaleValueCents: generalList ? wholesaleValueCents : null,
+      wholesaleReference: generalList
+        ? {
+            listName: generalList.name,
+            quantity: WHOLESALE_REFERENCE_QUANTITY,
+            fallbackProductCount,
+          }
+        : null,
+    };
   }
 
   async classify(dto: ClassifyStockDto): Promise<StockMovementResponse> {

@@ -4,6 +4,7 @@ import { StockClassificationDialog } from "@/components/stock-classification-dia
 import { money } from "@/lib/collections-form";
 import { Card, CardHeader, CardToolbar, KpiCard } from "@/components/ui/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { type Product, type StockMovement } from "@/lib/contracts";
+import type { StockSummary } from "@/lib/supplier-credit";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 import { invalidateInventoryQueries } from "@/lib/inventory-cache";
 import {
@@ -60,12 +62,14 @@ import {
   Boxes,
   Check,
   ChevronsUpDown,
+  HandCoins,
   Info,
-  Package,
-  PackageCheck,
   Search,
   Settings2,
+  Tag,
   Undo2,
+  Wallet,
+  Warehouse,
 } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -95,8 +99,8 @@ export function StockPage() {
     qty?: number;
   } | null>(null);
   const summaryQuery = useQuery({
-    queryKey: ["stock", "summary", q.trim()],
-    queryFn: () => stockRepository.summary(q.trim() || undefined),
+    queryKey: ["stock", "summary"],
+    queryFn: () => stockRepository.summary(),
   });
   const [visibleStockCount, setVisibleStockCount] =
     useState(PAGE_LIST_INCREMENT);
@@ -252,13 +256,19 @@ export function StockPage() {
   return (
     <AppShell title="Stock" subtitle="Inventario actual y movimientos">
       <section aria-label="Resumen del stock" className="space-y-3">
-        <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold">Tu inventario</h2>
-          <p className="text-xs text-muted-foreground">
-            Unidades actuales y valor al costo de compra
-            {q.trim() ? " de los productos filtrados" : ""}.
-          </p>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/proveedores">
+              <HandCoins aria-hidden="true" /> Gestionar deuda
+            </Link>
+          </Button>
         </div>
+        {summaryQuery.data && !summaryQuery.data.wholesaleReference ? (
+          <p className="text-xs text-warning-foreground">
+            La lista General no está disponible para valorar el stock mayorista.
+          </p>
+        ) : null}
         {summaryQuery.error ? (
           <p role="alert" className="text-sm text-destructive">
             No se pudieron cargar los totales.{" "}
@@ -271,40 +281,51 @@ export function StockPage() {
             </Button>
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
             {(
               [
                 [
-                  "Stock Propio",
-                  summaryQuery.data?.paidValueCents,
-                  <PackageCheck
+                  "Valor stock al costo",
+                  summaryQuery.data?.totalValueCents,
+                  <Boxes className="size-4 text-accent" aria-hidden="true" />,
+                ],
+                [
+                  "Valor minorista",
+                  summaryQuery.data?.retailValueCents,
+                  <Tag className="size-4 text-success" aria-hidden="true" />,
+                ],
+                [
+                  "Valor mayorista",
+                  summaryQuery.data?.wholesaleValueCents,
+                  <Warehouse
                     className="size-4 text-success"
                     aria-hidden="true"
                   />,
                 ],
                 [
-                  "Stock a crédito",
-                  summaryQuery.data?.creditValueCents,
-                  <Package
-                    className="size-4 text-warning-foreground"
+                  "Stock propio",
+                  summaryQuery.data?.netRetailValueCents,
+                  <Wallet className="size-4 text-accent" aria-hidden="true" />,
+                ],
+                [
+                  "Deuda",
+                  summaryQuery.data?.supplierDebtCents,
+                  <HandCoins
+                    className="size-4 text-destructive"
                     aria-hidden="true"
                   />,
                 ],
-                [
-                  "Valor Stock",
-                  summaryQuery.data?.totalValueCents,
-                  <Boxes className="size-4 text-accent" aria-hidden="true" />,
-                ],
               ] as const
-            ).map(([label, value, icon]) => (
+            ).map(([label, value, icon], index) => (
               <KpiCard
                 key={label}
+                className={index < 3 ? "sm:col-span-2" : "sm:col-span-3"}
                 icon={icon}
                 label={label}
                 value={
                   summaryQuery.isLoading
                     ? "..."
-                    : value === undefined
+                    : value === undefined || value === null
                       ? "—"
                       : money(value)
                 }
@@ -316,11 +337,10 @@ export function StockPage() {
           <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm">
             <strong>
               {summaryQuery.data?.unclassifiedQty} unidades con pago sin indicar
-              · {money(summaryQuery.data?.unclassifiedValueCents ?? 0)}
             </strong>
             <p className="mt-1 text-xs text-muted-foreground">
-              Incluidas en el total. Indicá si ya las pagaste o todavía las
-              debés desde las acciones del producto.
+              Incluidas en la valuación del stock. Indicá su condición de pago
+              desde las acciones del producto.
             </p>
           </div>
         ) : null}
@@ -334,6 +354,9 @@ export function StockPage() {
               <StockInventoryInfo
                 reservedStock={summaryQuery.data?.reservedStock}
                 availableStock={summaryQuery.data?.availableStock}
+                retailValueCents={summaryQuery.data?.retailValueCents}
+                supplierDebtCents={summaryQuery.data?.supplierDebtCents}
+                wholesaleReference={summaryQuery.data?.wholesaleReference}
               />
             }
           />
@@ -569,9 +592,15 @@ export function StockPage() {
 function StockInventoryInfo({
   reservedStock,
   availableStock,
+  retailValueCents,
+  supplierDebtCents,
+  wholesaleReference,
 }: {
   reservedStock?: number;
   availableStock?: number;
+  retailValueCents?: number;
+  supplierDebtCents?: number;
+  wholesaleReference?: StockSummary["wholesaleReference"];
 }) {
   const [open, setOpen] = useState(false);
   const tooltipId = useId();
@@ -626,7 +655,7 @@ function StockInventoryInfo({
         role="tooltip"
         side="top"
         align="start"
-        className="w-80 max-w-[calc(100vw-2rem)] space-y-2 p-3 text-sm"
+        className="max-h-[var(--radix-popover-content-available-height)] w-80 max-w-[calc(100vw-2rem)] space-y-2 overflow-y-auto p-3 text-sm"
         onPointerEnter={showTooltip}
         onPointerLeave={hideTooltip}
         onOpenAutoFocus={(event) => event.preventDefault()}
@@ -637,6 +666,41 @@ function StockInventoryInfo({
           Stock muestra lo que queda. Vender unidades a crédito no reduce lo que
           debés: consultá y registrá ese pago en Proveedores. Las unidades
           reservadas siguen en el total físico y se descuentan de Disponible.
+        </p>
+        <p>
+          Valor stock al costo usa los costos guardados de cada ingreso. Valor
+          minorista usa el precio de venta habitual actual de cada producto.
+          Stock propio es el valor minorista total menos la deuda pendiente con
+          proveedores.
+        </p>
+        <p>
+          Minorista:{" "}
+          {retailValueCents === undefined ? "—" : money(retailValueCents)}.
+          Deuda:{" "}
+          {supplierDebtCents === undefined ? "—" : money(supplierDebtCents)}.
+          Las deudas se cargan y se pagan en Proveedores.
+        </p>
+        <p>
+          Stock propio puede ser negativo si la deuda supera el valor minorista.
+        </p>
+        <p>
+          Valor mayorista usa General y el precio para 3 unidades, heredando las
+          escalas anteriores. Los productos sin precio configurado usan su
+          precio habitual. Los combos no se suman aparte.
+        </p>
+        {wholesaleReference && wholesaleReference.fallbackProductCount > 0 ? (
+          <p className="text-xs text-muted-foreground">
+            {wholesaleReference.fallbackProductCount} productos con stock usan
+            el precio habitual por no tener un precio mayorista configurado.
+          </p>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
+          Los valores de venta incluyen reservas, sin cupones ni recargos. El
+          stock físico negativo no aporta valor de mercadería.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          El resumen muestra los totales del negocio. La búsqueda filtra solo la
+          tabla, cuyos importes usan el costo guardado de cada ingreso.
         </p>
         <p className="text-xs text-muted-foreground">
           Reservadas para entregas: {reservedStock ?? "—"}. Disponibles:{" "}

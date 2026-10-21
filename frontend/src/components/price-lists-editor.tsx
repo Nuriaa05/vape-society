@@ -239,6 +239,7 @@ function PriceListTable({
       void client.invalidateQueries({ queryKey: ["price-preview"] });
       void client.invalidateQueries({ queryKey: ["sale-quote"] });
       void client.invalidateQueries({ queryKey: ["sale-price"] });
+      void client.invalidateQueries({ queryKey: ["stock", "summary"] });
       setAction(null);
       setArchiveOpen(false);
       setError(null);
