@@ -8,6 +8,18 @@ import {
 import { PricingSnapshot } from "../price-lists/pricing-resolver";
 import { PrismaService } from "../../prisma/prisma.service";
 import type { SaleFinance } from "../sales/sale-finance";
+import {
+  getCostedSales,
+  getSalesProfit,
+  summarizeCostedSales,
+} from "./sales-profit";
+import {
+  createProfitBuckets,
+  fillProfitBuckets,
+  resolveProfitGrouping,
+  resolveProfitPagination,
+  resolveProfitRange,
+} from "./profit-report";
 
 export type ReportsPeriod = "hour" | "month" | "90d" | "year";
 export type SoldUnitsPeriod = "week" | "month";
@@ -115,6 +127,41 @@ export class ReportsService {
     private readonly stockRulesService: StockRulesService,
   ) {}
 
+  async getProfitReport(from?: string, to?: string, groupBy?: string) {
+    const { start, end } = resolveProfitRange(from, to);
+    const grouping = resolveProfitGrouping(groupBy);
+    const buckets = createProfitBuckets(start, end, grouping);
+    const sales = await getCostedSales(this.prisma, start, end);
+    return {
+      from: start.toISOString(),
+      to: end.toISOString(),
+      groupBy: grouping,
+      summary: summarizeCostedSales(sales),
+      buckets: fillProfitBuckets(buckets, sales),
+    };
+  }
+
+  async getProfitSales(
+    from?: string,
+    to?: string,
+    page?: string,
+    pageSize?: string,
+  ) {
+    const { start, end } = resolveProfitRange(from, to);
+    const pagination = resolveProfitPagination(page, pageSize);
+    const sales = await getCostedSales(this.prisma, start, end);
+    const offset = (pagination.page - 1) * pagination.pageSize;
+    return {
+      from: start.toISOString(),
+      to: end.toISOString(),
+      ...pagination,
+      total: sales.length,
+      totalPages: Math.ceil(sales.length / pagination.pageSize),
+      summary: summarizeCostedSales(sales),
+      items: sales.slice(offset, offset + pagination.pageSize),
+    };
+  }
+
   async getDashboardSummary() {
     const now = new Date();
     const todayStart = startOfArgentinaDay(now);
@@ -129,6 +176,7 @@ export class ReportsService {
       pendingDeliveries,
       stockRows,
       products,
+      todayProfit,
     ] = await Promise.all([
       this.findConfirmedSalesBetween(todayStart, tomorrowStart),
       this.findConfirmedSalesBetween(monthStart, nextMonthStart),
@@ -155,9 +203,11 @@ export class ReportsService {
           physicalStock: true,
         },
       }),
+      getSalesProfit(this.prisma, todayStart, tomorrowStart),
     ]);
 
     return {
+      todayProfit,
       todayTotalAmountCents: sumSales(todaySales),
       monthlyTotalAmountCents: sumSales(monthlySales),
       confirmedSalesCount: todaySales.length,

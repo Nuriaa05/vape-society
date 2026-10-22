@@ -23,6 +23,41 @@ describe("reports repository", () => {
     vi.restoreAllMocks();
   });
 
+  it.each([596, -200, null])(
+    "converts dashboard profit %s from cents and preserves unknown historical costs",
+    async (profitAmountCents) => {
+      vi.mocked(globalThis.fetch).mockImplementationOnce(() =>
+        mockJsonResponse({
+          todayTotalAmountCents: 1001,
+          monthlyTotalAmountCents: 1001,
+          confirmedSalesCount: 1,
+          stockValueAmountCents: 0,
+          productCount: 0,
+          recentSales: [],
+          pendingDeliveries: [],
+          pendingDeliveriesTotalAmountCents: 0,
+          stockAlerts: [],
+          todayProfit: {
+            salesCount: 1,
+            missingCostSalesCount: profitAmountCents === null ? 1 : 0,
+            revenueAmountCents: 1001,
+            costAmountCents: profitAmountCents === null ? null : 405,
+            profitAmountCents,
+          },
+        }),
+      );
+      expect(await reportsRepository.getDashboardSummary()).toMatchObject({
+        todayProfit: {
+          salesCount: 1,
+          missingCostSalesCount: profitAmountCents === null ? 1 : 0,
+          revenue: 10.01,
+          cost: profitAmountCents === null ? null : 4.05,
+          profit: profitAmountCents === null ? null : profitAmountCents / 100,
+        },
+      });
+    },
+  );
+
   it("sends the same exact date interval to every report and export", async () => {
     const dates = {
       from: "2026-09-30T03:00:00.000Z",

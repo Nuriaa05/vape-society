@@ -12,12 +12,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { formatDateInputAR, TZ } from "@/lib/formatters";
+import { dateRangeToReportSearch } from "@/lib/profit-reports";
 import {
   buildReportDateRange,
   getReportRangeLabel,
 } from "@/lib/report-exports";
 import {
   getCalendarDays,
+  getCalendarMonths,
   getReportShortcut,
   moveCalendarDay,
   shiftCalendarMonth,
@@ -57,12 +59,9 @@ const shortcuts: Array<{ id: ReportShortcut; label: string }> = [
 ];
 
 function getSelectedDays(value?: ReportDateRange) {
-  return value
-    ? {
-        start: formatDateInputAR(value.from),
-        end: formatDateInputAR(new Date(new Date(value.to).getTime() - 1)),
-      }
-    : null;
+  if (!value) return null;
+  const search = dateRangeToReportSearch(value);
+  return { start: search.desde!, end: search.hasta! };
 }
 
 export function ReportDateRangePicker({
@@ -74,11 +73,11 @@ export function ReportDateRangePicker({
   onChange: (range: ReportDateRange | undefined) => void;
   disabled?: boolean;
 }) {
-  const today = formatDateInputAR();
+  const today = formatDateInputAR().padStart(10, "0");
   const selected = getSelectedDays(value);
   const [open, setOpen] = useState(false);
-  const [month, setMonth] = useState(() =>
-    (selected?.start ?? today).slice(0, 7),
+  const [month, setMonth] = useState(
+    () => getCalendarMonths((selected?.start ?? today).slice(0, 7))[0],
   );
   const [anchor, setAnchor] = useState<string | null>(null);
   const [hoveredDay, setHoveredDay] = useState<string | null>(null);
@@ -86,7 +85,7 @@ export function ReportDateRangePicker({
   const calendarRef = useRef<HTMLDivElement>(null);
   const pendingFocus = useRef(false);
   const instructionsId = useId();
-  const secondMonth = shiftCalendarMonth(month, 1);
+  const [, secondMonth] = getCalendarMonths(month);
   const previewEnd = hoveredDay ?? focusedDay;
   const range = anchor
     ? {
@@ -107,7 +106,7 @@ export function ReportDateRangePicker({
   function changeOpen(next: boolean) {
     if (next) {
       const first = selected?.start ?? today;
-      setMonth(first.slice(0, 7));
+      setMonth(getCalendarMonths(first.slice(0, 7))[0]);
       setFocusedDay(first);
       setAnchor(null);
       setHoveredDay(null);
@@ -146,7 +145,7 @@ export function ReportDateRangePicker({
   }
 
   function navigateMonth(offset: number) {
-    const next = shiftCalendarMonth(month, offset);
+    const [next] = getCalendarMonths(shiftCalendarMonth(month, offset));
     setMonth(next);
     setFocusedDay(`${next}-01`);
     setHoveredDay(null);
@@ -222,6 +221,7 @@ export function ReportDateRangePicker({
             size="icon"
             className="size-8"
             aria-label="Mostrar mes anterior"
+            disabled={month === "0001-01"}
             onClick={() => navigateMonth(-1)}
           >
             <ChevronLeft aria-hidden="true" />
@@ -235,6 +235,7 @@ export function ReportDateRangePicker({
             size="icon"
             className="size-8"
             aria-label="Mostrar mes siguiente"
+            disabled={month === "9999-11"}
             onClick={() => navigateMonth(1)}
           >
             <ChevronRight aria-hidden="true" />

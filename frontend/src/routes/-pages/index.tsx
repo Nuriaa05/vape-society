@@ -12,14 +12,14 @@ import {
 } from "@/lib/formatters";
 import { reportsRepository, stockRepository } from "@/lib/repositories";
 import { DASHBOARD_PREVIEW_LIMIT, getVisibleItems } from "@/lib/visible-items";
+import { getTodayProfitReportSearch } from "@/lib/profit-reports";
 import {
   ArrowUpRight,
-  Clock,
   ScanBarcode,
   Truck,
   TrendingUp,
   Wallet,
-  Boxes,
+  ChartNoAxesCombined,
 } from "lucide-react";
 
 export function Dashboard() {
@@ -94,7 +94,7 @@ export function Dashboard() {
       }
     >
       <div className="dashboard-layout">
-        <div className="dashboard-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="dashboard-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           <KpiCard
             icon={<Wallet className="size-4 text-accent" aria-hidden="true" />}
             label="Ventas de hoy"
@@ -103,33 +103,42 @@ export function Dashboard() {
           />
           <KpiCard
             icon={
+              <ChartNoAxesCombined
+                className="size-4 text-success"
+                aria-hidden="true"
+              />
+            }
+            label="Ganancia de hoy"
+            value={
+              summary.todayProfit?.profit != null
+                ? formatARS(summary.todayProfit.profit)
+                : "No disponible"
+            }
+            hint={
+              <div className="space-y-1">
+                <p>
+                  {summary.todayProfit?.missingCostSalesCount
+                    ? `${summary.todayProfit.missingCostSalesCount} ${summary.todayProfit.missingCostSalesCount === 1 ? "venta sin costo histórico completo" : "ventas sin costo histórico completo"}`
+                    : "Ventas entregadas menos costo"}
+                </p>
+                <Link
+                  to="/reportes"
+                  search={getTodayProfitReportSearch()}
+                  className="inline-flex items-center gap-1 text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  Ver reportes{" "}
+                  <ArrowUpRight className="size-3" aria-hidden="true" />
+                </Link>
+              </div>
+            }
+          />
+          <KpiCard
+            icon={
               <TrendingUp className="size-4 text-success" aria-hidden="true" />
             }
             label="Ventas del mes"
             value={formatARS(summary.monthlyTotal)}
             hint={formatMonthYearAR()}
-          />
-          <KpiCard
-            icon={<Boxes className="size-4 text-accent" aria-hidden="true" />}
-            label="Valor de stock"
-            value={formatARS(summary.stockValue)}
-            hint={`${summary.productCount} productos`}
-          />
-          <KpiCard
-            icon={
-              <Clock
-                className="size-4 text-warning-foreground"
-                aria-hidden="true"
-              />
-            }
-            label="Entregas pendientes"
-            value={String(summary.pendingDeliveries.length)}
-            hint={
-              summary.pendingDeliveries.length > 0
-                ? `${formatARS(summary.pendingDeliveriesTotal)} a entregar`
-                : "Todo entregado"
-            }
-            tone={summary.pendingDeliveries.length > 0 ? "warning" : undefined}
           />
         </div>
 

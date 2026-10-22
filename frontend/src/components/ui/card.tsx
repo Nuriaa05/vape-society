@@ -84,7 +84,7 @@ export function KpiCard({
   icon?: ReactNode;
   label: string;
   value: string;
-  hint?: string;
+  hint?: ReactNode;
   tone?: "warning";
   accent?: boolean;
   className?: string;

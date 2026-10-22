@@ -77,6 +77,13 @@ type ApiStockAlert = {
 };
 
 type ApiDashboardSummary = {
+  todayProfit?: {
+    salesCount: number;
+    missingCostSalesCount: number;
+    revenueAmountCents: number;
+    costAmountCents: number | null;
+    profitAmountCents: number | null;
+  };
   todayTotalAmountCents: number;
   monthlyTotalAmountCents: number;
   confirmedSalesCount: number;
@@ -186,6 +193,21 @@ export const reportsRepository = {
       await apiClient.get<ApiDashboardSummary>("/reports/dashboard");
 
     return {
+      todayProfit: summary.todayProfit
+        ? {
+            salesCount: summary.todayProfit.salesCount,
+            missingCostSalesCount: summary.todayProfit.missingCostSalesCount,
+            revenue: amountCentsToPesos(summary.todayProfit.revenueAmountCents),
+            cost:
+              summary.todayProfit.costAmountCents === null
+                ? null
+                : amountCentsToPesos(summary.todayProfit.costAmountCents),
+            profit:
+              summary.todayProfit.profitAmountCents === null
+                ? null
+                : amountCentsToPesos(summary.todayProfit.profitAmountCents),
+          }
+        : null,
       todayTotal: amountCentsToPesos(summary.todayTotalAmountCents),
       monthlyTotal: amountCentsToPesos(summary.monthlyTotalAmountCents),
       confirmedSalesCount: summary.confirmedSalesCount,

@@ -6,6 +6,25 @@ import { ReportsService } from "./reports.service";
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
+  @Get("profit")
+  getProfitReport(
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+    @Query("groupBy") groupBy?: string,
+  ) {
+    return this.reportsService.getProfitReport(from, to, groupBy);
+  }
+
+  @Get("profit/sales")
+  getProfitSales(
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
+  ) {
+    return this.reportsService.getProfitSales(from, to, page, pageSize);
+  }
+
   @Get("dashboard")
   getDashboardSummary() {
     return this.reportsService.getDashboardSummary();
