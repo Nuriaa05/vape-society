@@ -91,24 +91,6 @@ export function ProfitReportTable({
               </tr>
             ))}
           </tbody>
-          <tfoot className="border-t border-border bg-muted/30 font-semibold">
-            <tr>
-              <td className="px-5 py-3">Total del período</td>
-              <td className="px-5 py-3 tabular-nums">
-                {report.summary.salesCount}
-              </td>
-              <td className="px-5 py-3 whitespace-nowrap tabular-nums">
-                {formatARS(report.summary.revenue)}
-              </td>
-              <td className="px-5 py-3 whitespace-nowrap tabular-nums">
-                {formatProfitAmount(report.summary.cost)}
-              </td>
-              <td className="px-5 py-3 whitespace-nowrap tabular-nums">
-                {formatProfitAmount(report.summary.profit)}
-              </td>
-              <td className="print:hidden" />
-            </tr>
-          </tfoot>
         </table>
       </div>
     </Card>

@@ -73,7 +73,7 @@ function writeGuide(info) {
     "",
     "1. Dashboard: revisá Ganancia de hoy y seguí el enlace a Reportes.",
     "2. Usá las pestañas Ventas y Ganancias. En Ventas, probá el gráfico con Hoy por hora, Últimos 30 días, Últimos 90 días y Último año.",
-    "3. En Ganancias, elegí Ganancia de hoy para ver únicamente el día actual, Cortes de 10 días para comparar los cortes del mes, o Mensual para ver el balance del período.",
+    "3. En Ganancias, elegí Diario para ver una fila por cada día del período, Cortes de 10 días para comparar los cortes del mes, o Mensual para ver el balance del período. Elegir día, junto a Exportar, permite consultar una fecha con un clic y volver a todo el mes desde el calendario. Sin un rango indicado, se consulta desde el inicio del mes hasta hoy; el enlace del Dashboard consulta solamente hoy.",
     "4. En el detalle de ganancias, abrí Ver ventas y verificá sus costos y ganancias. Probá los CSV y la impresión.",
     "5. En Ventas, buscá los nombres marcados [DEMO]. Las pendientes y anuladas permiten comprobar su exclusión de ganancias.",
     "6. En Nueva venta, vendé productos de esta base y verificá que el dashboard y los reportes se actualicen.",

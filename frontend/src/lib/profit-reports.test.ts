@@ -5,6 +5,7 @@ import {
   dateRangeToReportSearch,
   getTodayProfitReportSearch,
   getProfitReportDates,
+  getProfitDaySearch,
   parseReportSearch,
   profitGroupingLabels,
 } from "./profit-reports";
@@ -21,44 +22,90 @@ const summary = {
 };
 
 describe("profit report navigation and exports", () => {
-  it("offers today's profit, ten-day cuts and monthly reports", () => {
+  it("offers daily, ten-day cuts and monthly reports", () => {
     expect(profitGroupingLabels).toEqual({
-      day: "Ganancia de hoy",
+      day: "Diario",
       tenDays: "Cortes de 10 días",
       month: "Mensual",
     });
   });
 
-  it("limits today's profit to the current Argentina day even with old or monthly URL dates", () => {
+  it("keeps the selected historical interval for daily profits", () => {
     const now = new Date("2026-01-01T02:59:59Z");
-    const today = buildReportDateRange("2025-12-31", "2025-12-31");
-    expect(getProfitReportDates("day", dates, now)).toEqual(today);
-    expect(getProfitReportDates("day", undefined, now)).toEqual(today);
-    expect(
-      getProfitReportDates("day", dates, new Date("2026-01-01T03:00:00Z")),
-    ).toEqual(buildReportDateRange("2026-01-01", "2026-01-01"));
+    expect(getProfitReportDates(dates, now)).toEqual(dates);
   });
 
-  it.each(["tenDays", "month"] as const)(
-    "keeps the selected range for %s and defaults to this month",
-    (group) => {
-      const now = new Date("2026-10-21T15:00:00Z");
-      expect(getProfitReportDates(group, dates, now)).toEqual(dates);
-      expect(getProfitReportDates(group, undefined, now)).toEqual(
-        buildReportDateRange("2026-10-01", "2026-10-21"),
+  it.each([
+    ["2026-10-22T15:00:00Z", "2026-10-01", "2026-10-22"],
+    ["2026-01-01T02:59:59Z", "2025-12-01", "2025-12-31"],
+    ["2026-01-01T03:00:00Z", "2026-01-01", "2026-01-01"],
+  ])(
+    "defaults the daily interval to the current Argentine month at %s",
+    (instant, from, to) => {
+      expect(getProfitReportDates(undefined, new Date(instant))).toEqual(
+        buildReportDateRange(from, to),
       );
     },
   );
 
-  it("labels today's CSV using the selected today period", () => {
+  it("labels the daily CSV and keeps the complete consulted interval", () => {
     const rows = buildProfitExportRows({
-      ...buildReportDateRange("2026-10-21", "2026-10-21"),
+      ...dates,
       groupBy: "day",
       summary,
       buckets: [],
     });
-    expect(rows).toContainEqual(["Agrupación", "Ganancia de hoy"]);
+    expect(rows).toContainEqual(["Agrupación", "Diario"]);
+    expect(rows).toContainEqual(["Período", "01/02/2024 al 29/02/2024"]);
   });
+
+  it("keeps the dashboard link scoped to today's single day in the daily view", () => {
+    const now = new Date("2026-01-01T02:59:59Z");
+    const search = getTodayProfitReportSearch(now);
+    expect(
+      getProfitReportDates(
+        buildReportDateRange(search.desde!, search.hasta!),
+        now,
+      ),
+    ).toEqual(buildReportDateRange("2025-12-31", "2025-12-31"));
+    expect(search.agrupacion).toBe("day");
+  });
+
+  it("selects a historical day and switches profits to the daily view", () => {
+    const search = getProfitDaySearch("2024-02-29");
+    expect(search).toEqual({
+      vista: "ganancias",
+      agrupacion: "day",
+      desde: "2024-02-29",
+      hasta: "2024-02-29",
+    });
+    expect(buildReportDateRange(search.desde!, search.hasta!)).toEqual({
+      from: "2024-02-29T03:00:00.000Z",
+      to: "2024-03-01T03:00:00.000Z",
+    });
+  });
+
+  it("clears both selected dates so profits return to the current month", () => {
+    const search = {
+      ...getProfitDaySearch("2024-02-29"),
+      ...getProfitDaySearch(),
+    };
+    expect(search).toEqual({
+      vista: "ganancias",
+      agrupacion: "day",
+      desde: undefined,
+      hasta: undefined,
+    });
+    expect(parseReportSearch(search)).toEqual({
+      vista: "ganancias",
+      agrupacion: "day",
+    });
+  });
+
+  it.each(["", "2025-02-29", "2026-13-01", "15/09/2026"])(
+    "rejects invalid selected profit day %s",
+    (day) => expect(() => getProfitDaySearch(day)).toThrow(/fechas/i),
+  );
 
   it.each(["hour", "month", "90d", "year"])(
     "preserves the sales period %s independently of profit grouping",

@@ -3,6 +3,7 @@ import { ProfitReportPage } from "@/components/profit-report";
 import { ReportBarChart } from "@/components/report-bar-chart";
 import {
   dateRangeToReportSearch,
+  getProfitDaySearch,
   getProfitReportDates,
   type ReportSearch,
   type ReportView,
@@ -77,57 +78,17 @@ export function ReportesPage() {
       return buildReportDateRange(search.desde, search.hasta);
     return undefined;
   }, [search.desde, search.hasta]);
-  const now = new Date();
-  const todayRange = getProfitReportDates("day", undefined, now);
-  const { desde: todayFrom, hasta: todayTo } =
-    dateRangeToReportSearch(todayRange);
   const profitDates = getProfitReportDates(
-    profitGrouping,
     view === "ganancias" ? selectedDates : rememberedDates.ganancias,
-    now,
   );
   const activeDates = view === "ganancias" ? profitDates : selectedDates;
   const salesDates = view === "ventas" ? selectedDates : rememberedDates.ventas;
 
-  useEffect(() => {
-    if (
-      view !== "ganancias" ||
-      profitGrouping !== "day" ||
-      (search.desde === todayFrom && search.hasta === todayTo)
-    )
-      return;
-    void navigate({
-      search: (previous: ReportSearch) =>
-        previous.vista === "ganancias" &&
-        (previous.agrupacion ?? "day") === "day"
-          ? { ...previous, desde: todayFrom, hasta: todayTo }
-          : previous,
-      replace: true,
-    });
-  }, [
-    view,
-    profitGrouping,
-    search.desde,
-    search.hasta,
-    todayFrom,
-    todayTo,
-    navigate,
-  ]);
-
   const changeDates = (range: ReportDateRange | undefined) => {
-    const group =
-      profitGrouping === "day" &&
-      range &&
-      (range.from !== todayRange.from || range.to !== todayRange.to)
-        ? "tenDays"
-        : profitGrouping;
-    const selected =
-      view === "ganancias" ? getProfitReportDates(group, range) : range;
     void navigate({
       search: (previous: ReportSearch) => ({
         ...previous,
-        ...(view === "ganancias" ? { agrupacion: group } : {}),
-        ...dateRangeToReportSearch(selected),
+        ...dateRangeToReportSearch(range),
       }),
       replace: true,
     });
@@ -137,7 +98,7 @@ export function ReportesPage() {
     setRememberedDates((previous) => ({ ...previous, [view]: activeDates }));
     const incoming =
       value === "ganancias"
-        ? getProfitReportDates(profitGrouping, rememberedDates.ganancias)
+        ? getProfitReportDates(rememberedDates.ganancias)
         : rememberedDates.ventas;
     void navigate({
       search: (previous: ReportSearch) => ({
@@ -177,17 +138,21 @@ export function ReportesPage() {
         dates={profitDates}
         groupBy={profitGrouping}
         navigation={navigation}
+        onDayChange={(day) =>
+          void navigate({
+            search: (previous: ReportSearch) => ({
+              ...previous,
+              ...getProfitDaySearch(day),
+            }),
+            replace: true,
+          })
+        }
         onGroupingChange={(group) =>
           void navigate({
             search: (previous: ReportSearch) => ({
               ...previous,
               agrupacion: group,
-              ...dateRangeToReportSearch(
-                getProfitReportDates(
-                  group,
-                  profitGrouping === "day" ? undefined : profitDates,
-                ),
-              ),
+              ...dateRangeToReportSearch(profitDates),
             }),
           })
         }

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ProfitReportTable } from "@/components/profit-report-table";
 import { ProfitSalesDialog } from "@/components/profit-sales-dialog";
+import { ReportDateRangePicker } from "@/components/report-date-range-picker";
 import { downloadCSV } from "@/lib/csv";
 import { formatARS } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -137,11 +138,13 @@ export function ProfitReportPage({
   dates,
   groupBy,
   navigation,
+  onDayChange,
   onGroupingChange,
 }: {
   dates: ReportDateRange;
   groupBy: ProfitGrouping;
   navigation: ReactNode;
+  onDayChange: (day?: string) => void;
   onGroupingChange: (group: ProfitGrouping) => void;
 }) {
   const requestKey = `${dates.from}/${dates.to}/${groupBy}`;
@@ -162,11 +165,21 @@ export function ProfitReportPage({
       title="Reportes"
       subtitle="Ventas entregadas y ganancia de los productos vendidos"
       actions={
-        <ProfitExports
-          key={requestKey}
-          report={report}
-          disabled={busy || query.isError}
-        />
+        <>
+          <ReportDateRangePicker
+            mode="day"
+            value={dates}
+            disabled={query.isLoading}
+            onChange={(range) =>
+              onDayChange(dateRangeToReportSearch(range).desde)
+            }
+          />
+          <ProfitExports
+            key={requestKey}
+            report={report}
+            disabled={busy || query.isError}
+          />
+        </>
       }
     >
       {navigation}
@@ -242,7 +255,6 @@ export function ProfitReportPage({
             <KpiCard
               label="Ventas entregadas del período"
               value={formatARS(report.summary.revenue)}
-              hint={`${report.summary.salesCount} ${report.summary.salesCount === 1 ? "operación" : "operaciones"}`}
               icon={
                 <Wallet className="size-4 text-accent" aria-hidden="true" />
               }
@@ -250,7 +262,6 @@ export function ProfitReportPage({
             <KpiCard
               label="Costo de productos vendidos"
               value={formatProfitAmount(report.summary.cost)}
-              hint="Costo histórico de las unidades entregadas"
               icon={
                 <Coins
                   className="size-4 text-warning-foreground"
@@ -266,7 +277,6 @@ export function ProfitReportPage({
               }
               label="Ganancia del período"
               value={formatProfitAmount(report.summary.profit)}
-              hint="Ventas entregadas menos costo"
               icon={
                 <ChartNoAxesCombined
                   className="size-4 text-success"

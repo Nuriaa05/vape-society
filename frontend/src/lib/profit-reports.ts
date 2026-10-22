@@ -22,7 +22,7 @@ export type ReportSearch = {
   periodo?: ReportsPeriod;
 };
 export const profitGroupingLabels: Record<ProfitGrouping, string> = {
-  day: "Ganancia de hoy",
+  day: "Diario",
   tenDays: "Cortes de 10 días",
   month: "Mensual",
 };
@@ -31,11 +31,9 @@ export const formatProfitAmount = (value: number | null) =>
   value === null ? "No disponible" : formatARS(value);
 
 export function getProfitReportDates(
-  group: ProfitGrouping,
   dates?: ReportDateRange,
   now = new Date(),
 ): ReportDateRange {
-  if (group === "day") return getReportShortcut("today", now);
   return dates ?? getReportShortcut("thisMonth", now);
 }
 
@@ -84,14 +82,17 @@ export function dateRangeToReportSearch(
   };
 }
 
-export function getTodayProfitReportSearch(now = new Date()): ReportSearch {
-  const today = formatDateInputAR(now);
+export function getProfitDaySearch(day?: string): ReportSearch {
+  const dates = day === undefined ? undefined : buildReportDateRange(day, day);
   return {
     vista: "ganancias",
-    desde: today,
-    hasta: today,
     agrupacion: "day",
+    ...dateRangeToReportSearch(dates),
   };
+}
+
+export function getTodayProfitReportSearch(now = new Date()): ReportSearch {
+  return getProfitDaySearch(formatDateInputAR(now).padStart(10, "0"));
 }
 
 export const profitExportAmount = (value: number | null): CsvCell =>

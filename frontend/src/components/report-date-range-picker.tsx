@@ -11,7 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { formatDateInputAR, TZ } from "@/lib/formatters";
+import { formatDateAR, formatDateInputAR, TZ } from "@/lib/formatters";
 import { dateRangeToReportSearch } from "@/lib/profit-reports";
 import {
   buildReportDateRange,
@@ -68,17 +68,27 @@ export function ReportDateRangePicker({
   value,
   onChange,
   disabled = false,
+  mode = "range",
 }: {
   value?: ReportDateRange;
   onChange: (range: ReportDateRange | undefined) => void;
   disabled?: boolean;
+  mode?: "range" | "day";
 }) {
   const today = formatDateInputAR().padStart(10, "0");
-  const selected = getSelectedDays(value);
+  const selectedDays = getSelectedDays(value);
+  const selected =
+    mode === "day" && selectedDays?.start !== selectedDays?.end
+      ? null
+      : selectedDays;
+  const dayLabel = selected
+    ? formatDateAR(`${selected.start}T12:00:00Z`)
+    : "Seleccionar fecha";
   const [open, setOpen] = useState(false);
-  const [month, setMonth] = useState(
-    () => getCalendarMonths((selected?.start ?? today).slice(0, 7))[0],
-  );
+  const [month, setMonth] = useState(() => {
+    const initialMonth = (selected?.start ?? today).slice(0, 7);
+    return mode === "day" ? initialMonth : getCalendarMonths(initialMonth)[0];
+  });
   const [anchor, setAnchor] = useState<string | null>(null);
   const [hoveredDay, setHoveredDay] = useState<string | null>(null);
   const [focusedDay, setFocusedDay] = useState(selected?.start ?? today);
@@ -106,7 +116,10 @@ export function ReportDateRangePicker({
   function changeOpen(next: boolean) {
     if (next) {
       const first = selected?.start ?? today;
-      setMonth(getCalendarMonths(first.slice(0, 7))[0]);
+      const initialMonth = first.slice(0, 7);
+      setMonth(
+        mode === "day" ? initialMonth : getCalendarMonths(initialMonth)[0],
+      );
       setFocusedDay(first);
       setAnchor(null);
       setHoveredDay(null);
@@ -117,6 +130,11 @@ export function ReportDateRangePicker({
   function selectDay(day: string) {
     setFocusedDay(day);
     setHoveredDay(null);
+    if (mode === "day") {
+      onChange(buildReportDateRange(day, day));
+      setOpen(false);
+      return;
+    }
     if (!anchor) {
       setAnchor(day);
       return;
@@ -140,12 +158,13 @@ export function ReportDateRangePicker({
     setFocusedDay(next);
     const nextMonth = next.slice(0, 7);
     if (nextMonth < month) setMonth(nextMonth);
-    else if (nextMonth > secondMonth)
-      setMonth(shiftCalendarMonth(nextMonth, -1));
+    else if (nextMonth > (mode === "day" ? month : secondMonth))
+      setMonth(mode === "day" ? nextMonth : shiftCalendarMonth(nextMonth, -1));
   }
 
   function navigateMonth(offset: number) {
-    const [next] = getCalendarMonths(shiftCalendarMonth(month, offset));
+    const shifted = shiftCalendarMonth(month, offset);
+    const next = mode === "day" ? shifted : getCalendarMonths(shifted)[0];
     setMonth(next);
     setFocusedDay(`${next}-01`);
     setHoveredDay(null);
@@ -158,20 +177,27 @@ export function ReportDateRangePicker({
           type="button"
           variant="outline"
           disabled={disabled}
-          aria-label={`Rango de fechas: ${value ? getReportRangeLabel(value) : "Seleccionar fechas"}`}
+          aria-label={
+            mode === "day"
+              ? `Elegir día: ${dayLabel}`
+              : `Rango de fechas: ${value ? getReportRangeLabel(value) : "Seleccionar fechas"}`
+          }
           className="max-w-full justify-between px-3 print:hidden"
         >
           <CalendarDays aria-hidden="true" />
-          <span>Período</span>
+          <span>{mode === "day" ? "Elegir día" : "Período"}</span>
           <ChevronDown aria-hidden="true" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        align="start"
+        align={mode === "day" ? "end" : "start"}
         role="dialog"
-        aria-label="Elegir rango de fechas"
+        aria-label={mode === "day" ? "Elegir día" : "Elegir rango de fechas"}
         aria-describedby={instructionsId}
-        className="w-[40rem] max-w-[calc(100vw-2rem)] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-3"
+        className={cn(
+          "max-w-[calc(100vw-2rem)] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-3",
+          mode === "day" ? "w-80" : "w-[40rem]",
+        )}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           calendarRef.current
@@ -180,27 +206,45 @@ export function ReportDateRangePicker({
         }}
       >
         <p className="mb-2 text-xs text-muted-foreground">
-          {value ? `${getReportRangeLabel(value)} · ` : ""}Incluye ambos días.
+          {mode === "day" ? (
+            selected ? (
+              `Día seleccionado: ${dayLabel}`
+            ) : (
+              "Elegí el día a consultar."
+            )
+          ) : (
+            <>
+              {value ? `${getReportRangeLabel(value)} · ` : ""}Incluye ambos
+              días.
+            </>
+          )}
         </p>
         <div
           className="flex flex-wrap gap-1 border-b border-border pb-3"
           aria-label="Atajos de fechas"
         >
-          {shortcuts.map((shortcut) => (
-            <Button
-              key={shortcut.id}
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                onChange(getReportShortcut(shortcut.id));
-                setOpen(false);
-              }}
-            >
-              {shortcut.label}
-            </Button>
-          ))}
-          {value && (
+          {shortcuts
+            .filter(
+              (shortcut) =>
+                mode === "range" ||
+                shortcut.id === "today" ||
+                shortcut.id === "yesterday",
+            )
+            .map((shortcut) => (
+              <Button
+                key={shortcut.id}
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onChange(getReportShortcut(shortcut.id));
+                  setOpen(false);
+                }}
+              >
+                {shortcut.label}
+              </Button>
+            ))}
+          {(mode === "day" ? selected : value) && (
             <Button
               type="button"
               variant="ghost"
@@ -210,7 +254,7 @@ export function ReportDateRangePicker({
                 setOpen(false);
               }}
             >
-              Quitar filtro
+              {mode === "day" ? "Ver todo el mes" : "Quitar filtro"}
             </Button>
           )}
         </div>
@@ -227,7 +271,11 @@ export function ReportDateRangePicker({
             <ChevronLeft aria-hidden="true" />
           </Button>
           <p className="text-xs text-muted-foreground">
-            {anchor ? "Elegí la fecha final" : "Elegí la fecha inicial"}
+            {mode === "day"
+              ? "Elegí un día"
+              : anchor
+                ? "Elegí la fecha final"
+                : "Elegí la fecha inicial"}
           </p>
           <Button
             type="button"
@@ -235,7 +283,7 @@ export function ReportDateRangePicker({
             size="icon"
             className="size-8"
             aria-label="Mostrar mes siguiente"
-            disabled={month === "9999-11"}
+            disabled={month === (mode === "day" ? "9999-12" : "9999-11")}
             onClick={() => navigateMonth(1)}
           >
             <ChevronRight aria-hidden="true" />
@@ -243,39 +291,49 @@ export function ReportDateRangePicker({
         </div>
         <div
           ref={calendarRef}
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+          className={cn(
+            "grid grid-cols-1 gap-4",
+            mode === "range" && "sm:grid-cols-2",
+          )}
           onMouseLeave={() => setHoveredDay(null)}
         >
-          {[month, secondMonth].map((visibleMonth) => (
-            <CalendarMonth
-              key={visibleMonth}
-              month={visibleMonth}
-              range={range}
-              today={today}
-              focusedDay={focusedDay}
-              instructionsId={instructionsId}
-              onSelect={selectDay}
-              onFocus={setFocusedDay}
-              onPreview={(day) => {
-                if (anchor) setHoveredDay(day);
-              }}
-              onKeyDown={moveFocus}
-            />
-          ))}
+          {(mode === "day" ? [month] : [month, secondMonth]).map(
+            (visibleMonth) => (
+              <CalendarMonth
+                key={visibleMonth}
+                month={visibleMonth}
+                range={range}
+                today={today}
+                focusedDay={focusedDay}
+                instructionsId={instructionsId}
+                multiple={mode === "range"}
+                onSelect={selectDay}
+                onFocus={setFocusedDay}
+                onPreview={(day) => {
+                  if (anchor) setHoveredDay(day);
+                }}
+                onKeyDown={moveFocus}
+              />
+            ),
+          )}
         </div>
         <p
           id={instructionsId}
           role="status"
           className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground"
         >
-          {anchor
-            ? "Elegí el último día para aplicar el rango. Podés repetir la fecha para consultar un solo día."
-            : "Seleccioná inicio y fin. El rango se aplica al elegir el segundo día."}
+          {mode === "day"
+            ? "La consulta se actualiza al elegir la fecha."
+            : anchor
+              ? "Elegí el último día para aplicar el rango. Podés repetir la fecha para consultar un solo día."
+              : "Seleccioná inicio y fin. El rango se aplica al elegir el segundo día."}
         </p>
       </PopoverContent>
-      <span className="hidden print:inline">
-        {value ? getReportRangeLabel(value) : "Vista sin filtro de fechas"}
-      </span>
+      {mode === "range" && (
+        <span className="hidden print:inline">
+          {value ? getReportRangeLabel(value) : "Vista sin filtro de fechas"}
+        </span>
+      )}
     </Popover>
   );
 }
@@ -286,6 +344,7 @@ function CalendarMonth({
   today,
   focusedDay,
   instructionsId,
+  multiple,
   onSelect,
   onFocus,
   onPreview,
@@ -296,6 +355,7 @@ function CalendarMonth({
   today: string;
   focusedDay: string;
   instructionsId: string;
+  multiple: boolean;
   onSelect: (day: string) => void;
   onFocus: (day: string) => void;
   onPreview: (day: string) => void;
@@ -311,7 +371,7 @@ function CalendarMonth({
       <table
         role="grid"
         aria-label={label}
-        aria-multiselectable="true"
+        aria-multiselectable={multiple}
         className="w-full table-fixed border-separate border-spacing-0"
       >
         <thead>
