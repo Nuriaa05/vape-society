@@ -37,6 +37,19 @@ node scripts/load-test-catalog.cjs
 
 El script crea y verifica un respaldo antes de agregar los datos mediante la API. Conserva los registros existentes y usa nombres marcados como `[PRUEBA]`, códigos `TEST-01-01` a `TEST-20-05`, costos, precios y stock variado. Incluye productos agotados y con stock bajo; no crea ventas ni carga las fixtures de pruebas. Se puede repetir para completar una carga interrumpida sin duplicar productos ni reiniciar sus precios o stock. Requiere Node.js de la versión indicada en Uso. Para verificarlo sobre una base temporal, compilar primero el proyecto y ejecutar `node --test scripts/load-test-catalog.test.cjs`.
 
+### Demostración de ventas y ganancias
+
+Para probar el dashboard y los reportes con ventas ficticias, compilar el proyecto y ejecutar con Node 24:
+
+```powershell
+npm run build
+node scripts/create-sales-demo.cjs --serve --port 3005
+```
+
+Abrir `http://127.0.0.1:3005/reportes`. Cada ejecución crea **otra base temporal independiente** con 12 productos clasificados, dos combos, la lista General desde 3, 6 y 12 unidades, y ventas del día, del mes actual y de los cinco meses anteriores. Incluye distintos medios de pago, cantidades combinadas, una venta con pérdida, tres pendientes de entrega y dos anuladas. Las operaciones se crean mediante la API y las fechas históricas se ajustan únicamente en esa base nueva. No modifica `backend/prisma/core.db` ni carga las fixtures de pruebas.
+
+La consola informa dónde quedaron la base, `ventas-ganancias.json` y la guía `ventas-ganancias.md`, con los resultados esperados para el día, el mes y los cortes de diez días. `--serve` mantiene la app abierta hasta detenerla con Ctrl+C; sin esa opción solo genera los archivos. No ejecutar de nuevo para reabrir la misma demostración: cada ejecución genera otra. Verificación: `node --test scripts/create-sales-demo.test.cjs`.
+
 ## Uso
 
 Requiere Node.js 24.15 o posterior de la rama 24 y npm. Desde esta carpeta:
