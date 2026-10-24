@@ -9,9 +9,11 @@ const source = join(root, 'scripts/windows');
 const release = join(root, 'release');
 const toolsDir = join(release, '.tools');
 const nodeVersion = '24.15.0';
-const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+const { version: packageVersion, windowsInstallerVersion = packageVersion } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+const version = windowsInstallerVersion;
 if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('Generá este instalador en Windows x64.');
-if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('La versión debe tener formato mayor.menor.parche.');
+if (!/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(version)) throw new Error('La versión debe tener formato mayor.menor.parche o mayor.menor.parche.revisión.');
+const assemblyVersion = version.split('.').length === 3 ? `${version}.0` : version;
 if (!process.env.npm_execpath) throw new Error('Ejecutá npm run build:installer desde el proyecto.');
 
 const compiler = [
@@ -68,7 +70,7 @@ run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', readFileSync
   VAPE_BUILD_ICON_PATH: iconPath,
 });
 const assemblyPath = join(release, 'LauncherAssemblyInfo.cs');
-writeFileSync(assemblyPath, `using System.Reflection;\n[assembly: AssemblyTitle("Vape Society")]\n[assembly: AssemblyProduct("Vape Society")]\n[assembly: AssemblyVersion("${version}.0")]\n[assembly: AssemblyFileVersion("${version}.0")]\n`, 'utf8');
+writeFileSync(assemblyPath, `using System.Reflection;\n[assembly: AssemblyTitle("Vape Society")]\n[assembly: AssemblyProduct("Vape Society")]\n[assembly: AssemblyVersion("${assemblyVersion}")]\n[assembly: AssemblyFileVersion("${assemblyVersion}")]\n`, 'utf8');
 const csc = join(process.env.WINDIR || 'C:/Windows', 'Microsoft.NET/Framework64/v4.0.30319/csc.exe');
 run(csc, ['/nologo', '/target:winexe', '/platform:x64', '/codepage:65001', '/utf8output',
   `/out:${join(stage, 'Vape Society.exe')}`, `/win32icon:${iconPath}`,

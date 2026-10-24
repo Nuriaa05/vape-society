@@ -86,7 +86,7 @@ Se puede activar o desactivar en **Configuración → Datos**, donde también se
 
 ## Instalador para Windows
 
-El instalador está en `release/Vape-Society-Setup-0.1.6-x64.exe`. Está preparado para Windows 10 (versión 2004 o posterior) y Windows 11 de 64 bits. Incluye el runtime de Node.js y las dependencias; el cliente no necesita instalar npm ni Node.js ni tener conexión para usar las funciones locales.
+El instalador está en `release/Vape-Society-Setup-0.1.6.1-x64.exe`. Está preparado para Windows 10 (versión 2004 o posterior) y Windows 11 de 64 bits. Incluye el runtime de Node.js y las dependencias; el cliente no necesita instalar npm ni Node.js ni tener conexión para usar las funciones locales.
 
 La primera apertura crea una base nueva, sin productos, categorías ni ventas. Completar los datos del negocio, medios de pago y categorías desde Configuración. Para trasladar datos posteriormente, usar **Configuración → Datos → Importar datos**.
 
@@ -111,7 +111,9 @@ El archivo `.sha256` junto al instalador permite comprobar su integridad. Esta v
 
 ## Exportar datos
 
-En **Configuración → Datos → Exportar datos** se puede descargar cualquiera de las 33 secciones en CSV: catálogo, ventas, compras, clientes, cuotas, cobros, tarjetas, devoluciones, cuentas de proveedores, stock por origen y listas de precios. Incluyen los registros archivados y los movimientos revertidos, identificados como tales. Los importes previstos se distinguen del dinero efectivamente cobrado o pagado.
+En **Configuración → Datos → Exportar datos** se puede descargar cualquiera de las 35 secciones en CSV: catálogo, ventas, compras, clientes, cuotas, cobros, tarjetas, devoluciones, cuentas de proveedores, stock por origen, listas de precios, resumen de Stock y ganancias por venta. Incluyen los registros archivados y los movimientos revertidos, identificados como tales. Los importes previstos se distinguen del dinero efectivamente cobrado o pagado.
+
+**Resumen de Stock** conserva los cinco indicadores de la pantalla y la referencia mayorista usada. **Ganancias por venta** incluye todo el historial de ventas entregadas, con sus fechas de venta y entrega, costo histórico y ganancia; excluye operaciones pendientes y anuladas. El CSV del resumen de Ganancias conserva el día o período elegido, los tres importes de las tarjetas y sus agrupaciones, sin repetir una fila total al final.
 
 Los CSV usan UTF-8, separador de punto y coma y coma decimal. **Productos → Exportar** conserva los filtros de la pantalla; los archivos de **Reportes → Exportar** conservan el período elegido. Las ventas incluyen sus condiciones originales de financiación y precios. Para restaurar el sistema completo, usar un respaldo SQLite.
 
@@ -119,7 +121,7 @@ Los CSV usan UTF-8, separador de punto y coma y coma decimal. **Productos → Ex
 
 En **Configuración → Datos → Importar datos**, seleccionar una copia SQLite de este núcleo (`.db`, `.sqlite` o `.sqlite3`, hasta 50 MB). Se validan la integridad, la versión, la estructura y los datos del archivo antes de mostrar un resumen y pedir confirmación. Las copias de versiones anteriores compatibles se actualizan en una carpeta temporal.
 
-La restauración conserva clientes, cuotas y aplicaciones de cobros, acreditaciones y devoluciones, deudas y pagos a proveedores, ingresos de mercadería y sus costos históricos, asignaciones de stock y listas, escalas y precios. El resumen previo muestra las cantidades de estos registros; sus relaciones, saldos e importes se validan antes del reemplazo.
+La restauración conserva clientes, cuotas y aplicaciones de cobros, acreditaciones y devoluciones, deudas y pagos a proveedores, ingresos de mercadería y sus costos históricos, asignaciones de stock y listas, escalas y precios. También conserva las fechas de entrega y los costos usados para calcular Ganancias. El resumen previo muestra las cantidades de estos registros; sus relaciones, saldos, importes y cantidades asignadas a las salidas de venta se validan antes del reemplazo. Las ventas antiguas sin historial verificable mantienen su costo y ganancia como no disponibles, sin usar el costo actual del producto.
 
 Al confirmar, el sistema espera a que terminen las operaciones en curso, crea un backup de los datos actuales y reemplaza los datos comerciales y la configuración en una sola transacción. Si no se puede crear la copia previa o falla el reemplazo, se conservan los datos actuales. El historial de backups locales se mantiene porque sus archivos pertenecen a esta instalación. Al terminar, pulsar **Continuar** para recargar la interfaz.
 
