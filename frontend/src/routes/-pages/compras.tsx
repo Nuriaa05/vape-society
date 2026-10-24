@@ -70,7 +70,6 @@ import {
   canShowMore,
   getNextVisibleCount,
   getVisibleItems,
-  PAGE_LIST_INCREMENT,
 } from "@/lib/visible-items";
 import {
   ArrowDown,
@@ -80,7 +79,7 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { amountCentsToPesos, parsePesosToAmountCents } from "@/lib/money";
 import { toast } from "sonner";
@@ -89,6 +88,8 @@ import {
   discardPurchaseDraft,
   formatPurchaseCostInput,
 } from "@/lib/purchase-draft";
+
+const PURCHASE_HISTORY_VISIBLE_ROWS = 6;
 
 type Item = {
   productId: string;
@@ -183,8 +184,11 @@ export function ComprasPage() {
   const [editing, setEditing] = useState<Purchase | null>(null);
   const [cancelling, setCancelling] = useState<Purchase | null>(null);
   const [deleting, setDeleting] = useState<Purchase | null>(null);
-  const [visiblePurchasesCount, setVisiblePurchasesCount] =
-    useState(PAGE_LIST_INCREMENT);
+  const [visiblePurchasesCount, setVisiblePurchasesCount] = useState(
+    PURCHASE_HISTORY_VISIBLE_ROWS,
+  );
+  const purchaseHistoryTableRef = useRef<HTMLTableElement>(null);
+  const [historyMaxHeight, setHistoryMaxHeight] = useState<number>();
   const editSupplierOptions = useMemo(
     () => getPurchaseSupplierOptions(suppliers, editing?.supplierId),
     [editing?.supplierId, suppliers],
@@ -194,6 +198,38 @@ export function ComprasPage() {
     () => getVisibleItems(list, visiblePurchasesCount),
     [list, visiblePurchasesCount],
   );
+  const isLoading =
+    productsQuery.isLoading ||
+    suppliersQuery.isLoading ||
+    purchasesQuery.isLoading;
+  const hasLoadingError = Boolean(
+    productsQuery.error || suppliersQuery.error || purchasesQuery.error,
+  );
+
+  useLayoutEffect(() => {
+    if (isLoading || hasLoadingError) return;
+    const table = purchaseHistoryTableRef.current;
+    if (!table) return;
+
+    const rows = Array.from(table.tBodies[0]?.rows ?? []).slice(
+      0,
+      PURCHASE_HISTORY_VISIBLE_ROWS,
+    );
+    const header = table.tHead;
+    const updateHistoryHeight = () => {
+      setHistoryMaxHeight(
+        (header?.offsetHeight ?? 0) +
+          rows.reduce((height, row) => height + row.offsetHeight, 0),
+      );
+    };
+
+    updateHistoryHeight();
+    const observer = new ResizeObserver(updateHistoryHeight);
+    observer.observe(table);
+    if (header) observer.observe(header);
+    rows.forEach((row) => observer.observe(row));
+    return () => observer.disconnect();
+  }, [visiblePurchases, isLoading, hasLoadingError]);
 
   const total = items.reduce((s, i) => s + i.qty * parseCostInput(i.cost), 0);
 
@@ -312,11 +348,7 @@ export function ComprasPage() {
     setDeleting(null);
   };
 
-  if (
-    productsQuery.isLoading ||
-    suppliersQuery.isLoading ||
-    purchasesQuery.isLoading
-  ) {
+  if (isLoading) {
     return (
       <AppShell title="Compras" subtitle="Registro de mercadería recibida">
         <Card className="app-card-body text-sm text-muted-foreground">
@@ -326,7 +358,7 @@ export function ComprasPage() {
     );
   }
 
-  if (productsQuery.error || suppliersQuery.error || purchasesQuery.error) {
+  if (hasLoadingError) {
     return (
       <AppShell title="Compras" subtitle="Registro de mercadería recibida">
         <Card className="app-card-body text-sm text-destructive">
@@ -508,9 +540,23 @@ export function ComprasPage() {
           title="Historial de compras"
           className="border-b border-border"
         />
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-sm">
-            <thead className="text-left text-sm text-foreground border-b border-border bg-card">
+        <div
+          role="region"
+          aria-label="Historial de compras"
+          tabIndex={0}
+          className="overflow-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          style={{
+            maxHeight:
+              visiblePurchasesCount > PURCHASE_HISTORY_VISIBLE_ROWS
+                ? historyMaxHeight
+                : undefined,
+          }}
+        >
+          <table
+            ref={purchaseHistoryTableRef}
+            className="w-full min-w-[560px] text-sm"
+          >
+            <thead className="sticky top-0 z-10 text-left text-sm text-foreground border-b border-border bg-card">
               <tr>
                 <th className="app-table-heading font-medium">Fecha</th>
                 <th className="app-table-heading font-medium">Proveedor</th>
@@ -650,7 +696,7 @@ export function ComprasPage() {
         {(canShowMore(visiblePurchasesCount, list.length) ||
           canShowLess(
             visiblePurchasesCount,
-            PAGE_LIST_INCREMENT,
+            PURCHASE_HISTORY_VISIBLE_ROWS,
             list.length,
           )) && (
           <div className="border-t border-border px-5 py-3 flex justify-center gap-2">
@@ -663,7 +709,7 @@ export function ComprasPage() {
                   setVisiblePurchasesCount((current) =>
                     getNextVisibleCount(
                       current,
-                      PAGE_LIST_INCREMENT,
+                      PURCHASE_HISTORY_VISIBLE_ROWS,
                       list.length,
                     ),
                   )
@@ -674,14 +720,16 @@ export function ComprasPage() {
             )}
             {canShowLess(
               visiblePurchasesCount,
-              PAGE_LIST_INCREMENT,
+              PURCHASE_HISTORY_VISIBLE_ROWS,
               list.length,
             ) && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setVisiblePurchasesCount(PAGE_LIST_INCREMENT)}
+                onClick={() =>
+                  setVisiblePurchasesCount(PURCHASE_HISTORY_VISIBLE_ROWS)
+                }
               >
                 Ver menos
               </Button>
