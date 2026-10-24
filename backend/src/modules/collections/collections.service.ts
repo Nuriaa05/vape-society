@@ -28,6 +28,7 @@ import {
   buildCardSettlementSchedule,
   type SaleFinance,
 } from "../sales/sale-finance";
+import { getCollectionReferences } from "./collection-references";
 
 const installmentInclude = {
   plan: { include: { customer: true, sale: true } },
@@ -1127,7 +1128,25 @@ export class CollectionsService {
       this.installmentRows({ customerId }),
       this.prisma.collection.findMany({
         where: { customerId },
-        include: { allocations: true },
+        include: {
+          sale: { select: { id: true, number: true } },
+          allocations: {
+            include: {
+              installment: {
+                select: {
+                  number: true,
+                  plan: {
+                    select: {
+                      id: true,
+                      title: true,
+                      sale: { select: { id: true, number: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         orderBy: { createdAt: "desc" },
       }),
       this.prisma.refund.findMany({
@@ -1144,7 +1163,10 @@ export class CollectionsService {
       customer,
       plans,
       installments,
-      collections,
+      collections: collections.map((entry) => ({
+        ...entry,
+        references: getCollectionReferences(entry),
+      })),
       refunds,
       sales,
       balanceAmountCents: summary.customerDebtAmountCents,

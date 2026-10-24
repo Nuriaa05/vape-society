@@ -213,4 +213,135 @@ describe("collections financial ledger", () => {
       (await service.listRefunds({ customerId })).items[0].pendingAmountCents,
     ).toBe(3000);
   });
+  it("exposes the actual sales and opening debts paid by each collection, including reversals", async () => {
+    const owner = await service.createCustomer({
+      name: "Referencias de cobros",
+    });
+    const immediateSale = await db.prisma.sale.create({
+      data: {
+        number: "REF-001",
+        customerId: owner.id,
+        status: "Confirmada",
+        deliveryStatus: "Entregado",
+        paymentTerms: "Immediate",
+        subtotalAmountCents: 10001,
+        totalAmountCents: 10001,
+      },
+    });
+    const financedSale = await db.prisma.sale.create({
+      data: {
+        number: "REF-002",
+        customerId: owner.id,
+        status: "Confirmada",
+        deliveryStatus: "Entregado",
+        paymentTerms: "DirectInstallments",
+        subtotalAmountCents: 24000,
+        totalAmountCents: 24000,
+      },
+    });
+    const salePlan = await service.createOpeningBalance(owner.id, {
+      operationId: "references-sale-plan",
+      title: "Venta REF-002",
+      totalAmountCents: 20000,
+      installmentCount: 2,
+      firstDueDate: "2020-01-01",
+    });
+    await db.prisma.receivablePlan.update({
+      where: { id: salePlan.id },
+      data: { saleId: financedSale.id },
+    });
+    const opening = await service.createOpeningBalance(owner.id, {
+      operationId: "references-opening",
+      title: "Saldo de septiembre",
+      totalAmountCents: 7777,
+      installmentCount: 1,
+      firstDueDate: "2020-01-01",
+    });
+    const common = {
+      customerId: owner.id,
+      date: "2020-01-01",
+      paymentMethodId: "pm1",
+      paymentMethodName: "Efectivo",
+    };
+    const immediate = await db.prisma.collection.create({
+      data: {
+        ...common,
+        kind: "Immediate",
+        saleId: immediateSale.id,
+        amountCents: 10001,
+      },
+    });
+    const upfront = await db.prisma.collection.create({
+      data: {
+        ...common,
+        kind: "Upfront",
+        saleId: financedSale.id,
+        amountCents: 4000,
+      },
+    });
+    const legacy = await db.prisma.collection.create({
+      data: { ...common, amountCents: 10001 },
+    });
+    const allocated = await service.createCollection({
+      operationId: "references-payment",
+      customerId: owner.id,
+      date: "2020-01-01",
+      paymentMethodId: "pm1",
+      amountCents: 10000,
+      cashReceivedAmountCents: 10000,
+      allocations: [
+        { installmentId: salePlan.installments[0].id, amountCents: 7001 },
+        { installmentId: salePlan.installments[1].id, amountCents: 1000 },
+        { installmentId: opening.installments[0].id, amountCents: 1999 },
+      ],
+    });
+    const account = await service.account(owner.id);
+    const byId = new Map(account.collections.map((entry) => [entry.id, entry]));
+    expect(byId.get(immediate.id)?.references).toEqual([
+      expect.objectContaining({
+        kind: "Sale",
+        saleId: immediateSale.id,
+        title: "Venta REF-001",
+        amountCents: 10001,
+        installments: [],
+      }),
+    ]);
+    expect(byId.get(upfront.id)?.references).toEqual([
+      expect.objectContaining({
+        kind: "Upfront",
+        saleId: financedSale.id,
+        title: "Venta REF-002",
+        amountCents: 4000,
+        installments: [],
+      }),
+    ]);
+    expect(byId.get(legacy.id)?.references).toEqual([]);
+    expect(byId.get(allocated.id)?.references).toEqual([
+      expect.objectContaining({
+        kind: "Sale",
+        title: "Venta REF-002",
+        amountCents: 8001,
+        installments: [
+          { number: 1, amountCents: 7001 },
+          { number: 2, amountCents: 1000 },
+        ],
+      }),
+      expect.objectContaining({
+        kind: "OpeningBalance",
+        title: "Saldo de septiembre",
+        amountCents: 1999,
+        installments: [{ number: 1, amountCents: 1999 }],
+      }),
+    ]);
+    expect(byId.get(allocated.id)?.allocations).toHaveLength(3);
+    expect(account.sales.map((sale) => sale.id)).toEqual(
+      expect.arrayContaining([immediateSale.id, financedSale.id]),
+    );
+    await service.reverseCollection(allocated.id, "Corrección de aplicación");
+    const reversed = (await service.account(owner.id)).collections.find(
+      (entry) => entry.id === allocated.id,
+    )!;
+    expect(reversed.reversedAt).not.toBeNull();
+    expect(reversed.references).toEqual(byId.get(allocated.id)?.references);
+  });
 });

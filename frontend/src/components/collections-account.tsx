@@ -1,9 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
+import { Ban, MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { Disclosure } from "@/components/ui/disclosure";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Field } from "@/components/collections-controls";
+import { CollectionHistory } from "@/components/collection-history";
+import { CustomerSalesHistory } from "@/components/customer-sales-history";
 import { money } from "@/lib/collections-form";
 import { collectionsRepository as repo } from "@/lib/repositories/collections-repository";
 import type { Customer, FinancialEntry } from "@/lib/collections";
@@ -65,7 +77,7 @@ export function Account({
   ) : query.error ? (
     <p role="alert">No se pudo cargar la cuenta.</p>
   ) : query.data ? (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       {customer.phone || customer.notes ? (
         <p>{[customer.phone, customer.notes].filter(Boolean).join(" · ")}</p>
       ) : null}
@@ -96,21 +108,63 @@ export function Account({
         <Button disabled={query.data.balanceAmountCents <= 0} onClick={collect}>
           Registrar cobro
         </Button>
-        <Button variant="outline" onClick={opening}>
-          Cargar deuda anterior
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={opening}>
+            Cargar deuda anterior
+          </Button>
+          {cancellablePlans.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Más opciones de la cuenta"
+                  title="Más opciones"
+                >
+                  <MoreHorizontal aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                collisionPadding={8}
+                className="max-h-[var(--radix-dropdown-menu-content-available-height)] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto"
+              >
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  Anular una deuda sirve para corregir una carga equivocada. Si
+                  el cliente pagó, usá Registrar cobro.
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  {cancellablePlans.map((plan) => (
+                    <DropdownMenuItem
+                      key={plan.id}
+                      className="items-start text-destructive focus:text-destructive"
+                      onSelect={() => cancel(plan.id)}
+                    >
+                      <Ban aria-hidden="true" className="mt-0.5 shrink-0" />
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span>Anular deuda anterior</span>
+                        <span className="break-words text-xs text-muted-foreground">
+                          {plan.title}
+                        </span>
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </div>
       </Actions>
-      <h3 className="font-semibold">Detalle de la deuda</h3>
-      {query.data.installments.length > 0 ? (
-        <Disclosure
-          title="Filtrar cuotas"
-          badge={
-            installmentMonth || installmentStatus
-              ? "Filtros activos"
-              : undefined
-          }
-        >
-          <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-semibold">Detalle de la deuda</h3>
+        {query.data.installments.length > 0 ? (
+          <div
+            role="group"
+            aria-label="Filtros de cuotas"
+            className="ml-auto flex max-w-full flex-wrap items-end justify-end gap-3"
+          >
             <Field label="Mes de las cuotas">
               <Input
                 type="month"
@@ -153,8 +207,8 @@ export function Account({
               </Button>
             ) : null}
           </div>
-        </Disclosure>
-      ) : null}
+        ) : null}
+      </div>
       {query.data.plans.map((plan) => {
         const planInstallments = installments.filter(
           (item) => item.planId === plan.id,
@@ -279,8 +333,7 @@ export function Account({
           </section>
         </Disclosure>
       ) : null}
-      <h3 className="font-semibold">Historial de cobros</h3>
-      <EntryList entries={query.data.collections} reverse={reverse} />
+      <CollectionHistory entries={query.data.collections} reverse={reverse} />
       {query.data.refunds.length > 0 ? (
         <>
           <h3 className="font-semibold">Historial de reintegros</h3>
@@ -288,41 +341,7 @@ export function Account({
         </>
       ) : null}
       {query.data.sales.length > 0 ? (
-        <Disclosure title={`Ventas asociadas (${query.data.sales.length})`}>
-          <ul className="space-y-2 text-sm">
-            {query.data.sales.map((sale) => (
-              <li key={sale.id}>
-                Venta {sale.number ?? sale.id}
-                {sale.totalAmountCents !== undefined
-                  ? ` · ${money(sale.totalAmountCents)}`
-                  : ""}
-              </li>
-            ))}
-          </ul>
-        </Disclosure>
-      ) : null}
-      {cancellablePlans.length > 0 ? (
-        <Disclosure title="Más opciones">
-          <p className="text-sm text-muted-foreground">
-            Anular una deuda sirve para corregir una carga equivocada. Si el
-            cliente pagó, usá Registrar cobro.
-          </p>
-          {cancellablePlans.map((plan) => (
-            <div
-              key={plan.id}
-              className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm"
-            >
-              <span>{plan.title}</span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => cancel(plan.id)}
-              >
-                Anular deuda anterior
-              </Button>
-            </div>
-          ))}
-        </Disclosure>
+        <CustomerSalesHistory sales={query.data.sales} />
       ) : null}
     </div>
   ) : null;

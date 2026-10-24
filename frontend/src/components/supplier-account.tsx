@@ -1,4 +1,5 @@
 import { Disclosure } from "@/components/ui/disclosure";
+import { Search } from "lucide-react";
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { formatDateAR } from "@/lib/formatters";
@@ -33,6 +34,7 @@ import {
 } from "@/lib/collections-form";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 import { invalidateInventoryQueries } from "@/lib/inventory-cache";
+import { cn } from "@/lib/utils";
 import type { Supplier } from "@/lib/contracts";
 import type {
   SupplierPayable,
@@ -90,6 +92,9 @@ export function SupplierAccountDialog({
       ),
   });
   const account = query.data;
+  const showFilters =
+    (account?.payables.length ?? 0) >= 5 ||
+    Boolean(search || month || (status !== "pending" && status !== "all"));
   const rows = filterSupplierPayables(
     account?.payables ?? [],
     status,
@@ -188,39 +193,64 @@ export function SupplierAccountDialog({
             ) : null}
             {!action ? (
               <>
-                <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
-                  <Button
-                    size="sm"
-                    variant={status === "pending" ? "default" : "outline"}
-                    onClick={() => {
-                      setStatus("pending");
-                      setSearch("");
-                      setMonth("");
-                    }}
+                <div className="flex border-b border-border pb-3">
+                  <div
+                    role="group"
+                    aria-label="Vista de la cuenta del proveedor"
+                    className="inline-grid max-w-full grid-cols-[auto_1fr] gap-0.5 rounded-lg bg-muted p-1"
                   >
-                    Pendientes
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={status !== "pending" ? "default" : "outline"}
-                    onClick={() => {
-                      setStatus("all");
-                      setSearch("");
-                      setMonth("");
-                    }}
-                  >
-                    Ver historial completo
-                  </Button>
+                    <button
+                      type="button"
+                      aria-pressed={status === "pending"}
+                      className={cn(
+                        "min-h-8 min-w-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        status === "pending"
+                          ? "bg-card text-card-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={() => {
+                        setStatus("pending");
+                        setSearch("");
+                        setMonth("");
+                      }}
+                    >
+                      Pendientes
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={status !== "pending"}
+                      className={cn(
+                        "min-h-8 min-w-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        status !== "pending"
+                          ? "bg-card text-card-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={() => {
+                        setStatus("all");
+                        setSearch("");
+                        setMonth("");
+                      }}
+                    >
+                      Ver historial completo
+                    </button>
+                  </div>
                 </div>
-                <Disclosure title="Buscar y filtrar deudas">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <Field label="Buscar deuda">
+                {showFilters ? (
+                  <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                    <div className="relative min-w-0">
+                      <Search
+                        aria-hidden="true"
+                        className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                      />
                       <Input
+                        type="search"
+                        aria-label="Buscar por detalle de la deuda"
+                        placeholder="Buscar por detalle de la deuda"
+                        className="pl-9"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Detalle de la deuda"
                       />
-                    </Field>
+                    </div>
                     <Field label="Estado de la deuda">
                       <Select value={status} onValueChange={setStatus}>
                         <SelectTrigger aria-label="Estado de la deuda">
@@ -249,7 +279,7 @@ export function SupplierAccountDialog({
                       />
                     </Field>
                   </div>
-                </Disclosure>
+                ) : null}
                 <div className="space-y-3">
                   {rows.length ? (
                     rows.map((payable) => (

@@ -106,6 +106,15 @@ export type CardSettlementRow = {
   status: string;
   accreditations: Accreditation[];
 };
+export type CollectionReference = {
+  kind: "Sale" | "Upfront" | "OpeningBalance";
+  saleId: string | null;
+  saleNumber: string | null;
+  planId: string | null;
+  title: string;
+  amountCents: number;
+  installments: Array<{ number: number; amountCents: number }>;
+};
 export type FinancialEntry = {
   id: string;
   date: string;
@@ -114,6 +123,7 @@ export type FinancialEntry = {
   reversedAt?: string | null;
   reason?: string;
   cashOutAmountCents?: number;
+  references?: CollectionReference[];
 };
 type ReceiptEntry = FinancialEntry & {
   customerId?: string | null;
@@ -155,18 +165,22 @@ export type CustomerPlan = {
   cancelledAt?: string | null;
   saleId?: string | null;
 };
+export type CustomerSale = {
+  id: string;
+  number?: string;
+  date?: string;
+  totalAmountCents?: number;
+  paymentTerms?: PaymentTerms | null;
+  status?: string;
+  deliveryStatus?: string;
+};
 export type CustomerAccount = {
   customer: Customer;
   plans: CustomerPlan[];
   installments: InstallmentRow[];
   collections: FinancialEntry[];
   refunds: FinancialEntry[];
-  sales: Array<{
-    id: string;
-    number?: string;
-    totalAmountCents?: number;
-    paymentTerms?: PaymentTerms | null;
-  }>;
+  sales: CustomerSale[];
   balanceAmountCents: number;
   overdueAmountCents: number;
   cardPendingAmountCents: number;
