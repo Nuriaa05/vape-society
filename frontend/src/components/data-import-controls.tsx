@@ -140,8 +140,9 @@ export function DataImportControls({
         className="mt-1 text-sm text-muted-foreground"
       >
         Incluye catálogo, ventas, cobranzas, deudas con proveedores, stock por
-        origen y listas de precios. Reemplaza los datos actuales después de
-        validar el respaldo.
+        origen y listas de precios. Conserva las fechas de entrega y los costos
+        históricos usados para calcular ganancias. Reemplaza los datos actuales
+        después de validar el respaldo.
       </p>
       <input
         ref={fileInput}

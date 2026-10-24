@@ -7,8 +7,23 @@ import { priceListsRepository } from "./repositories/price-lists-repository";
 import { supplierPayablesRepository } from "./repositories/supplier-payables-repository";
 import { productsRepository } from "./repositories/products-repository";
 import { combosRepository } from "./repositories/combos-repository";
+import { stockRepository } from "./repositories/stock-repository";
 
 export const additionalDataExportOptions = [
+  {
+    id: "stock-summary",
+    label: "Resumen de Stock",
+    filename: "resumen-stock",
+    description:
+      "Valor al costo, minorista, mayorista, stock propio y deuda, con la misma referencia mayorista que Stock.",
+  },
+  {
+    id: "sale-profits",
+    label: "Ganancias por venta",
+    filename: "ganancias-por-venta",
+    description:
+      "Todas las ventas entregadas, con fecha de entrega, costo histórico y ganancia; incluye operaciones anteriores al mes actual.",
+  },
   {
     id: "customers",
     label: "Clientes",
@@ -166,6 +181,42 @@ export async function loadAdditionalDataExport(
   section: AdditionalDataExportSection,
 ): Promise<CsvCell[][]> {
   switch (section) {
+    case "stock-summary": {
+      const summary = await stockRepository.summary();
+      const reference = summary.wholesaleReference;
+      const amount = (cents: number | null) =>
+        cents === null ? "No disponible" : cents / 100;
+      return [
+        ["Indicador", "Importe ARS", "Referencia"],
+        [
+          "Valor stock al costo",
+          amount(summary.totalValueCents),
+          "Costos históricos de los ingresos",
+        ],
+        [
+          "Valor minorista",
+          amount(summary.retailValueCents),
+          "Precio de venta habitual",
+        ],
+        [
+          "Valor mayorista",
+          amount(summary.wholesaleValueCents),
+          reference
+            ? `${reference.listName} · ${reference.quantity} unidades · ${reference.fallbackProductCount} productos con precio habitual`
+            : "Sin lista de referencia",
+        ],
+        [
+          "Stock propio",
+          amount(summary.netRetailValueCents),
+          "Valor minorista menos deuda con proveedores",
+        ],
+        [
+          "Deuda",
+          amount(summary.supplierDebtCents),
+          "Saldo pendiente de proveedores",
+        ],
+      ];
+    }
     case "customers": {
       const [customers, lists] = await Promise.all([
         allPages((page) =>

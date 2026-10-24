@@ -46,6 +46,9 @@ describe("complete financial exports and backup round trip", () => {
   let directory: string;
   let productId: string;
   let saleId: string;
+  let profitProductId: string;
+  let profitSaleId: string;
+  let pendingProfitSaleId: string;
   beforeAll(async () => {
     directory = mkdtempSync(join(tmpdir(), "vape-export-import-"));
     db = await createSeededTestDatabase();
@@ -70,6 +73,7 @@ describe("complete financial exports and backup round trip", () => {
     await app.init();
     await collectionFixtures();
     await purchaseAndCardFixtures();
+    await profitFixtures();
   });
   afterAll(async () => {
     await app?.close();
@@ -87,6 +91,7 @@ describe("complete financial exports and backup round trip", () => {
       "refund-cancellations",
       "inventory-lots",
       "inventory-allocations",
+      "sale-profits",
     ]) {
       const response = await request(app.getHttpServer())
         .get(`/api/data-exports/${section}`)
@@ -97,6 +102,99 @@ describe("complete financial exports and backup round trip", () => {
     await request(app.getHttpServer())
       .get("/api/data-exports/financial-operations")
       .expect(404);
+  });
+
+  async function profitFixtures() {
+    const server = app.getHttpServer();
+    const product = await request(server)
+      .post("/api/products")
+      .send({
+        name: "Costo histórico para exportar ganancias",
+        categoryId: "c0",
+        supplierId: "s1",
+        costAmountCents: 10001,
+        priceAmountCents: 15001,
+        marginPct: 50,
+        physicalStock: 0,
+        minStock: 0,
+      })
+      .expect(201);
+    profitProductId = product.body.id;
+    await request(server)
+      .post("/api/purchases")
+      .send({
+        operationId: "export-profit-stock",
+        supplierId: "s1",
+        status: "Registrada",
+        paymentCondition: "Credito",
+        dueDate: "2027-12-31",
+        items: [
+          { productId: profitProductId, qty: 4, unitCostAmountCents: 10001 },
+        ],
+      })
+      .expect(201);
+    for (const deliveryStatus of ["Entregado", "Pendiente"]) {
+      const sale = await request(server)
+        .post("/api/sales")
+        .send({
+          operationId: `export-profit-${deliveryStatus}`,
+          paymentMethodId: "pm2",
+          deliveryStatus,
+          items: [{ productId: profitProductId, qty: 1 }],
+        })
+        .expect(201);
+      if (deliveryStatus === "Entregado") profitSaleId = sale.body.id;
+      else pendingProfitSaleId = sale.body.id;
+    }
+    await db.prisma.sale.update({
+      where: { id: profitSaleId },
+      data: { date: new Date("2024-02-29T15:00:00Z") },
+    });
+    await db.prisma.stockMovement.updateMany({
+      where: { sourceType: "Sale", sourceId: profitSaleId, type: "Venta" },
+      data: { createdAt: new Date("2026-10-21T02:30:00Z") },
+    });
+    await db.prisma.product.update({
+      where: { id: profitProductId },
+      data: { costAmountCents: 99999 },
+    });
+  }
+
+  it("exports all delivered profits at original costs and delivery dates", async () => {
+    const response = await request(app.getHttpServer())
+      .get("/api/data-exports/sale-profits")
+      .expect(200);
+    const rowIndex = response.body.findIndex(
+      (row: Rows[number]) => row[0] === profitSaleId,
+    );
+    expect(rowIndex).toBeGreaterThan(0);
+    expect(cell(response.body, "Costo ARS", rowIndex)).toBe(100.01);
+    const sale = await db.prisma.sale.findUniqueOrThrow({
+      where: { id: profitSaleId },
+    });
+    expect(cell(response.body, "Venta ARS", rowIndex)).toBe(
+      sale.totalAmountCents / 100,
+    );
+    expect(cell(response.body, "Ganancia ARS", rowIndex)).toBe(
+      (sale.totalAmountCents - 10001) / 100,
+    );
+    expect(cell(response.body, "Historial de costo completo", rowIndex)).toBe(
+      true,
+    );
+    expect(String(cell(response.body, "Fecha de venta", rowIndex))).toContain(
+      "29/02/2024",
+    );
+    expect(String(cell(response.body, "Fecha de entrega", rowIndex))).toContain(
+      "20/10/2026",
+    );
+    expect(
+      response.body
+        .slice(1)
+        .some(
+          (row: Rows[number]) =>
+            row[0] === saleId || row[0] === pendingProfitSaleId,
+        ),
+    ).toBe(false);
   });
 
   async function collectionFixtures() {
@@ -396,12 +494,35 @@ describe("complete financial exports and backup round trip", () => {
   });
 
   it("previews and restores every imported table with its original values in a temporary database", async () => {
+    const server = app.getHttpServer();
+    const reportQuery = {
+      from: "2026-10-01T03:00:00.000Z",
+      to: "2026-11-01T03:00:00.000Z",
+    };
+    const expectedReports = [];
+    for (const groupBy of ["day", "tenDays", "month"]) {
+      const response = await request(server)
+        .get("/api/reports/profit")
+        .query({ ...reportQuery, groupBy })
+        .expect(200);
+      expectedReports.push(response.body);
+    }
+    const expectedStock = (
+      await request(server).get("/api/stock/summary").expect(200)
+    ).body;
+    const expectedProfits = (
+      await request(server).get("/api/data-exports/sale-profits").expect(200)
+    ).body;
     const backup = await app.get(BackupsService).createBackup();
     const path = join(directory, backup.filename);
     const expected = importedTables(path);
     await db.prisma.customer.update({
       where: { id: "export-customer" },
       data: { name: "Cambio posterior" },
+    });
+    await db.prisma.inventoryLot.updateMany({
+      where: { productId: profitProductId },
+      data: { unitCostAmountCents: 1 },
     });
     const preview = await request(app.getHttpServer())
       .post("/api/backups/import/validate")
@@ -438,5 +559,19 @@ describe("complete financial exports and backup round trip", () => {
       .send({ confirmed: true })
       .expect(201);
     expect(importedTables(db.url.slice("file:".length))).toEqual(expected);
+    for (const [index, groupBy] of ["day", "tenDays", "month"].entries()) {
+      const response = await request(server)
+        .get("/api/reports/profit")
+        .query({ ...reportQuery, groupBy })
+        .expect(200);
+      expect(response.body).toEqual(expectedReports[index]);
+    }
+    expect(
+      (await request(server).get("/api/stock/summary").expect(200)).body,
+    ).toEqual(expectedStock);
+    expect(
+      (await request(server).get("/api/data-exports/sale-profits").expect(200))
+        .body,
+    ).toEqual(expectedProfits);
   });
 });

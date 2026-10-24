@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
+import { getCostedSales } from "../reports/sales-profit";
 
 type CsvCell = string | number | boolean | null;
 type ExportRows = CsvCell[][];
@@ -25,6 +26,8 @@ export class DataExportsService {
 
   async rows(section: string): Promise<ExportRows> {
     switch (section) {
+      case "sale-profits":
+        return this.saleProfits();
       case "customer-plans":
         return this.plans();
       case "collections":
@@ -44,6 +47,64 @@ export class DataExportsService {
       default:
         throw new NotFoundException("La sección de exportación no existe.");
     }
+  }
+
+  private async saleProfits(): Promise<ExportRows> {
+    const header = [
+      "ID venta",
+      "Comprobante",
+      "Cliente original",
+      "Fecha de venta",
+      "Fecha de entrega",
+      "Venta ARS",
+      "Costo ARS",
+      "Ganancia ARS",
+      "Historial de costo completo",
+    ];
+    const [sales, deliveries] = await Promise.all([
+      this.prisma.sale.aggregate({
+        where: { status: "Confirmada", deliveryStatus: "Entregado" },
+        _min: { date: true },
+        _max: { date: true },
+      }),
+      this.prisma.stockMovement.aggregate({
+        where: { sourceType: "Sale", type: "Venta", reversalOfId: null },
+        _min: { createdAt: true },
+        _max: { createdAt: true },
+      }),
+    ]);
+    if (!sales._min.date) return [header];
+    const dates = [
+      sales._min.date,
+      sales._max.date,
+      deliveries._min.createdAt,
+      deliveries._max.createdAt,
+    ]
+      .filter((date): date is Date => date !== null)
+      .map((date) => date.getTime());
+    const entries = await getCostedSales(
+      this.prisma,
+      new Date(Math.min(...dates)),
+      new Date(Math.max(...dates) + 1),
+    );
+    return [
+      header,
+      ...entries.map((sale) => [
+        sale.id,
+        sale.number,
+        sale.customerName ?? "Consumidor final",
+        dateTime(new Date(sale.saleDate)),
+        dateTime(new Date(sale.deliveredAt)),
+        pesos(sale.revenueAmountCents),
+        sale.costAmountCents === null
+          ? "No disponible"
+          : pesos(sale.costAmountCents),
+        sale.profitAmountCents === null
+          ? "No disponible"
+          : pesos(sale.profitAmountCents),
+        !sale.missingCost,
+      ]),
+    ];
   }
 
   private async plans(): Promise<ExportRows> {

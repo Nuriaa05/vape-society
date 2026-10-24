@@ -140,39 +140,40 @@ describe("settings data exports", () => {
     },
   );
 
-  it.each(dataExportOptions.filter((option) => option.id !== "settings"))(
-    "exports an empty $label section with its headers",
-    async ({ id }) => {
-      vi.stubGlobal(
-        "fetch",
-        vi.fn((input) => {
-          const path = new URL(String(input)).pathname;
-          if (path.includes("/data-exports/"))
-            return respond([["ID registro", "Detalle"]]);
-          if (
-            [
-              "/customers",
-              "/collections",
-              "/collections/refunds",
-              "/card-settlements",
-              "/supplier-payables",
-            ].some((suffix) => path.endsWith(suffix))
-          ) {
-            return respond({ items: [], total: 0, hasMore: false });
-          }
-          return respond([]);
-        }),
-      );
-      const rows = await loadDataExport(id);
-      expect(rows).toHaveLength(1);
-      expect(rows[0].length).toBeGreaterThan(1);
-      expect(
-        rows[0].every(
-          (column) => typeof column === "string" && column.length > 0,
-        ),
-      ).toBe(true);
-    },
-  );
+  it.each(
+    dataExportOptions.filter(
+      (option) => !["settings", "stock-summary"].includes(option.id),
+    ),
+  )("exports an empty $label section with its headers", async ({ id }) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input) => {
+        const path = new URL(String(input)).pathname;
+        if (path.includes("/data-exports/"))
+          return respond([["ID registro", "Detalle"]]);
+        if (
+          [
+            "/customers",
+            "/collections",
+            "/collections/refunds",
+            "/card-settlements",
+            "/supplier-payables",
+          ].some((suffix) => path.endsWith(suffix))
+        ) {
+          return respond({ items: [], total: 0, hasMore: false });
+        }
+        return respond([]);
+      }),
+    );
+    const rows = await loadDataExport(id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].length).toBeGreaterThan(1);
+    expect(
+      rows[0].every(
+        (column) => typeof column === "string" && column.length > 0,
+      ),
+    ).toBe(true);
+  });
 
   it("exports all sales, optional clients and cancelled sales without a preview limit", async () => {
     const sales = Array.from({ length: 103 }, (_, index) => ({

@@ -6,6 +6,9 @@ export function validateSupplierInventoryImport(database: DatabaseSync): void {
     `SELECT 1 FROM StockMovement m WHERE m.unallocatedQty<0 OR (m.unallocatedQty>0 AND
       (m.sourceType<>'Sale' OR m.type<>'Venta' OR m.unallocatedQty>-m.physicalDelta
       OR -m.physicalDelta<>m.unallocatedQty-(SELECT COALESCE(SUM(a.qty),0) FROM InventoryAllocation a WHERE a.stockMovementId=m.id))) LIMIT 1`,
+    `SELECT 1 FROM StockMovement m WHERE m.sourceType='Sale' AND m.type='Venta'
+      AND EXISTS(SELECT 1 FROM InventoryAllocation a WHERE a.stockMovementId=m.id)
+      AND m.physicalDelta<>(SELECT COALESCE(SUM(a.qty),0) FROM InventoryAllocation a WHERE a.stockMovementId=m.id)-m.unallocatedQty LIMIT 1`,
     `SELECT 1 FROM Product p WHERE MAX(p.physicalStock, 0) <> (
       SELECT COALESCE(SUM(l.remainingQty), 0) FROM InventoryLot l WHERE l.productId=p.id) LIMIT 1`,
     `SELECT 1 FROM InventoryLot l WHERE l.initialQty <= 0 OR l.remainingQty < 0

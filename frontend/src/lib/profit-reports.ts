@@ -107,6 +107,12 @@ export function buildProfitExportRows(report: ProfitReport): CsvCell[][] {
       "Cálculo",
       "Ventas entregadas menos costo histórico de los productos vendidos",
     ],
+    ["Ventas entregadas del período ARS", report.summary.revenue],
+    [
+      "Costo de productos vendidos ARS",
+      profitExportAmount(report.summary.cost),
+    ],
+    ["Ganancia del período ARS", profitExportAmount(report.summary.profit)],
     [],
     [
       "Período",
@@ -126,16 +132,6 @@ export function buildProfitExportRows(report: ProfitReport): CsvCell[][] {
       profitExportAmount(bucket.profit),
       bucket.missingCostSalesCount,
     ]),
-    [],
-    [
-      "Total",
-      "",
-      report.summary.salesCount,
-      report.summary.revenue,
-      profitExportAmount(report.summary.cost),
-      profitExportAmount(report.summary.profit),
-      report.summary.missingCostSalesCount,
-    ],
   ];
 }
 

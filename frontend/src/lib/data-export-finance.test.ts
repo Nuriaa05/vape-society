@@ -34,11 +34,85 @@ describe("complete exports after financing and wholesale pricing", () => {
         "supplier-refunds",
         "inventory-lots",
         "inventory-allocations",
+        "stock-summary",
+        "sale-profits",
         "price-lists",
         "price-list-tiers",
         "price-list-prices",
       ]),
     );
+  });
+
+  it.each([123456, null])(
+    "exports the five stock indicators using server values and wholesale reference %s",
+    async (wholesaleValueCents) => {
+      const fetchMock = vi.fn<typeof fetch>(() =>
+        respond({
+          totalValueCents: 1800001,
+          retailValueCents: 2300002,
+          wholesaleValueCents,
+          supplierDebtCents: 2400003,
+          netRetailValueCents: -100001,
+          wholesaleReference:
+            wholesaleValueCents === null
+              ? null
+              : {
+                  listName: "General",
+                  quantity: 3,
+                  fallbackProductCount: 2,
+                },
+        }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      const rows = await loadDataExport("stock-summary" as DataExportSection);
+      expect(rows).toHaveLength(6);
+      const value = (label: string) =>
+        rows.find((row) => row[0] === label)?.[1];
+      expect(value("Valor stock al costo")).toBe(18000.01);
+      expect(value("Valor minorista")).toBe(23000.02);
+      expect(value("Valor mayorista")).toBe(
+        wholesaleValueCents === null ? "No disponible" : 1234.56,
+      );
+      expect(value("Stock propio")).toBe(-1000.01);
+      expect(value("Deuda")).toBe(24000.03);
+      if (wholesaleValueCents !== null) {
+        expect(rows.find((row) => row[0] === "Valor mayorista")?.[2]).toContain(
+          "General",
+        );
+        expect(rows.find((row) => row[0] === "Valor mayorista")?.[2]).toContain(
+          "3 unidades",
+        );
+        expect(rows.find((row) => row[0] === "Valor mayorista")?.[2]).toContain(
+          "2 productos",
+        );
+      }
+      expect(new URL(String(fetchMock.mock.calls[0][0])).pathname).toBe(
+        "/api/stock/summary",
+      );
+    },
+  );
+
+  it("exports an empty stock summary as zero amounts rather than missing rows", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        respond({
+          totalValueCents: 0,
+          retailValueCents: 0,
+          wholesaleValueCents: 0,
+          supplierDebtCents: 0,
+          netRetailValueCents: 0,
+          wholesaleReference: {
+            listName: "General",
+            quantity: 3,
+            fallbackProductCount: 0,
+          },
+        }),
+      ),
+    );
+    const rows = await loadDataExport("stock-summary");
+    expect(rows).toHaveLength(6);
+    expect(rows.slice(1).every((row) => row[1] === 0)).toBe(true);
   });
 
   it("exports paid, credit and unclassified stock at its historical lot costs", async () => {

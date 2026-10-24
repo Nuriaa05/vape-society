@@ -257,6 +257,19 @@ describe("profit report navigation and exports", () => {
       summary,
       buckets,
     });
+    expect(rows).toContainEqual([
+      "Ventas entregadas del período ARS",
+      summary.revenue,
+    ]);
+    expect(rows).toContainEqual([
+      "Costo de productos vendidos ARS",
+      summary.cost,
+    ]);
+    expect(rows).toContainEqual(["Ganancia del período ARS", summary.profit]);
+    expect(
+      rows.some((row) => row[0] === "Total" || row[0] === "Total del período"),
+    ).toBe(false);
+    expect(rows.at(-1)?.[0]).toBe("Grupo 13");
     expect(rows.some((row) => row[0] === "Grupo 13")).toBe(true);
     expect(rows.find((row) => row[0] === "Grupo 1")).toContain(-2);
     expect(rows.find((row) => row[0] === "Grupo 1")).toContain(10.01);
@@ -300,5 +313,25 @@ describe("profit report navigation and exports", () => {
     expect(row).toContain("29/02/2024");
     expect(row).toContain("Consumidor final");
     expect(row).toContain(0);
+  });
+
+  it("keeps unverifiable historical costs unavailable in the summary export", () => {
+    const rows = buildProfitExportRows({
+      ...dates,
+      groupBy: "day",
+      buckets: [],
+      summary: {
+        ...summary,
+        cost: null,
+        profit: null,
+        missingCostSalesCount: 1,
+      },
+    });
+    expect(rows).toContainEqual([
+      "Costo de productos vendidos ARS",
+      "No disponible",
+    ]);
+    expect(rows).toContainEqual(["Ganancia del período ARS", "No disponible"]);
+    expect(rows.some((row) => row[0] === "Total")).toBe(false);
   });
 });

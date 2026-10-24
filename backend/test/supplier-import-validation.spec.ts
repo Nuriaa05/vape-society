@@ -149,4 +149,31 @@ describe("supplier inventory backup integrity", () => {
     );
     expect(() => validateSupplierInventoryImport(database)).not.toThrow();
   });
+
+  it.each([-1, -2])(
+    "checks the delivered quantity against historical allocations %s",
+    (physicalDelta) => {
+      database.exec(`
+      INSERT INTO StockMovement(id,productId,type,sourceType,sourceId,physicalDelta)
+        VALUES('sold','p','Venta','Sale','historical-sale',${physicalDelta});
+      INSERT INTO InventoryAllocation(id,lotId,stockMovementId,qty)
+        VALUES('sold-allocation','lot','sold',-1);
+      UPDATE InventoryLot SET remainingQty=2 WHERE id='lot';
+      UPDATE Product SET physicalStock=12 WHERE id='p';
+    `);
+      if (physicalDelta === -1) {
+        expect(() => validateSupplierInventoryImport(database)).not.toThrow();
+      } else {
+        expect(() => validateSupplierInventoryImport(database)).toThrow(
+          "inconsistentes",
+        );
+      }
+    },
+  );
+
+  it("keeps legacy sales without cost allocations importable", () => {
+    database.exec(`INSERT INTO StockMovement(id,productId,type,sourceType,sourceId,physicalDelta)
+      VALUES('legacy-sale','p','Venta','Sale','legacy-sale',-2)`);
+    expect(() => validateSupplierInventoryImport(database)).not.toThrow();
+  });
 });
