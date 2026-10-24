@@ -294,6 +294,7 @@ export function ProfitReportPage({
             </p>
           )}
           <ProfitReportTable
+            key={requestKey}
             report={report}
             disabled={busy}
             onSelect={(bucket) => setSelected({ key: requestKey, bucket })}
