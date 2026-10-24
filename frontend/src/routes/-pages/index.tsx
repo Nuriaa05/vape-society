@@ -153,7 +153,7 @@ export function Dashboard() {
               action={
                 <Button asChild variant="ghost" size="sm">
                   <Link to="/ventas" search={{ entrega: "Pendiente" }}>
-                    Ver pendientes
+                    Ver pendientes <ArrowUpRight className="h-3 w-3" />
                   </Link>
                 </Button>
               }
@@ -189,7 +189,9 @@ export function Dashboard() {
               title="Alertas de stock"
               action={
                 <Button asChild variant="ghost" size="sm">
-                  <Link to="/stock">Ver stock</Link>
+                  <Link to="/stock">
+                    Ver stock <ArrowUpRight className="h-3 w-3" />
+                  </Link>
                 </Button>
               }
             />
